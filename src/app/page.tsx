@@ -22,8 +22,6 @@ const cats = [
   { id:'Other', label:'Other', emoji:'🍽️' },
 ]
 
-const cities = ['London','Manchester','Birmingham','Leeds','Bristol','Sheffield','Liverpool','Edinburgh','Glasgow','Cardiff','Newcastle','Nottingham']
-
 const COMMISSION_RATE = 0.12
 const cookColors = ['#C8006A','#A00055']
 
@@ -39,9 +37,9 @@ const Logo = ({height=38, white=false}:{height?:number, white?:boolean}) => (
 
 export default function Home() {
   const [cat, setCat] = useState('all')
-  const [search, setSearch] = useState('')
-  const [city, setCity] = useState('')
-  const [cuisine, setCuisine] = useState('')
+  const [postcode, setPostcode] = useState('')
+  const [detectingLocation, setDetectingLocation] = useState(false)
+  const [locationError, setLocationError] = useState('')
   const [saved, setSaved] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [listings, setListings] = useState<any[]>([])
@@ -111,6 +109,8 @@ export default function Home() {
   const payoutPct = Math.round((1 - COMMISSION_RATE) * 100)
   const showcaseListings = [...listings].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0)).slice(0, 3)
 
+  // TODO: once we have a UK postcode geocoding table, filter `listings` by
+  // distance from `postcode` here instead of just passing it through unused.
   const filtered = listings.filter(l =>
     (cat === 'all' || l.cuisine === cat) &&
     (query === '' || l.name.toLowerCase().includes(query.toLowerCase()))
@@ -123,11 +123,41 @@ export default function Home() {
     if (catRef.current) catRef.current.scrollLeft += dir * 200
   }
 
+  const detectLocation = () => {
+    setLocationError('')
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser')
+      return
+    }
+    setDetectingLocation(true)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords
+          const res = await fetch(`https://api.postcodes.io/postcodes?lon=${longitude}&lat=${latitude}`)
+          const json = await res.json()
+          const found = json.result?.[0]?.postcode
+          if (found) setPostcode(found)
+          else setLocationError('Could not find a postcode near you')
+        } catch {
+          setLocationError('Could not detect your location')
+        } finally {
+          setDetectingLocation(false)
+        }
+      },
+      () => {
+        setLocationError('Location permission denied')
+        setDetectingLocation(false)
+      }
+    )
+  }
+
   return (
     <div style={{minHeight:'100vh', background:'#fff', fontFamily:'Inter,system-ui,sans-serif', overflowX:'hidden'}}>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
         html { scroll-behavior: smooth; }
         ::-webkit-scrollbar { width: 0; height: 0; }
@@ -220,34 +250,23 @@ export default function Home() {
             </p>
 
             {/* Search */}
-            <div style={{background:'#fff', borderRadius:16, padding:8, boxShadow:'0 8px 48px rgba(0,0,0,0.28)', marginBottom:28}}>
-              <div className="search-row" style={{display:'flex', gap:8, marginBottom:8}}>
-                <div className="search-field" style={{display:'flex', alignItems:'center', gap:8, flex:1, padding:'0 14px', background:'#F8F0F4', borderRadius:10, minWidth:0}}>
-                  <span style={{fontSize:18, flexShrink:0}}>📍</span>
-                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Postcode or area..." style={{border:'none', outline:'none', fontSize:14, fontWeight:500, color:'#1A1A1A', width:'100%', height:44, background:'transparent', minWidth:0}}/>
-                </div>
-                <div className="search-field" style={{display:'flex', alignItems:'center', gap:8, flex:1, padding:'0 14px', background:'#F8F0F4', borderRadius:10, minWidth:0}}>
-                  <span style={{fontSize:18, flexShrink:0}}>🏙️</span>
-                  <select value={city} onChange={e => setCity(e.target.value)} style={{border:'none', outline:'none', fontSize:14, fontWeight:500, color:city?'#1A1A1A':'#8C8C8C', background:'transparent', width:'100%', height:44, cursor:'pointer', appearance:'none' as const}}>
-                    <option value="">Select city</option>
-                    {cities.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
+            <div style={{background:'#fff', borderRadius:16, padding:8, boxShadow:'0 8px 48px rgba(0,0,0,0.28)', marginBottom:locationError?8:28}}>
               <div className="search-row" style={{display:'flex', gap:8}}>
-                <div className="search-field" style={{display:'flex', alignItems:'center', gap:8, flex:1, padding:'0 14px', background:'#F8F0F4', borderRadius:10, minWidth:0}}>
-                  <span style={{fontSize:18, flexShrink:0}}>🍽️</span>
-                  <select value={cuisine} onChange={e => setCuisine(e.target.value)} style={{border:'none', outline:'none', fontSize:14, fontWeight:500, color:cuisine?'#1A1A1A':'#8C8C8C', background:'transparent', width:'100%', height:44, cursor:'pointer', appearance:'none' as const}}>
-                    <option value="">Any cuisine</option>
-                    <option>Bangladeshi</option><option>Pakistani</option><option>Indian</option>
-                    <option>Caribbean</option><option>Middle Eastern</option><option>West African</option>
-                  </select>
+                <div className="search-field" style={{display:'flex', alignItems:'center', gap:8, flex:1, padding:'0 8px 0 14px', background:'#F8F0F4', borderRadius:10, minWidth:0}}>
+                  <span style={{fontSize:18, flexShrink:0}}>📍</span>
+                  <input value={postcode} onChange={e => setPostcode(e.target.value.toUpperCase())} placeholder="Enter your postcode to find home cooks near you" style={{border:'none', outline:'none', fontSize:14, fontWeight:500, color:'#1A1A1A', width:'100%', height:44, background:'transparent', minWidth:0}}/>
+                  <button type="button" onClick={detectLocation} disabled={detectingLocation} title="Use my location" style={{width:34, height:34, borderRadius:8, border:'none', background:detectingLocation?'transparent':'#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', cursor:detectingLocation?'default':'pointer', flexShrink:0, fontSize:16}}>
+                    {detectingLocation
+                      ? <span style={{width:16, height:16, border:'2.5px solid #FFE8F4', borderTop:'2.5px solid #C8006A', borderRadius:'50%', display:'inline-block', animation:'spin 0.8s linear infinite'}}/>
+                      : '🧭'}
+                  </button>
                 </div>
                 <button className="primary-btn" style={{height:52, padding:'0 28px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(200,0,106,0.4)', transition:'background 0.12s', flexShrink:0}}>
                   Find food →
                 </button>
               </div>
             </div>
+            {locationError && <p style={{fontSize:12, color:'#fff', background:'rgba(0,0,0,0.2)', borderRadius:8, padding:'6px 12px', display:'inline-block', marginBottom:20}}>{locationError}</p>}
 
             <div className="hero-stats" style={{display:'flex', gap:24, flexWrap:'wrap'}}>
               {[
@@ -337,6 +356,9 @@ export default function Home() {
       {/* ── LISTINGS ── */}
       <section style={{padding:'52px 0', background:'#F8F0F4'}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
+          {postcode.trim() && (
+            <div style={{fontSize:13, fontWeight:600, color:'#C8006A', marginBottom:14}}>📍 Showing food near {postcode.trim()}</div>
+          )}
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:12}}>
             <div style={{fontSize:15, fontWeight:700, color:'#1A1A1A'}}><span style={{color:'#C8006A'}}>{filtered.length}</span> dishes available</div>
             <div style={{display:'flex', gap:8}}>
