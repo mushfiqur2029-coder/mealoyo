@@ -54,8 +54,8 @@ export default function Register() {
           {['Choose role','Your details'].map((label,i) => (
             <div key={i} style={{ display:'flex', alignItems:'center', flex:1 }}>
               <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                <div style={{ width:28, height:28, borderRadius:'50%', background:step>=i+1?'#C8006A':'#E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:step>=i+1?'#fff':'#888' }}>{i+1}</div>
-                <span style={{ fontSize:10, color:step===i+1?'#C8006A':'#888', fontWeight:600, whiteSpace:'nowrap' }}>{label}</span>
+                <div style={{ width:28, height:28, borderRadius:'50%', background:step>=i+1?'#C8006A':'#E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:step>=i+1?'#fff':'#1A1A1A' }}>{i+1}</div>
+                <span style={{ fontSize:10, color:step===i+1?'#C8006A':'#1A1A1A', fontWeight:600, whiteSpace:'nowrap' }}>{label}</span>
               </div>
               {i<1 && <div style={{ flex:1, height:2, background:step>1?'#C8006A':'#E0E0E0', margin:'0 8px', marginBottom:16 }}/>}
             </div>
@@ -65,12 +65,12 @@ export default function Register() {
         {step === 1 && (
           <div>
             <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:4 }}>Join meaLoyo</h1>
-            <p style={{ fontSize:14, color:'#555', marginBottom:20 }}>How do you want to use meaLoyo?</p>
+            <p style={{ fontSize:14, color:'#1A1A1A', marginBottom:20 }}>How do you want to use meaLoyo?</p>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:24 }}>
               {roles.map(r => (
                 <div key={r.id} onClick={() => setRole(r.id)} style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 16px', background:role===r.id?r.bg:'#F8F8F8', border:role===r.id?`2px solid ${r.color}`:'1.5px solid #E0E0E0', borderRadius:14, cursor:'pointer', transition:'all 0.14s' }}>
                   <span style={{ fontSize:26 }}>{r.icon}</span>
-                  <div style={{ flex:1 }}><div style={{ fontSize:14, fontWeight:700, color:role===r.id?r.color:'#1A1A1A' }}>{r.title}</div><div style={{ fontSize:12, color:'#666', marginTop:2 }}>{r.sub}</div></div>
+                  <div style={{ flex:1 }}><div style={{ fontSize:14, fontWeight:700, color:role===r.id?r.color:'#1A1A1A' }}>{r.title}</div><div style={{ fontSize:12, color:'#1A1A1A', marginTop:2 }}>{r.sub}</div></div>
                   <div style={{ width:20, height:20, borderRadius:'50%', border:role===r.id?`2px solid ${r.color}`:'2px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center' }}>
                     {role===r.id && <div style={{ width:10, height:10, borderRadius:'50%', background:r.color }}/>}
                   </div>
@@ -89,9 +89,9 @@ export default function Register() {
           <form onSubmit={handleRegister} style={{ display:'flex', flexDirection:'column', gap:14 }}>
             <div>
               <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:4 }}>Your details</h1>
-              <p style={{ fontSize:14, color:'#555', marginBottom:4 }}>
+              <p style={{ fontSize:14, color:'#1A1A1A', marginBottom:4 }}>
                 Registering as <span style={{ color:'#C8006A', fontWeight:700 }}>{role==='buyer'?'a Buyer':role==='seller'?'a Seller':'a Driver'}</span>
-                {' '}<button type="button" onClick={() => setStep(1)} style={{ background:'none', border:'none', color:'#888', fontSize:12, cursor:'pointer', textDecoration:'underline' }}>change</button>
+                {' '}<button type="button" onClick={() => setStep(1)} style={{ background:'none', border:'none', color:'#1A1A1A', fontSize:12, cursor:'pointer', textDecoration:'underline' }}>change</button>
               </p>
             </div>
             {[
@@ -112,12 +112,12 @@ export default function Register() {
                 {loading ? 'Creating account...' : 'Create account →'}
               </button>
             </div>
-            <p style={{ textAlign:'center', fontSize:12, color:'#888', lineHeight:1.5 }}>
+            <p style={{ textAlign:'center', fontSize:12, color:'#1A1A1A', lineHeight:1.5 }}>
               By creating an account you agree to our <Link href="/terms" style={{ color:'#C8006A', fontWeight:600 }}>Terms</Link> and <Link href="/privacy" style={{ color:'#C8006A', fontWeight:600 }}>Privacy Policy</Link>
             </p>
           </form>
         )}
-        <p style={{ textAlign:'center', fontSize:13, color:'#555', marginTop:20 }}>
+        <p style={{ textAlign:'center', fontSize:13, color:'#1A1A1A', marginTop:20 }}>
           Already have an account? <Link href="/login" style={{ color:'#C8006A', fontWeight:700 }}>Sign in →</Link>
         </p>
       </div>

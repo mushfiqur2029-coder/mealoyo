@@ -16,7 +16,7 @@ export default function DriverDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUser(user)
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
       const { count } = await supabase.from('orders').select('id', { count: 'exact', head: true }).eq('driver_id', user.id).eq('status', 'delivered')
       setCompletedDrops(count ?? 0)

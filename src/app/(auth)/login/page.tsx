@@ -17,8 +17,8 @@ export default function Login() {
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
     if (authError) { setError(authError.message); setLoading(false); return }
     if (data.user) {
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single()
-      const role = profile?.role || 'buyer'
+      const { data: profile } = await supabase.rpc('get_my_profile')
+      const role = (profile as any)?.role || 'buyer'
       if (role === 'buyer') router.push('/buyer/dashboard')
       else if (role === 'seller') router.push('/seller/dashboard')
       else if (role === 'driver') router.push('/driver/dashboard')
@@ -35,7 +35,7 @@ export default function Login() {
       </Link>
       <div style={{ background:'#fff', borderRadius:24, padding:'40px 36px', width:'100%', maxWidth:420, boxShadow:'0 24px 80px rgba(0,0,0,0.25)' }}>
         <h1 style={{ fontFamily:'Georgia,serif', fontSize:26, fontWeight:700, color:'#1A1A1A', marginBottom:6 }}>Welcome back</h1>
-        <p style={{ fontSize:14, color:'#555', marginBottom:28 }}>Sign in to your meaLoyo account</p>
+        <p style={{ fontSize:14, color:'#1A1A1A', marginBottom:28 }}>Sign in to your meaLoyo account</p>
         {error && <div style={{ background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'12px 14px', marginBottom:20, fontSize:13, color:'#C8006A', fontWeight:600 }}>{error}</div>}
         <form onSubmit={handleLogin} style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
@@ -54,9 +54,9 @@ export default function Login() {
           </button>
         </form>
         <div style={{ display:'flex', alignItems:'center', gap:12, margin:'24px 0' }}>
-          <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#888' }}>or</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
+          <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
         </div>
-        <p style={{ textAlign:'center', fontSize:13, color:'#555' }}>
+        <p style={{ textAlign:'center', fontSize:13, color:'#1A1A1A' }}>
           Don't have an account? <Link href="/register" style={{ color:'#C8006A', fontWeight:700 }}>Create account →</Link>
         </p>
       </div>

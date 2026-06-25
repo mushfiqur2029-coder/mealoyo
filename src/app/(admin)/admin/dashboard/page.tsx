@@ -16,12 +16,12 @@ export default function AdminDashboard() {
     const getData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/admin/login'); return }
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-      if (profile?.role !== 'admin') { router.push('/'); return }
+      const { data: profile } = await supabase.rpc('get_my_profile')
+      if ((profile as any)?.role !== 'admin') { router.push('/'); return }
       setProfile(profile)
-      const { data: pendingSellers } = await supabase.from('profiles').select('*').eq('role','seller').eq('status','pending')
-      const { data: pendingDrivers } = await supabase.from('profiles').select('*').eq('role','driver').eq('status','pending')
-      const { data: pendingListings } = await supabase.from('listings').select('*, profiles:seller_id(full_name)').eq('status','pending')
+      const { data: pendingSellers } = await supabase.rpc('admin_get_profiles_by_status', { p_role: 'seller', p_status: 'pending' })
+      const { data: pendingDrivers } = await supabase.rpc('admin_get_profiles_by_status', { p_role: 'driver', p_status: 'pending' })
+      const { data: pendingListings } = await supabase.rpc('admin_get_listings_by_status', { p_status: 'pending' })
       setSellers(pendingSellers || [])
       setDrivers(pendingDrivers || [])
       setListings(pendingListings || [])
@@ -32,22 +32,26 @@ export default function AdminDashboard() {
 
   const approve = async (id: string, type: 'profile'|'listing') => {
     if (type === 'profile') {
-      await supabase.from('profiles').update({status:'active'}).eq('id', id)
+      const { error } = await supabase.rpc('admin_update_profile_status', { p_id: id, p_status: 'active' })
+      if (error) { alert('Could not approve: ' + error.message); return }
       setSellers(prev => prev.filter(s => s.id !== id))
       setDrivers(prev => prev.filter(d => d.id !== id))
     } else {
-      await supabase.from('listings').update({status:'live'}).eq('id', id)
+      const { error } = await supabase.rpc('admin_update_listing_status', { p_id: id, p_status: 'live' })
+      if (error) { alert('Could not approve: ' + error.message); return }
       setListings(prev => prev.filter(l => l.id !== id))
     }
   }
 
   const reject = async (id: string, type: 'profile'|'listing') => {
     if (type === 'profile') {
-      await supabase.from('profiles').update({status:'suspended'}).eq('id', id)
+      const { error } = await supabase.rpc('admin_update_profile_status', { p_id: id, p_status: 'suspended' })
+      if (error) { alert('Could not reject: ' + error.message); return }
       setSellers(prev => prev.filter(s => s.id !== id))
       setDrivers(prev => prev.filter(d => d.id !== id))
     } else {
-      await supabase.from('listings').update({status:'suspended'}).eq('id', id)
+      const { error } = await supabase.rpc('admin_update_listing_status', { p_id: id, p_status: 'suspended' })
+      if (error) { alert('Could not reject: ' + error.message); return }
       setListings(prev => prev.filter(l => l.id !== id))
     }
   }
@@ -119,7 +123,7 @@ export default function AdminDashboard() {
               </h2>
             </div>
             {section.items.length===0?(
-              <div style={{padding:'32px',textAlign:'center',color:'rgba(255,255,255,0.3)',fontSize:14}}>No pending {section.title.toLowerCase()}</div>
+              <div style={{padding:'32px',textAlign:'center',color:'rgba(255,255,255,0.3)',fontSize:14}}>No {section.title.toLowerCase()}</div>
             ):section.items.map((item,i)=>(
               <div key={item.id} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 22px',borderBottom:i<section.items.length-1?'1px solid rgba(255,255,255,0.05)':'none'}}>
                 <div style={{width:38,height:38,borderRadius:'50%',background:'#C8006A',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'#fff',flexShrink:0}}>

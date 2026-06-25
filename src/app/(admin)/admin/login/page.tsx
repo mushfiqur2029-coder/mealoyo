@@ -16,8 +16,8 @@ export default function AdminLogin() {
     const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
     if (authError) { setError('Invalid credentials'); setLoading(false); return }
     if (data.user) {
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single()
-      if (profile?.role !== 'admin') { await supabase.auth.signOut(); setError('Access denied. Admin only.'); setLoading(false); return }
+      const { data: profile } = await supabase.rpc('get_my_profile')
+      if ((profile as any)?.role !== 'admin') { await supabase.auth.signOut(); setError('Access denied. Admin only.'); setLoading(false); return }
       router.push('/admin/dashboard')
     }
   }
@@ -31,12 +31,12 @@ export default function AdminLogin() {
       </div>
       <div style={{ background:'#2A2A2A', borderRadius:20, padding:'36px', width:'100%', maxWidth:380, border:'1px solid rgba(200,0,106,0.2)' }}>
         <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#fff', marginBottom:6 }}>Admin access</h1>
-        <p style={{ fontSize:13, color:'#888', marginBottom:24 }}>Restricted to authorised administrators only</p>
+        <p style={{ fontSize:13, color:'#fff', marginBottom:24 }}>Restricted to authorised administrators only</p>
         {error && <div style={{ background:'rgba(200,0,106,0.15)', border:'1px solid rgba(200,0,106,0.3)', borderRadius:8, padding:'10px 12px', marginBottom:16, fontSize:13, color:'#FF69B4', fontWeight:600 }}>{error}</div>}
         <form onSubmit={handleLogin} style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {[{label:'Email',val:email,set:setEmail,type:'email',ph:'Admin email'},{label:'Password',val:password,set:setPassword,type:'password',ph:'Admin password'}].map(f => (
             <div key={f.label} style={{ display:'flex', flexDirection:'column', gap:5 }}>
-              <label style={{ fontSize:11, fontWeight:700, color:'#888', textTransform:'uppercase', letterSpacing:'0.06em' }}>{f.label}</label>
+              <label style={{ fontSize:11, fontWeight:700, color:'#fff', textTransform:'uppercase', letterSpacing:'0.06em' }}>{f.label}</label>
               <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} required style={{ height:46, border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, padding:'0 14px', fontSize:14, color:'#fff', background:'rgba(255,255,255,0.06)', width:'100%' }}/>
             </div>
           ))}

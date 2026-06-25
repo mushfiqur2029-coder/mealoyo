@@ -20,7 +20,7 @@ export default function BuyerDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUser(user)
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
       const { data: orders } = await supabase.from('orders').select('*, listings(name,cuisine)').eq('buyer_id', user.id).order('created_at', { ascending: false }).limit(5)
       setOrders(orders || [])

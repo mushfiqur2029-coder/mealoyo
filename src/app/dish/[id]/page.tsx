@@ -1,11 +1,12 @@
 
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-export default function DishPage({ params }: { params: { id: string } }) {
+export default function DishPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const [listing, setListing] = useState<any>(null)
   const [seller, setSeller] = useState<any>(null)
   const [user, setUser] = useState<any>(null)
@@ -24,8 +25,8 @@ export default function DishPage({ params }: { params: { id: string } }) {
       setUser(user)
       const { data: listing } = await supabase
         .from('listings')
-        .select('*, profiles:seller_id(id, full_name, email)')
-        .eq('id', params.id)
+        .select('*, profiles:seller_id(id, full_name)')
+        .eq('id', id)
         .single()
       if (!listing) { router.push('/'); return }
       setListing(listing)
@@ -33,7 +34,7 @@ export default function DishPage({ params }: { params: { id: string } }) {
       setLoading(false)
     }
     getData()
-  }, [params.id])
+  }, [id])
 
   const handleOrder = async () => {
     if (!user) { router.push('/login'); return }

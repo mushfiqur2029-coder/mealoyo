@@ -20,7 +20,7 @@ export default function SellerDashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUser(user)
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
       const { data: listings } = await supabase.from('listings').select('*').eq('seller_id', user.id)
       setListings(listings || [])

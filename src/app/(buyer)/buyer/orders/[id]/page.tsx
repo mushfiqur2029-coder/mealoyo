@@ -1,11 +1,12 @@
 
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
-export default function OrderPage({ params }: { params: { id: string } }) {
+export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
   const [order, setOrder] = useState<any>(null)
   const [listing, setListing] = useState<any>(null)
   const [seller, setSeller] = useState<any>(null)
@@ -24,7 +25,7 @@ export default function OrderPage({ params }: { params: { id: string } }) {
       const { data: order } = await supabase
         .from('orders')
         .select('*')
-        .eq('id', params.id)
+        .eq('id', id)
         .eq('buyer_id', user.id)
         .single()
 
@@ -43,14 +44,14 @@ export default function OrderPage({ params }: { params: { id: string } }) {
       const { data: existingReview } = await supabase
         .from('reviews')
         .select('id')
-        .eq('order_id', params.id)
+        .eq('order_id', id)
         .single()
 
       if (existingReview) setReviewed(true)
       setLoading(false)
     }
     getData()
-  }, [params.id])
+  }, [id])
 
   const submitReview = async () => {
     if (rating === 0) return
@@ -164,12 +165,12 @@ export default function OrderPage({ params }: { params: { id: string } }) {
                 <div key={step} style={{display:'flex',gap:12,marginBottom:i<statusSteps.length-1?12:0}}>
                   <div style={{display:'flex',flexDirection:'column',alignItems:'center'}}>
                     <div style={{width:32,height:32,borderRadius:'50%',background:i<=currentStep?'#C8006A':'#E0E0E0',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,flexShrink:0,transition:'background 0.3s'}}>
-                      {i<=currentStep ? <span style={{color:'#fff'}}>✓</span> : <span style={{color:'#888',fontSize:11}}>{i+1}</span>}
+                      {i<=currentStep ? <span style={{color:'#fff'}}>✓</span> : <span style={{color:'#1A1A1A',fontSize:11}}>{i+1}</span>}
                     </div>
                     {i<statusSteps.length-1 && <div style={{width:2,flex:1,background:i<currentStep?'#C8006A':'#E0E0E0',minHeight:20,marginTop:4,transition:'background 0.3s'}}/>}
                   </div>
                   <div style={{paddingTop:6,paddingBottom:i<statusSteps.length-1?12:0}}>
-                    <div style={{fontSize:14,fontWeight:i<=currentStep?700:500,color:i<=currentStep?'#1A1A1A':'#888'}}>{statusLabels[step]}</div>
+                    <div style={{fontSize:14,fontWeight:i<=currentStep?700:500,color:'#1A1A1A'}}>{statusLabels[step]}</div>
                     {i===currentStep && <div style={{fontSize:12,color:'#C8006A',fontWeight:600,marginTop:2}}>Current status</div>}
                   </div>
                 </div>
@@ -189,7 +190,7 @@ export default function OrderPage({ params }: { params: { id: string } }) {
                 <textarea value={comment} onChange={e=>setComment(e.target.value)} placeholder="Tell others what you thought (optional)..." rows={3}
                   style={{width:'100%',border:'1.5px solid #E0E0E0',borderRadius:10,padding:'10px 14px',fontSize:14,color:'#1A1A1A',background:'#FAFAFA',fontFamily:'Inter,system-ui,sans-serif',outline:'none',resize:'none',lineHeight:1.55,marginBottom:12}}/>
                 <button onClick={submitReview} disabled={rating===0||submittingReview}
-                  style={{height:44,padding:'0 24px',background:rating===0?'#E0E0E0':'#C8006A',color:rating===0?'#888':'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:rating===0?'not-allowed':'pointer',transition:'all 0.14s'}}>
+                  style={{height:44,padding:'0 24px',background:rating===0?'#E0E0E0':'#C8006A',color:rating===0?'#1A1A1A':'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:rating===0?'not-allowed':'pointer',transition:'all 0.14s'}}>
                   {submittingReview?'Submitting...':'Submit review →'}
                 </button>
               </div>
