@@ -58,8 +58,8 @@ export default function DriverDashboard() {
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
           <Link href="/" style={{marginRight:28}}><img src="/White_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
           <div style={{display:'flex',gap:0,flex:1}}>
-            {[{l:'Dashboard',a:true},{l:'My earnings',a:false},{l:'History',a:false}].map((t,i)=>(
-              <a key={i} href="#" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'rgba(255,255,255,0.55)',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent'}}>{t.l}</a>
+            {[{l:'Dashboard',h:'/driver/dashboard',a:true},{l:'My earnings',h:'/driver/earnings',a:false},{l:'History',h:'/driver/history',a:false}].map((t,i)=>(
+              <Link key={i} href={t.h} style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'rgba(255,255,255,0.55)',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent'}}>{t.l}</Link>
             ))}
           </div>
           <div style={{display:'flex',gap:8,marginLeft:'auto',alignItems:'center'}}>
