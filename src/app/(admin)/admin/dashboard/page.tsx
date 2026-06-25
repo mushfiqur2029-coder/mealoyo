@@ -68,18 +68,17 @@ export default function AdminDashboard() {
 
   return (
     <div style={{minHeight:'100vh',background:'#0D0006',fontFamily:'Inter,system-ui,sans-serif'}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;} ::-webkit-scrollbar{width:0;}*{scrollbar-width:none;} a{text-decoration:none;} .approve:hover{background:#009836!important;} .reject:hover{background:#991010!important;} @media(max-width:768px){.admin-grid{grid-template-columns:1fr 1fr!important;}}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;} ::-webkit-scrollbar{width:0;}*{scrollbar-width:none;} a{text-decoration:none;} .approve:hover{background:#009836!important;} .reject:hover{background:#991010!important;} .nav-link:hover{color:#C8006A!important;} @media(max-width:768px){.admin-grid{grid-template-columns:1fr 1fr!important;}}`}</style>
 
       <nav style={{background:'rgba(0,0,0,0.9)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.2)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,marginRight:28}}>
-            <div style={{width:30,height:30,background:'#C8006A',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16}}>🔐</div>
-            <span style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#C8006A'}}>Admin Panel</span>
-          </div>
+          <Link href="/admin/dashboard" style={{display:'flex',alignItems:'center',gap:10,marginRight:28,flexShrink:0}}>
+            <img src="/White_Logo.png" alt="meaLoyo" style={{height:26,width:'auto'}}/>
+            <span style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#C8006A'}}>Admin</span>
+          </Link>
           <div style={{display:'flex',gap:0,flex:1}}>
-            <Link href="/admin/dashboard" style={{height:62,padding:'0 12px',display:'flex',alignItems:'center',fontSize:13,fontWeight:700,color:'#C8006A',borderBottom:'2.5px solid #C8006A'}}>Dashboard</Link>
-            {['Sellers','Drivers','Orders','Settings'].map((t,i)=>(
-              <span key={i} title="Coming soon" style={{height:62,padding:'0 12px',display:'flex',alignItems:'center',fontSize:13,fontWeight:400,color:'rgba(255,255,255,0.25)',borderBottom:'2.5px solid transparent',cursor:'default'}}>{t}</span>
+            {[{l:'Dashboard',h:'/admin/dashboard'},{l:'Sellers',h:'/admin/sellers'},{l:'Drivers',h:'/admin/drivers'},{l:'Orders',h:'/admin/orders'},{l:'Settings',h:'/admin/settings'}].map(t=>(
+              <Link key={t.h} href={t.h} className="nav-link" style={{height:62,padding:'0 12px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.h==='/admin/dashboard'?700:400,color:t.h==='/admin/dashboard'?'#C8006A':'rgba(255,255,255,0.5)',borderBottom:t.h==='/admin/dashboard'?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
             ))}
           </div>
           <div style={{display:'flex',gap:8,marginLeft:'auto',alignItems:'center'}}>
