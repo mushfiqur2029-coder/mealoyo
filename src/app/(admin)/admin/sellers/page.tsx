@@ -100,16 +100,16 @@ export default function AdminSellers() {
           {filtered.length === 0 ? (
             <div style={{padding:'48px',textAlign:'center',color:'rgba(255,255,255,0.3)',fontSize:14}}>No sellers found</div>
           ) : filtered.map((s,i) => (
-            <div key={s.id} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 22px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.05)':'none',flexWrap:'wrap'}}>
+            <div key={s.id} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 22px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.05)':'none'}}>
               <div style={{width:38,height:38,borderRadius:'50%',background:'#C8006A',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'#fff',flexShrink:0}}>
                 {s.full_name?.[0]||'?'}
               </div>
-              <div style={{flex:1,minWidth:180}}>
+              <div style={{flex:1,minWidth:0}}>
                 <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:1}}>
-                  <span style={{fontSize:14,fontWeight:700,color:'#fff'}}>{s.full_name||'Unknown'}</span>
-                  <span style={{background:statusBg(s.status),color:statusColor(s.status),padding:'2px 9px',borderRadius:20,fontSize:10,fontWeight:700,textTransform:'capitalize'}}>{s.status}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.full_name||'Unknown'}</span>
+                  <span style={{background:statusBg(s.status),color:statusColor(s.status),padding:'2px 9px',borderRadius:20,fontSize:10,fontWeight:700,textTransform:'capitalize',flexShrink:0}}>{s.status}</span>
                 </div>
-                <div style={{fontSize:12,color:'rgba(255,255,255,0.4)'}}>{s.email} · joined {new Date(s.created_at).toLocaleDateString()}</div>
+                <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.email} · joined {new Date(s.created_at).toLocaleDateString()}</div>
               </div>
               <div style={{display:'flex',gap:18,flexShrink:0,marginRight:8}}>
                 <div style={{textAlign:'center'}}>

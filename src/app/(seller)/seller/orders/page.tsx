@@ -102,23 +102,25 @@ export default function SellerOrders() {
             {filtered.map((o,i) => {
               const step = STATUS_FLOW[o.status]
               return (
-                <div key={o.id} style={{display:'flex',alignItems:'center',gap:14,padding:'16px 20px',borderBottom:i<filtered.length-1?'1px solid #F5F0F3':'none',flexWrap:'wrap'}}>
-                  <div style={{width:48,height:48,borderRadius:12,background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0}}>
+                <div key={o.id} style={{display:'grid',gridTemplateColumns:'48px 1fr 110px 130px',alignItems:'center',gap:14,padding:'16px 20px',borderBottom:i<filtered.length-1?'1px solid #F5F0F3':'none'}}>
+                  <div style={{width:48,height:48,borderRadius:12,background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}}>
                     {cuisineEmoji[o.listings?.cuisine]||'🍽️'}
                   </div>
-                  <div style={{flex:1,minWidth:160}}>
-                    <div style={{fontSize:14,fontWeight:700,color:'#1A1A1A',marginBottom:2}}>{o.listings?.name||'Order'}</div>
-                    <div style={{fontSize:12,color:'#1A1A1A',fontWeight:400}}>#{o.id.slice(0,8).toUpperCase()} · {o.profiles?.full_name||'Buyer'} · Qty {o.quantity} · {new Date(o.created_at).toLocaleDateString()}</div>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:700,color:'#1A1A1A',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.listings?.name||'Order'}</div>
+                    <div style={{fontSize:12,color:'#1A1A1A',fontWeight:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>#{o.id.slice(0,8).toUpperCase()} · {o.profiles?.full_name||'Buyer'} · Qty {o.quantity} · {new Date(o.created_at).toLocaleDateString()}</div>
                   </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
+                  <div style={{textAlign:'right'}}>
                     <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#1A1A1A',marginBottom:4}}>£{parseFloat(o.seller_payout||0).toFixed(2)}</div>
-                    <span style={{background:statusBg(o.status),color:statusColor(o.status),padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,textTransform:'capitalize'}}>{o.status.replace('_',' ')}</span>
+                    <span style={{background:statusBg(o.status),color:statusColor(o.status),padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,textTransform:'capitalize',whiteSpace:'nowrap'}}>{o.status.replace('_',' ')}</span>
                   </div>
-                  {step && (
-                    <button onClick={()=>advanceStatus(o)} disabled={updatingId===o.id} className="advance-btn" style={{flexShrink:0,height:36,padding:'0 16px',background:'#C8006A',color:'#fff',border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:updatingId===o.id?'not-allowed':'pointer',opacity:updatingId===o.id?0.7:1,transition:'background 0.12s'}}>
-                      {updatingId===o.id ? 'Updating...' : step.label}
-                    </button>
-                  )}
+                  <div style={{textAlign:'right'}}>
+                    {step && (
+                      <button onClick={()=>advanceStatus(o)} disabled={updatingId===o.id} className="advance-btn" style={{height:36,padding:'0 16px',background:'#C8006A',color:'#fff',border:'none',borderRadius:9,fontSize:12,fontWeight:700,cursor:updatingId===o.id?'not-allowed':'pointer',opacity:updatingId===o.id?0.7:1,transition:'background 0.12s',whiteSpace:'nowrap'}}>
+                        {updatingId===o.id ? 'Updating...' : step.label}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )
             })}

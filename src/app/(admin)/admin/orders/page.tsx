@@ -87,26 +87,28 @@ export default function AdminOrders() {
           {filtered.length === 0 ? (
             <div style={{padding:'48px',textAlign:'center',color:'rgba(255,255,255,0.3)',fontSize:14}}>No orders {filter!=='all'?`in "${filter.replace('_',' ')}"`:''}</div>
           ) : filtered.map((o,i) => (
-            <div key={o.id} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 22px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.05)':'none',flexWrap:'wrap'}}>
-              <div style={{flex:1,minWidth:220}}>
-                <div style={{fontSize:14,fontWeight:700,color:'#fff',marginBottom:2}}>{o.listing_name||'Order'}</div>
+            <div key={o.id} style={{display:'grid',gridTemplateColumns:'2fr 1fr 1fr 110px 90px',alignItems:'center',gap:14,padding:'14px 22px',borderBottom:i<filtered.length-1?'1px solid rgba(255,255,255,0.05)':'none'}}>
+              <div style={{minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:700,color:'#fff',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.listing_name||'Order'}</div>
                 <div style={{fontSize:12,color:'rgba(255,255,255,0.4)'}}>#{o.id.slice(0,8).toUpperCase()} · {new Date(o.created_at).toLocaleDateString()}</div>
               </div>
-              <div style={{minWidth:140}}>
+              <div style={{minWidth:0}}>
                 <div style={{fontSize:9,color:'rgba(255,255,255,0.35)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.04em',marginBottom:2}}>Buyer</div>
-                <div style={{fontSize:13,color:'#fff',fontWeight:600}}>{o.buyer_name||'Unknown'}</div>
+                <div style={{fontSize:13,color:'#fff',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.buyer_name||'Unknown'}</div>
               </div>
-              <div style={{minWidth:140}}>
+              <div style={{minWidth:0}}>
                 <div style={{fontSize:9,color:'rgba(255,255,255,0.35)',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.04em',marginBottom:2}}>Seller</div>
-                <div style={{fontSize:13,color:'#fff',fontWeight:600}}>{o.seller_name||'Unknown'}</div>
+                <div style={{fontSize:13,color:'#fff',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.seller_name||'Unknown'}</div>
               </div>
-              <div style={{textAlign:'right',flexShrink:0,minWidth:100}}>
+              <div style={{textAlign:'right'}}>
                 <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#fff',marginBottom:4}}>£{parseFloat(o.total_amount||0).toFixed(2)}</div>
-                <span style={{background:statusBg(o.status),color:statusColor(o.status),padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,textTransform:'capitalize'}}>{o.status.replace('_',' ')}</span>
+                <span style={{background:statusBg(o.status),color:statusColor(o.status),padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,textTransform:'capitalize',whiteSpace:'nowrap'}}>{o.status.replace('_',' ')}</span>
               </div>
-              {o.status !== 'delivered' && o.status !== 'cancelled' && (
-                <button className="cancel-btn" disabled={busyId===o.id} onClick={()=>cancelOrder(o.id)} style={{flexShrink:0,height:32,padding:'0 14px',background:'rgba(192,57,43,0.8)',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',transition:'background 0.12s',opacity:busyId===o.id?0.6:1}}>Cancel</button>
-              )}
+              <div style={{textAlign:'right'}}>
+                {o.status !== 'delivered' && o.status !== 'cancelled' && (
+                  <button className="cancel-btn" disabled={busyId===o.id} onClick={()=>cancelOrder(o.id)} style={{height:32,padding:'0 14px',background:'rgba(192,57,43,0.8)',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',transition:'background 0.12s',opacity:busyId===o.id?0.6:1}}>Cancel</button>
+                )}
+              </div>
             </div>
           ))}
         </div>
