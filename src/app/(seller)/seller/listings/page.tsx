@@ -66,7 +66,8 @@ export default function SellerListings() {
               {l:'Dashboard',h:'/seller/dashboard',a:false},
               {l:'My listings',h:'/seller/listings',a:true},
               {l:'Orders',h:'/seller/orders',a:false},
-              {l:'Earnings',h:'/seller/earnings',a:false}
+              {l:'Earnings',h:'/seller/earnings',a:false},
+              {l:'Profile',h:'/seller/profile',a:false}
             ].map((t,i)=>(
               <Link key={i} href={t.h} className="nav-link" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
             ))}

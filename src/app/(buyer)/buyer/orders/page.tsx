@@ -53,6 +53,10 @@ export default function BuyerOrders() {
           <Link href="/buyer/dashboard" style={{width:34,height:34,border:'1.5px solid #E0E0E0',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>←</Link>
           <Link href="/"><img src="/Color_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
           <span style={{fontSize:14,color:'#1A1A1A',fontWeight:500}}>My orders</span>
+          <div style={{display:'flex',gap:16,marginLeft:'auto'}}>
+            <Link href="/buyer/saved" style={{fontSize:13,fontWeight:600,color:'#1A1A1A'}}>Saved</Link>
+            <Link href="/buyer/profile" style={{fontSize:13,fontWeight:600,color:'#1A1A1A'}}>Profile</Link>
+          </div>
         </div>
       </nav>
 

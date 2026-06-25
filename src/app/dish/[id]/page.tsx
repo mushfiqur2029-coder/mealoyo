@@ -17,6 +17,8 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const [loading, setLoading] = useState(true)
   const [ordering, setOrdering] = useState(false)
   const [error, setError] = useState('')
+  const [isSaved, setIsSaved] = useState(false)
+  const [savedRowId, setSavedRowId] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -31,10 +33,27 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       if (!listing) { router.push('/'); return }
       setListing(listing)
       setSeller(listing.profiles)
+      if (user) {
+        const { data: savedRow } = await supabase.from('saved_listings').select('id').eq('buyer_id', user.id).eq('listing_id', id).maybeSingle()
+        if (savedRow) { setIsSaved(true); setSavedRowId(savedRow.id) }
+      }
       setLoading(false)
     }
     getData()
   }, [id])
+
+  const toggleSave = async () => {
+    if (!user) { router.push('/login'); return }
+    if (isSaved && savedRowId) {
+      await supabase.from('saved_listings').delete().eq('id', savedRowId)
+      setIsSaved(false)
+      setSavedRowId(null)
+    } else {
+      const { data } = await supabase.from('saved_listings').insert({ buyer_id: user.id, listing_id: id }).select().single()
+      setIsSaved(true)
+      setSavedRowId(data?.id || null)
+    }
+  }
 
   const handleOrder = async () => {
     if (!user) { router.push('/login'); return }
@@ -126,6 +145,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
             <div style={{background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)',borderRadius:20,height:280,display:'flex',alignItems:'center',justifyContent:'center',fontSize:96,marginBottom:20,position:'relative'}}>
               {cuisineEmoji[listing.cuisine] || '🍽️'}
               {listing.featured && <div style={{position:'absolute',top:16,left:16,background:'#C8006A',color:'#fff',fontSize:11,fontWeight:700,padding:'4px 12px',borderRadius:20}}>Featured</div>}
+              <button onClick={toggleSave} style={{position:'absolute',top:16,right:16,width:40,height:40,borderRadius:'50%',background:'rgba(255,255,255,0.95)',border:'1.5px solid rgba(200,0,106,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,cursor:'pointer',boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>
+                {isSaved ? '❤️' : '🤍'}
+              </button>
             </div>
 
             {/* Details */}

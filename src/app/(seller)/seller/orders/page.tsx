@@ -72,7 +72,7 @@ export default function SellerOrders() {
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
           <Link href="/" style={{marginRight:28,flexShrink:0}}><img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/></Link>
           <div className="nav-links" style={{display:'flex',gap:0,flex:1}}>
-            {[{l:'Dashboard',h:'/seller/dashboard',a:false},{l:'My listings',h:'/seller/listings',a:false},{l:'Orders',h:'/seller/orders',a:true},{l:'Earnings',h:'/seller/earnings',a:false}].map((t,i)=>(
+            {[{l:'Dashboard',h:'/seller/dashboard',a:false},{l:'My listings',h:'/seller/listings',a:false},{l:'Orders',h:'/seller/orders',a:true},{l:'Earnings',h:'/seller/earnings',a:false},{l:'Profile',h:'/seller/profile',a:false}].map((t,i)=>(
               <Link key={i} href={t.h} className="nav-link" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
             ))}
           </div>

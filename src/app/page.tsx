@@ -2,6 +2,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 const cuisineEmoji: Record<string,string> = {
@@ -41,6 +42,7 @@ export default function Home() {
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [saved, setSaved] = useState<string[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [listings, setListings] = useState<any[]>([])
   const [loadingListings, setLoadingListings] = useState(true)
@@ -48,8 +50,17 @@ export default function Home() {
   const [reviews, setReviews] = useState<any[]>([])
   const [loadingReviews, setLoadingReviews] = useState(true)
   const catRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   useEffect(() => {
+    const getUserSaved = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setUserId(user.id)
+      const { data } = await supabase.from('saved_listings').select('listing_id').eq('buyer_id', user.id)
+      setSaved((data || []).map(r => r.listing_id))
+    }
+    getUserSaved()
     const getListings = async () => {
       const { data } = await supabase
         .from('listings')
@@ -116,8 +127,16 @@ export default function Home() {
     (query === '' || l.name.toLowerCase().includes(query.toLowerCase()))
   )
 
-  const toggleSave = (id: string) =>
-    setSaved(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const toggleSave = async (id: string) => {
+    if (!userId) { router.push('/login'); return }
+    const isSaved = saved.includes(id)
+    setSaved(prev => isSaved ? prev.filter(x => x !== id) : [...prev, id])
+    if (isSaved) {
+      await supabase.from('saved_listings').delete().eq('buyer_id', userId).eq('listing_id', id)
+    } else {
+      await supabase.from('saved_listings').insert({ buyer_id: userId, listing_id: id })
+    }
+  }
 
   const scrollCats = (dir: number) => {
     if (catRef.current) catRef.current.scrollLeft += dir * 200
@@ -215,7 +234,7 @@ export default function Home() {
             <img src="/Color_Logo.png" alt="meaLoyo" style={{height:38, width:'auto'}}/>
           </Link>
           <div className="nav-links-wrap" style={{display:'flex', gap:0, flex:1}}>
-            {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/seller',a:false},{l:'Deliver & earn',h:'/driver',a:false}].map((t,i) => (
+            {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/register',a:false},{l:'Deliver & earn',h:'/register',a:false}].map((t,i) => (
               <Link key={i} href={t.h} style={{height:66, padding:'0 14px', display:'flex', alignItems:'center', fontSize:14, fontWeight:t.a?700:500, color:t.a?'#C8006A':'#1A1A1A', borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent', whiteSpace:'nowrap'}}>{t.l}</Link>
             ))}
           </div>
@@ -594,7 +613,7 @@ export default function Home() {
           <p style={{fontSize:'clamp(14px,1.4vw,17px)', color:'rgba(255,255,255,0.85)', marginBottom:28, lineHeight:1.65, fontWeight:400}}>{cooks.length > 0 ? `${cooks.length} ` : ''}home cooks across the UK. Authentic food. No restaurant markup.</p>
           <div className="cta-btns" style={{display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap'}}>
             <button style={{height:52, padding:'0 32px', background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(0,0,0,0.15)', flexShrink:0}}>Order food now</button>
-            <Link href="/seller" style={{height:52, padding:'0 32px', background:'rgba(255,255,255,0.12)', color:'#fff', border:'2px solid rgba(255,255,255,0.28)', borderRadius:12, fontSize:15, fontWeight:600, display:'flex', alignItems:'center', flexShrink:0}}>Start selling your food</Link>
+            <Link href="/register" style={{height:52, padding:'0 32px', background:'rgba(255,255,255,0.12)', color:'#fff', border:'2px solid rgba(255,255,255,0.28)', borderRadius:12, fontSize:15, fontWeight:600, display:'flex', alignItems:'center', flexShrink:0}}>Start selling your food</Link>
           </div>
         </div>
       </section>
