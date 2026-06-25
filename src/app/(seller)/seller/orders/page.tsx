@@ -16,6 +16,7 @@ const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
 
 export default function SellerOrders() {
   const [orders, setOrders] = useState<any[]>([])
+  const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [filter, setFilter] = useState('all')
@@ -25,6 +26,8 @@ export default function SellerOrders() {
     const getData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
+      const { data: profile } = await supabase.rpc('get_my_profile')
+      setProfile(profile)
       const { data } = await supabase
         .from('orders')
         .select('*, listings(name,cuisine), profiles:buyer_id(full_name)')
@@ -35,6 +38,8 @@ export default function SellerOrders() {
     }
     getData()
   }, [])
+
+  const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
   const advanceStatus = async (order: any) => {
     const step = STATUS_FLOW[order.status]
@@ -60,6 +65,17 @@ export default function SellerOrders() {
         <div style={{width:44,height:44,border:'4px solid #FFE8F4',borderTop:'4px solid #C8006A',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 12px'}}/>
         <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
         <p style={{color:'#C8006A',fontWeight:600,fontSize:14}}>Loading orders...</p>
+      </div>
+    </div>
+  )
+
+  if (profile?.status === 'pending') return (
+    <div style={{minHeight:'100vh',background:'#F8F0F4',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Inter,system-ui,sans-serif',padding:24}}>
+      <div style={{background:'#fff',borderRadius:24,padding:'48px 36px',maxWidth:480,width:'100%',textAlign:'center',boxShadow:'0 4px 24px rgba(200,0,106,0.1)'}}>
+        <div style={{fontSize:56,marginBottom:16}}>⏳</div>
+        <h2 style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,color:'#1A1A1A',marginBottom:10}}>Awaiting approval</h2>
+        <p style={{fontSize:14,color:'#1A1A1A',lineHeight:1.7,marginBottom:24}}>Your seller account is being reviewed. You will be notified within 24–48 hours.</p>
+        <button onClick={signOut} style={{height:44,padding:'0 24px',background:'#C8006A',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>Sign out</button>
       </div>
     </div>
   )

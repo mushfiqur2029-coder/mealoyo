@@ -36,6 +36,17 @@ export default function DriverEarnings() {
     </div>
   )
 
+  if (profile?.status === 'pending') return (
+    <div style={{minHeight:'100vh',background:'#0D0D0D',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Inter,system-ui,sans-serif',padding:24}}>
+      <div style={{background:'#1A1A1A',borderRadius:24,padding:'48px 36px',maxWidth:480,width:'100%',textAlign:'center',border:'1px solid rgba(200,0,106,0.2)'}}>
+        <div style={{fontSize:56,marginBottom:16}}>⏳</div>
+        <h2 style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,color:'#fff',marginBottom:10}}>Awaiting approval</h2>
+        <p style={{fontSize:14,color:'rgba(255,255,255,0.6)',lineHeight:1.7,marginBottom:24}}>Your driver account is under review. You will be notified within 24–48 hours.</p>
+        <button onClick={signOut} style={{height:44,padding:'0 24px',background:'#C8006A',color:'#fff',border:'none',borderRadius:10,fontSize:14,fontWeight:700,cursor:'pointer'}}>Sign out</button>
+      </div>
+    </div>
+  )
+
   const totalEarned = orders.reduce((sum,o)=>sum+parseFloat(o.delivery_fee||0),0)
   const now = new Date()
   const thisMonthOrders = orders.filter(o => {
