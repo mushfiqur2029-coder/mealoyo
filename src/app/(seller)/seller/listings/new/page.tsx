@@ -100,13 +100,18 @@ export default function NewListing() {
         .pill.on{border-color:#C8006A;background:#FFE8F4;color:#C8006A;}
         .pill:hover{border-color:#C8006A;}
         .sub:hover{background:#A00055 !important;}
+        .nav-link:hover{color:#C8006A !important;}
+        @media(max-width:768px){.nav-links{display:none!important;}}
       `}</style>
 
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
-        <div style={{maxWidth:800,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center',gap:14}}>
-          <Link href="/seller/listings" style={{width:34,height:34,border:'1.5px solid #E0E0E0',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>←</Link>
-          <img src="/Color_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/>
-          <span style={{fontSize:14,color:'#1A1A1A',fontWeight:500}}>Add new dish</span>
+        <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
+          <Link href="/" style={{marginRight:28,flexShrink:0}}><img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/></Link>
+          <div className="nav-links" style={{display:'flex',gap:0,flex:1}}>
+            {[{l:'Dashboard',h:'/seller/dashboard',a:false},{l:'My listings',h:'/seller/listings',a:true},{l:'Orders',h:'/seller/orders',a:false},{l:'Earnings',h:'/seller/earnings',a:false},{l:'Profile',h:'/seller/profile',a:false}].map((t,i)=>(
+              <Link key={i} href={t.h} className="nav-link" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
+            ))}
+          </div>
         </div>
       </nav>
 

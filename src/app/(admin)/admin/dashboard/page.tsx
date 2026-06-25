@@ -77,8 +77,9 @@ export default function AdminDashboard() {
             <span style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#C8006A'}}>Admin Panel</span>
           </div>
           <div style={{display:'flex',gap:0,flex:1}}>
-            {['Dashboard','Sellers','Drivers','Orders','Settings'].map((t,i)=>(
-              <a key={i} href="#" style={{height:62,padding:'0 12px',display:'flex',alignItems:'center',fontSize:13,fontWeight:i===0?700:400,color:i===0?'#C8006A':'rgba(255,255,255,0.5)',borderBottom:i===0?'2.5px solid #C8006A':'2.5px solid transparent'}}>{t}</a>
+            <Link href="/admin/dashboard" style={{height:62,padding:'0 12px',display:'flex',alignItems:'center',fontSize:13,fontWeight:700,color:'#C8006A',borderBottom:'2.5px solid #C8006A'}}>Dashboard</Link>
+            {['Sellers','Drivers','Orders','Settings'].map((t,i)=>(
+              <span key={i} title="Coming soon" style={{height:62,padding:'0 12px',display:'flex',alignItems:'center',fontSize:13,fontWeight:400,color:'rgba(255,255,255,0.25)',borderBottom:'2.5px solid transparent',cursor:'default'}}>{t}</span>
             ))}
           </div>
           <div style={{display:'flex',gap:8,marginLeft:'auto',alignItems:'center'}}>
