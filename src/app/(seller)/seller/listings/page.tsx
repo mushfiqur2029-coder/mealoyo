@@ -255,7 +255,7 @@ export default function SellerListings() {
                     <div style={{marginTop:'auto', paddingTop:14, borderTop:'1px solid #F5F0F3', display:'flex', alignItems:'center', justifyContent:'space-between', gap:10}}>
                       <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>£{parseFloat(l.price || '0').toFixed(2)}</div>
                       <div style={{display:'flex', gap:8}}>
-                        <Link href={`/dish/${l.id}`} className="edit-btn" style={{height:40, padding:'0 16px', display:'inline-flex', alignItems:'center', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', transition:'all 0.14s'}}>Edit</Link>
+                        <Link href={`/seller/listings/${l.id}/edit`} className="edit-btn" style={{height:40, padding:'0 16px', display:'inline-flex', alignItems:'center', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', transition:'all 0.14s'}}>Edit</Link>
                         <button onClick={() => deleteListing(l.id)} className="del-btn" style={{height:40, padding:'0 16px', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:13, fontWeight:700, color:'#C0392B', background:'#fff', cursor:'pointer', transition:'all 0.14s'}}>Delete</button>
                       </div>
                     </div>
