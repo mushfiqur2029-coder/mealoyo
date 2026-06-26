@@ -49,8 +49,15 @@ export default function Home() {
   const [reviewCount, setReviewCount] = useState<number | null>(null)
   const [reviews, setReviews] = useState<any[]>([])
   const [loadingReviews, setLoadingReviews] = useState(true)
+  const [menuOpen, setMenuOpen] = useState(false)
   const catRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+
+  // Lock body scroll while the mobile menu overlay is open.
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [menuOpen])
 
   useEffect(() => {
     const getUserSaved = async () => {
@@ -177,6 +184,9 @@ export default function Home() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @keyframes shimmer { 0% { background-position: -480px 0; } 100% { background-position: 480px 0; } }
+        @keyframes menuIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
         html { scroll-behavior: smooth; }
         ::-webkit-scrollbar { width: 0; height: 0; }
@@ -198,6 +208,24 @@ export default function Home() {
         .dmode:hover { border-color: #C8006A !important; background: #FFF5FA !important; }
         .ot-card:hover { border-color: #C8006A !important; background: #FFF5FA !important; }
         .scroll-arrow:hover { background: #C8006A !important; color: #fff !important; border-color: #C8006A !important; }
+        .order-btn, .save-btn, .primary-btn, .nav-cta, .cat-pill, .scroll-arrow { transition: all 0.18s cubic-bezier(0.34,1.2,0.64,1); }
+
+        /* Trust-bar marquee */
+        .marquee-track { display: flex; width: max-content; animation: marquee 32s linear infinite; }
+        .marquee-mask:hover .marquee-track { animation-play-state: paused; }
+        @media (prefers-reduced-motion: reduce) { .marquee-track { animation: none; } }
+
+        /* Loading skeletons */
+        .skel { background: linear-gradient(90deg, #F3E6EE 0%, #FBF1F7 50%, #F3E6EE 100%); background-size: 960px 100%; animation: shimmer 1.4s ease-in-out infinite; }
+
+        /* Mobile nav */
+        .hamburger { display: none; }
+        .mobile-menu { display: none; }
+        @media (max-width: 768px) {
+          .nav-links-wrap { display: none !important; }
+          .nav-desktop-cta { display: none !important; }
+          .hamburger { display: flex !important; }
+        }
 
         @media (max-width: 1024px) {
           .hero-grid { grid-template-columns: 1fr !important; }
@@ -238,11 +266,44 @@ export default function Home() {
               <Link key={i} href={t.h} style={{height:66, padding:'0 14px', display:'flex', alignItems:'center', fontSize:14, fontWeight:t.a?700:500, color:t.a?'#C8006A':'#1A1A1A', borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent', whiteSpace:'nowrap'}}>{t.l}</Link>
             ))}
           </div>
-          <div style={{display:'flex', gap:8, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
+          <div className="nav-desktop-cta" style={{display:'flex', gap:8, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
             <Link href="/login" style={{height:36, padding:'0 14px', display:'flex', alignItems:'center', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', whiteSpace:'nowrap'}}>Sign in</Link>
             <Link href="/register" className="nav-cta" style={{height:36, padding:'0 16px', display:'flex', alignItems:'center', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', whiteSpace:'nowrap', boxShadow:'0 4px 12px rgba(200,0,106,0.35)', transition:'background 0.12s'}}>Get started</Link>
           </div>
+
+          {/* Hamburger — visible under 768px */}
+          <button
+            className="hamburger"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(o => !o)}
+            style={{marginLeft:'auto', width:42, height:42, borderRadius:10, border:'1.5px solid rgba(200,0,106,0.18)', background:'#fff', cursor:'pointer', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:5, flexShrink:0}}
+          >
+            <span style={{display:'block', width:18, height:2, borderRadius:2, background:'#C8006A', transition:'transform 0.25s, opacity 0.2s', transform:menuOpen?'translateY(7px) rotate(45deg)':'none'}}/>
+            <span style={{display:'block', width:18, height:2, borderRadius:2, background:'#C8006A', transition:'opacity 0.15s', opacity:menuOpen?0:1}}/>
+            <span style={{display:'block', width:18, height:2, borderRadius:2, background:'#C8006A', transition:'transform 0.25s, opacity 0.2s', transform:menuOpen?'translateY(-7px) rotate(-45deg)':'none'}}/>
+          </button>
         </div>
+
+        {/* Mobile menu overlay */}
+        {menuOpen && (
+          <>
+            <div onClick={() => setMenuOpen(false)} style={{position:'fixed', inset:'66px 0 0', background:'rgba(26,26,26,0.35)', backdropFilter:'blur(2px)', zIndex:498}}/>
+            <div style={{position:'fixed', top:66, left:0, right:0, background:'#fff', borderBottom:'1px solid rgba(200,0,106,0.1)', boxShadow:'0 16px 40px rgba(26,26,26,0.12)', zIndex:499, padding:'14px 20px 22px', animation:'menuIn 0.22s ease'}}>
+              <div style={{display:'flex', flexDirection:'column'}}>
+                {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/register',a:false},{l:'Deliver & earn',h:'/register',a:false}].map((t,i) => (
+                  <Link key={i} href={t.h} onClick={() => setMenuOpen(false)} style={{padding:'15px 4px', fontSize:16, fontWeight:t.a?700:600, color:t.a?'#C8006A':'#1A1A1A', borderBottom:'1px solid #F3E6EE', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                    {t.l}<span style={{color:'#C8006A', fontSize:18}}>›</span>
+                  </Link>
+                ))}
+              </div>
+              <div style={{display:'flex', flexDirection:'column', gap:10, marginTop:18}}>
+                <Link href="/login" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:15, fontWeight:600, color:'#1A1A1A'}}>Sign in</Link>
+                <Link href="/register" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', borderRadius:10, fontSize:15, fontWeight:700, color:'#fff', boxShadow:'0 6px 18px rgba(200,0,106,0.35)'}}>Get started</Link>
+              </div>
+            </div>
+          </>
+        )}
       </nav>
 
       {/* ── HERO ── */}
@@ -255,8 +316,8 @@ export default function Home() {
 
             {/* Brand badge */}
             <div style={{display:'inline-flex', alignItems:'center', gap:10, background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:100, padding:'6px 16px', marginBottom:24}}>
-              <img src="/Color_Logo.png" alt="meaLoyo" style={{height:22, width:'auto'}}/>
-              <span style={{fontSize:12, fontWeight:700, color:'#fff', letterSpacing:'0.04em'}}>meaLoyo — Available across the UK</span>
+              <img src="/White_Logo.png" alt="meaLoyo" style={{height:22, width:'auto'}}/>
+              <span style={{fontSize:12, fontWeight:700, color:'#fff', letterSpacing:'0.04em'}}>Available across the UK</span>
             </div>
 
             <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(32px,3.8vw,58px)', fontWeight:700, color:'#fff', lineHeight:1.08, letterSpacing:'-0.025em', marginBottom:18}}>
@@ -333,13 +394,19 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── TRUST BAR ── */}
-      <div style={{background:'#FFE8F4', borderTop:'1px solid rgba(200,0,106,0.12)', borderBottom:'1px solid rgba(200,0,106,0.12)'}}>
-        <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px', display:'flex', alignItems:'center', justifyContent:'center', flexWrap:'wrap', overflowX:'auto'}}>
-          {[['🍽️','Home cook marketplace'],['🔒','Stripe-secured payments'],['🛡️','Buyer protection on every order'],['⚡','Community delivery · 45 mins'],['🌿','Allergen declarations mandatory'],['🇬🇧','Available UK-wide']].map(([icon,text],i) => (
-            <div key={i} style={{display:'flex', alignItems:'center', gap:6, padding:'12px 16px', fontSize:12, fontWeight:700, color:'#C8006A', whiteSpace:'nowrap', flexShrink:0}}>
-              {i > 0 && <div style={{width:1, height:14, background:'rgba(200,0,106,0.2)', marginRight:16}}/>}
-              <span style={{fontSize:15}}>{icon}</span>{text}
+      {/* ── TRUST BAR (marquee) ── */}
+      <div className="marquee-mask" style={{background:'#FFE8F4', borderTop:'1px solid rgba(200,0,106,0.12)', borderBottom:'1px solid rgba(200,0,106,0.12)', overflow:'hidden', position:'relative'}}>
+        <div style={{position:'absolute', left:0, top:0, bottom:0, width:60, background:'linear-gradient(to right,#FFE8F4,transparent)', zIndex:2, pointerEvents:'none'}}/>
+        <div style={{position:'absolute', right:0, top:0, bottom:0, width:60, background:'linear-gradient(to left,#FFE8F4,transparent)', zIndex:2, pointerEvents:'none'}}/>
+        <div className="marquee-track">
+          {[0,1].map(dup => (
+            <div key={dup} aria-hidden={dup === 1} style={{display:'flex', alignItems:'center', flexShrink:0}}>
+              {[['🍽️','Home cook marketplace'],['🔒','Stripe-secured payments'],['🛡️','Buyer protection on every order'],['⚡','Community delivery · 45 mins'],['🌿','Allergen declarations mandatory'],['🇬🇧','Available UK-wide']].map(([icon,text],i) => (
+                <div key={i} style={{display:'flex', alignItems:'center', gap:7, padding:'12px 26px', fontSize:12.5, fontWeight:700, color:'#C8006A', whiteSpace:'nowrap', flexShrink:0}}>
+                  <span style={{fontSize:15}}>{icon}</span>{text}
+                  <span style={{width:4, height:4, borderRadius:'50%', background:'rgba(200,0,106,0.3)', marginLeft:19}}/>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -394,9 +461,24 @@ export default function Home() {
             </div>
           </div>
           {loadingListings ? (
-            <div style={{display:'flex', justifyContent:'center', padding:'60px 0'}}>
-              <div style={{width:40, height:40, border:'4px solid #FFE8F4', borderTop:'4px solid #C8006A', borderRadius:'50%', animation:'spin 0.8s linear infinite'}}/>
-              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            <div className="listings-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:18}}>
+              {Array.from({length:8}).map((_,i) => (
+                <div key={i} style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.06)'}}>
+                  <div className="skel" style={{height:180}}/>
+                  <div style={{padding:'15px 16px'}}>
+                    <div className="skel" style={{height:15, borderRadius:6, width:'72%', marginBottom:10}}/>
+                    <div className="skel" style={{height:12, borderRadius:6, width:'52%', marginBottom:14}}/>
+                    <div style={{display:'flex', gap:6, marginBottom:14}}>
+                      <div className="skel" style={{height:18, borderRadius:20, width:54}}/>
+                      <div className="skel" style={{height:18, borderRadius:20, width:46}}/>
+                    </div>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', paddingTop:11, borderTop:'1px solid #F5F0F3'}}>
+                      <div className="skel" style={{height:20, borderRadius:6, width:60}}/>
+                      <div className="skel" style={{height:34, borderRadius:9, width:96}}/>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : filtered.length === 0 ? (
             <div style={{background:'#fff', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
@@ -481,8 +563,15 @@ export default function Home() {
             <button style={{height:36, padding:'0 16px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', cursor:'pointer', flexShrink:0}}>Browse all →</button>
           </div>
           {loadingListings ? (
-            <div style={{display:'flex', justifyContent:'center', padding:'40px 0'}}>
-              <div style={{width:36, height:36, border:'4px solid #FFE8F4', borderTop:'4px solid #C8006A', borderRadius:'50%', animation:'spin 0.8s linear infinite'}}/>
+            <div className="cooks-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))', gap:14}}>
+              {Array.from({length:6}).map((_,i) => (
+                <div key={i} style={{background:'#fff', borderRadius:18, padding:'20px 14px', textAlign:'center', boxShadow:'0 2px 12px rgba(200,0,106,0.05)', border:'1.5px solid rgba(200,0,106,0.06)'}}>
+                  <div className="skel" style={{width:52, height:52, borderRadius:'50%', margin:'0 auto 12px'}}/>
+                  <div className="skel" style={{height:13, borderRadius:6, width:'70%', margin:'0 auto 8px'}}/>
+                  <div className="skel" style={{height:11, borderRadius:6, width:'45%', margin:'0 auto 14px'}}/>
+                  <div className="skel" style={{height:22, borderRadius:20, width:90, margin:'0 auto'}}/>
+                </div>
+              ))}
             </div>
           ) : cooks.length === 0 ? (
             <div style={{background:'#fff', borderRadius:20, padding:'48px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
