@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Order } from '@/lib/types'
 
 export default function BuyerOrders() {
-  const [orders, setOrders] = useState<any[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -23,7 +25,7 @@ export default function BuyerOrders() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const statusColor = (s:string) => s==='delivered'?'#2DA84E':s==='cooking'?'#E8930A':s==='pending'?'#1A6ECC':'#C8006A'
   const statusBg = (s:string) => s==='delivered'?'#E4F6EA':s==='cooking'?'#FFF4E0':s==='pending'?'#EBF2FD':'#FFE8F4'
@@ -51,7 +53,7 @@ export default function BuyerOrders() {
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:900,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center',gap:14}}>
           <Link href="/buyer/dashboard" style={{width:34,height:34,border:'1.5px solid #E0E0E0',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>←</Link>
-          <Link href="/"><img src="/Color_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
+          <Link href="/"><Logo height={32}/></Link>
           <span style={{fontSize:14,color:'#1A1A1A',fontWeight:500}}>My orders</span>
           <div style={{display:'flex',gap:16,marginLeft:'auto'}}>
             <Link href="/buyer/saved" style={{fontSize:13,fontWeight:600,color:'#1A1A1A'}}>Saved</Link>
@@ -77,7 +79,7 @@ export default function BuyerOrders() {
             {orders.map((o,i)=>(
               <Link key={o.id} href={`/buyer/orders/${o.id}`} className="orow" style={{display:'flex',alignItems:'center',gap:14,padding:'16px 20px',borderBottom:i<orders.length-1?'1px solid #F5F0F3':'none',transition:'background 0.12s',cursor:'pointer'}}>
                 <div style={{width:48,height:48,borderRadius:12,background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,flexShrink:0}}>
-                  {cuisineEmoji[o.listings?.cuisine]||'🍽️'}
+                  {cuisineEmoji[o.listings?.cuisine||'Other']||'🍽️'}
                 </div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:14,fontWeight:700,color:'#1A1A1A',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.listings?.name||'Order'}</div>

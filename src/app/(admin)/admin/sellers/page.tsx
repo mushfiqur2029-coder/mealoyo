@@ -3,10 +3,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Profile } from '@/lib/types'
 
 export default function AdminSellers() {
-  const [profile, setProfile] = useState<any>(null)
-  const [sellers, setSellers] = useState<any[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [sellers, setSellers] = useState<Profile[]>([])
   const [listingCounts, setListingCounts] = useState<Record<string, number>>({})
   const [orderCounts, setOrderCounts] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
@@ -19,11 +21,11 @@ export default function AdminSellers() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/admin/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
-      if ((profile as any)?.role !== 'admin') { router.push('/'); return }
+      if ((profile as Profile | null)?.role !== 'admin') { router.push('/'); return }
       setProfile(profile)
 
       const { data: sellerRows } = await supabase.rpc('admin_get_profiles_by_role', { p_role: 'seller' })
-      setSellers((sellerRows || []).sort((a: any, b: any) => a.full_name?.localeCompare(b.full_name)))
+      setSellers((sellerRows || []).sort((a: Profile, b: Profile) => (a.full_name || '').localeCompare(b.full_name || '')))
 
       const { data: listings } = await supabase.rpc('admin_get_all_listings')
       const lCounts: Record<string, number> = {}
@@ -38,7 +40,7 @@ export default function AdminSellers() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const setStatus = async (id: string, status: string) => {
     setBusyId(id)
@@ -72,7 +74,7 @@ export default function AdminSellers() {
       <nav style={{background:'rgba(0,0,0,0.9)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.2)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
           <Link href="/admin/dashboard" style={{display:'flex',alignItems:'center',gap:10,marginRight:28,flexShrink:0}}>
-            <img src="/White_Logo.png" alt="meaLoyo" style={{height:26,width:'auto'}}/>
+            <Logo height={26} white/>
             <span style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#C8006A'}}>Admin</span>
           </Link>
           <div style={{display:'flex',gap:0,flex:1}}>

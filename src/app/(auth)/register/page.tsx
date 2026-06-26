@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
 
 type Role = 'buyer' | 'seller' | 'driver'
 
@@ -47,7 +48,7 @@ export default function Register() {
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, fontFamily:'Inter,system-ui,sans-serif' }}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0;} input:focus{border-color:#C8006A !important;outline:none;background:#fff !important;}`}</style>
       <Link href="/" style={{ marginBottom:28 }}>
-        <img src="/Color_Logo.png" alt="meaLoyo" style={{ height:40, filter:'brightness(0) invert(1)' }}/>
+        <Logo height={40} white/>
       </Link>
       <div style={{ background:'#fff', borderRadius:24, padding:'36px', width:'100%', maxWidth:480, boxShadow:'0 24px 80px rgba(0,0,0,0.25)' }}>
         <div style={{ display:'flex', alignItems:'center', marginBottom:28 }}>

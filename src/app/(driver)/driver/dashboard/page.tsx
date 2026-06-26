@@ -3,10 +3,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Profile } from '@/lib/types'
 
 export default function DriverDashboard() {
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [completedDrops, setCompletedDrops] = useState(0)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
@@ -15,7 +16,6 @@ export default function DriverDashboard() {
     const getData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
-      setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
       const { count } = await supabase.from('orders').select('id', { count: 'exact', head: true }).eq('driver_id', user.id).eq('status', 'delivered')
@@ -23,7 +23,7 @@ export default function DriverDashboard() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -56,7 +56,7 @@ export default function DriverDashboard() {
 
       <nav style={{background:'rgba(0,0,0,0.85)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.15)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/" style={{marginRight:28}}><img src="/White_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
+          <Link href="/" style={{marginRight:28}}><Logo height={32} white/></Link>
           <div style={{display:'flex',gap:0,flex:1}}>
             {[{l:'Dashboard',h:'/driver/dashboard',a:true},{l:'My earnings',h:'/driver/earnings',a:false},{l:'History',h:'/driver/history',a:false}].map((t,i)=>(
               <Link key={i} href={t.h} style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'rgba(255,255,255,0.55)',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent'}}>{t.l}</Link>

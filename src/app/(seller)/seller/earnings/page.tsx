@@ -3,10 +3,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Order, Profile } from '@/lib/types'
 
 export default function SellerEarnings() {
-  const [orders, setOrders] = useState<any[]>([])
-  const [profile, setProfile] = useState<any>(null)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -26,11 +28,9 @@ export default function SellerEarnings() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
-
-  const cuisineEmoji: Record<string,string> = {'Bangladeshi':'🍛','Pakistani':'🫕','Indian':'🥘','Caribbean':'🍗','Middle Eastern':'🧆','West African':'🫘','Other':'🍽️'}
 
   if (loading) return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#F8F0F4',fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -53,15 +53,15 @@ export default function SellerEarnings() {
     </div>
   )
 
-  const totalEarned = orders.reduce((sum,o)=>sum+parseFloat(o.seller_payout||0),0)
-  const totalCommission = orders.reduce((sum,o)=>sum+parseFloat(o.platform_commission||0),0)
+  const totalEarned = orders.reduce((sum,o)=>sum+parseFloat(o.seller_payout||'0'),0)
+  const totalCommission = orders.reduce((sum,o)=>sum+parseFloat(o.platform_commission||'0'),0)
 
   const now = new Date()
   const thisMonthOrders = orders.filter(o => {
     const d = new Date(o.created_at)
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   })
-  const thisMonthEarned = thisMonthOrders.reduce((sum,o)=>sum+parseFloat(o.seller_payout||0),0)
+  const thisMonthEarned = thisMonthOrders.reduce((sum,o)=>sum+parseFloat(o.seller_payout||'0'),0)
 
   return (
     <div style={{minHeight:'100vh',background:'#F8F0F4',fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -69,7 +69,7 @@ export default function SellerEarnings() {
 
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/" style={{marginRight:28,flexShrink:0}}><img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/></Link>
+          <Link href="/" style={{marginRight:28,flexShrink:0}}><Logo height={34}/></Link>
           <div className="nav-links" style={{display:'flex',gap:0,flex:1}}>
             {[{l:'Dashboard',h:'/seller/dashboard',a:false},{l:'My listings',h:'/seller/listings',a:false},{l:'Orders',h:'/seller/orders',a:false},{l:'Earnings',h:'/seller/earnings',a:true},{l:'Profile',h:'/seller/profile',a:false}].map((t,i)=>(
               <Link key={i} href={t.h} className="nav-link" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
@@ -116,8 +116,8 @@ export default function SellerEarnings() {
                 <div style={{fontSize:12,color:'#1A1A1A',fontWeight:400}}>#{o.id.slice(0,8).toUpperCase()} · {new Date(o.created_at).toLocaleDateString()}</div>
               </div>
               <div style={{textAlign:'right',flexShrink:0}}>
-                <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#2DA84E'}}>+£{parseFloat(o.seller_payout||0).toFixed(2)}</div>
-                <div style={{fontSize:11,color:'#1A1A1A'}}>after £{parseFloat(o.platform_commission||0).toFixed(2)} fee</div>
+                <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#2DA84E'}}>+£{parseFloat(o.seller_payout||'0').toFixed(2)}</div>
+                <div style={{fontSize:11,color:'#1A1A1A'}}>after £{parseFloat(o.platform_commission||'0').toFixed(2)} fee</div>
               </div>
             </div>
           ))}

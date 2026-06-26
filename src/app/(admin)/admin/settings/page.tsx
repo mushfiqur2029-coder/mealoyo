@@ -3,11 +3,15 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Profile } from '@/lib/types'
 
 const COMMISSION_RATE = 0.12
 
+type RevenueOrder = { status: string; platform_commission: string }
+
 export default function AdminSettings() {
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [stats, setStats] = useState({ sellers: 0, buyers: 0, drivers: 0, orders: 0, revenue: 0 })
   const [loading, setLoading] = useState(true)
   const [promoteEmail, setPromoteEmail] = useState('')
@@ -21,7 +25,7 @@ export default function AdminSettings() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/admin/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
-      if ((profile as any)?.role !== 'admin') { router.push('/'); return }
+      if ((profile as Profile | null)?.role !== 'admin') { router.push('/'); return }
       setProfile(profile)
 
       const [{ data: sellers }, { data: buyers }, { data: drivers }, { data: orders }] = await Promise.all([
@@ -31,8 +35,8 @@ export default function AdminSettings() {
         supabase.rpc('admin_get_all_orders'),
       ])
       const revenue = (orders || [])
-        .filter((o: any) => o.status === 'delivered')
-        .reduce((sum: number, o: any) => sum + parseFloat(o.platform_commission || 0), 0)
+        .filter((o: RevenueOrder) => o.status === 'delivered')
+        .reduce((sum: number, o: RevenueOrder) => sum + parseFloat(o.platform_commission || '0'), 0)
 
       setStats({
         sellers: sellers?.length || 0,
@@ -44,7 +48,7 @@ export default function AdminSettings() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const handlePromote = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,7 +78,7 @@ export default function AdminSettings() {
       <nav style={{background:'rgba(0,0,0,0.9)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.2)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
           <Link href="/admin/dashboard" style={{display:'flex',alignItems:'center',gap:10,marginRight:28,flexShrink:0}}>
-            <img src="/White_Logo.png" alt="meaLoyo" style={{height:26,width:'auto'}}/>
+            <Logo height={26} white/>
             <span style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#C8006A'}}>Admin</span>
           </Link>
           <div style={{display:'flex',gap:0,flex:1}}>

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
 
 export default function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -11,7 +11,6 @@ export default function ResetPassword() {
   const [ready, setReady] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
-  const router = useRouter()
 
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
@@ -39,7 +38,7 @@ export default function ResetPassword() {
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, fontFamily:'Inter,system-ui,sans-serif' }}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0;} input:focus{border-color:#C8006A !important;outline:none;background:#fff !important;} .sbtn:hover{background:#A00055 !important;}`}</style>
       <Link href="/" style={{ marginBottom:28 }}>
-        <img src="/Color_Logo.png" alt="meaLoyo" style={{ height:44, filter:'brightness(0) invert(1)' }}/>
+        <Logo height={44} white/>
       </Link>
       <div style={{ background:'#fff', borderRadius:24, padding:'40px 36px', width:'100%', maxWidth:420, boxShadow:'0 24px 80px rgba(0,0,0,0.25)' }}>
         {done ? (

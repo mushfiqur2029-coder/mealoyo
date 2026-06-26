@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { User, Profile } from '@/lib/types'
 
 export default function BuyerProfile() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -21,17 +23,19 @@ export default function BuyerProfile() {
       if (!user) { router.push('/login'); return }
       setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
-      setFullName((profile as any)?.full_name || '')
-      setPhone((profile as any)?.phone || '')
-      setEmail((profile as any)?.email || user.email || '')
+      const p = profile as Profile | null
+      setFullName(p?.full_name || '')
+      setPhone(p?.phone || '')
+      setEmail(p?.email || user.email || '')
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!fullName.trim()) { setError('Please enter your full name'); return }
+    if (!user) return
     setSaving(true)
     setError('')
     setSaved(false)
@@ -67,7 +71,7 @@ export default function BuyerProfile() {
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:900,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center',gap:14}}>
           <Link href="/buyer/dashboard" style={{width:34,height:34,border:'1.5px solid #E0E0E0',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>←</Link>
-          <Link href="/"><img src="/Color_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
+          <Link href="/"><Logo height={32}/></Link>
           <span style={{fontSize:14,color:'#1A1A1A',fontWeight:500}}>My profile</span>
           <div style={{display:'flex',gap:16,marginLeft:'auto',alignItems:'center'}}>
             <Link href="/buyer/orders" style={{fontSize:13,fontWeight:600,color:'#1A1A1A'}}>Orders</Link>

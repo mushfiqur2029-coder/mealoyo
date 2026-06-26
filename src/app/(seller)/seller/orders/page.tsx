@@ -3,6 +3,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Order, Profile } from '@/lib/types'
 
 const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
   pending: { next: 'accepted', label: 'Accept order' },
@@ -15,8 +17,8 @@ const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
 }
 
 export default function SellerOrders() {
-  const [orders, setOrders] = useState<any[]>([])
-  const [profile, setProfile] = useState<any>(null)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [filter, setFilter] = useState('all')
@@ -37,11 +39,11 @@ export default function SellerOrders() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
-  const advanceStatus = async (order: any) => {
+  const advanceStatus = async (order: Order) => {
     const step = STATUS_FLOW[order.status]
     if (!step) return
     setUpdatingId(order.id)
@@ -86,7 +88,7 @@ export default function SellerOrders() {
 
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/" style={{marginRight:28,flexShrink:0}}><img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/></Link>
+          <Link href="/" style={{marginRight:28,flexShrink:0}}><Logo height={34}/></Link>
           <div className="nav-links" style={{display:'flex',gap:0,flex:1}}>
             {[{l:'Dashboard',h:'/seller/dashboard',a:false},{l:'My listings',h:'/seller/listings',a:false},{l:'Orders',h:'/seller/orders',a:true},{l:'Earnings',h:'/seller/earnings',a:false},{l:'Profile',h:'/seller/profile',a:false}].map((t,i)=>(
               <Link key={i} href={t.h} className="nav-link" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
@@ -120,14 +122,14 @@ export default function SellerOrders() {
               return (
                 <div key={o.id} style={{display:'grid',gridTemplateColumns:'48px 1fr 110px 130px',alignItems:'center',gap:14,padding:'16px 20px',borderBottom:i<filtered.length-1?'1px solid #F5F0F3':'none'}}>
                   <div style={{width:48,height:48,borderRadius:12,background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}}>
-                    {cuisineEmoji[o.listings?.cuisine]||'🍽️'}
+                    {cuisineEmoji[o.listings?.cuisine||'Other']||'🍽️'}
                   </div>
                   <div style={{minWidth:0}}>
                     <div style={{fontSize:14,fontWeight:700,color:'#1A1A1A',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.listings?.name||'Order'}</div>
                     <div style={{fontSize:12,color:'#1A1A1A',fontWeight:400,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>#{o.id.slice(0,8).toUpperCase()} · {o.profiles?.full_name||'Buyer'} · Qty {o.quantity} · {new Date(o.created_at).toLocaleDateString()}</div>
                   </div>
                   <div style={{textAlign:'right'}}>
-                    <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#1A1A1A',marginBottom:4}}>£{parseFloat(o.seller_payout||0).toFixed(2)}</div>
+                    <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#1A1A1A',marginBottom:4}}>£{parseFloat(o.seller_payout||'0').toFixed(2)}</div>
                     <span style={{background:statusBg(o.status),color:statusColor(o.status),padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,textTransform:'capitalize',whiteSpace:'nowrap'}}>{o.status.replace('_',' ')}</span>
                   </div>
                   <div style={{textAlign:'right'}}>

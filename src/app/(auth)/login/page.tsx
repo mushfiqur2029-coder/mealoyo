@@ -3,6 +3,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Profile } from '@/lib/types'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -18,7 +20,7 @@ export default function Login() {
     if (authError) { setError(authError.message); setLoading(false); return }
     if (data.user) {
       const { data: profile } = await supabase.rpc('get_my_profile')
-      const role = (profile as any)?.role || 'buyer'
+      const role = (profile as Profile | null)?.role || 'buyer'
       if (role === 'buyer') router.push('/buyer/dashboard')
       else if (role === 'seller') router.push('/seller/dashboard')
       else if (role === 'driver') router.push('/driver/dashboard')
@@ -31,7 +33,7 @@ export default function Login() {
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, fontFamily:'Inter,system-ui,sans-serif' }}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0;} input:focus{border-color:#C8006A !important;outline:none;background:#fff !important;} .sbtn:hover{background:#A00055 !important;}`}</style>
       <Link href="/" style={{ marginBottom:28 }}>
-        <img src="/Color_Logo.png" alt="meaLoyo" style={{ height:44, filter:'brightness(0) invert(1)' }}/>
+        <Logo height={44} white/>
       </Link>
       <div style={{ background:'#fff', borderRadius:24, padding:'40px 36px', width:'100%', maxWidth:420, boxShadow:'0 24px 80px rgba(0,0,0,0.25)' }}>
         <h1 style={{ fontFamily:'Georgia,serif', fontSize:26, fontWeight:700, color:'#1A1A1A', marginBottom:6 }}>Welcome back</h1>
@@ -57,7 +59,7 @@ export default function Login() {
           <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
         </div>
         <p style={{ textAlign:'center', fontSize:13, color:'#1A1A1A' }}>
-          Don't have an account? <Link href="/register" style={{ color:'#C8006A', fontWeight:700 }}>Create account →</Link>
+          Don&apos;t have an account? <Link href="/register" style={{ color:'#C8006A', fontWeight:700 }}>Create account →</Link>
         </p>
       </div>
       <Link href="/" style={{ marginTop:24, fontSize:13, color:'rgba(255,255,255,0.65)' }}>← Back to meaLoyo</Link>

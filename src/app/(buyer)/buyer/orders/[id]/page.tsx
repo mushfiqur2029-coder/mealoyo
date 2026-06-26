@@ -4,12 +4,14 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Order, Listing, Profile } from '@/lib/types'
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const [order, setOrder] = useState<any>(null)
-  const [listing, setListing] = useState<any>(null)
-  const [seller, setSeller] = useState<any>(null)
+  const [order, setOrder] = useState<Order | null>(null)
+  const [listing, setListing] = useState<Listing | null>(null)
+  const [seller, setSeller] = useState<Pick<Profile, 'full_name'> | null>(null)
   const [loading, setLoading] = useState(true)
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState('')
@@ -39,7 +41,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
         .single()
 
       setListing(listing)
-      setSeller(listing?.profiles)
+      setSeller(listing?.profiles ?? null)
 
       const { data: existingReview } = await supabase
         .from('reviews')
@@ -51,10 +53,10 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       setLoading(false)
     }
     getData()
-  }, [id])
+  }, [id, router])
 
   const submitReview = async () => {
-    if (rating === 0) return
+    if (rating === 0 || !order) return
     setSubmittingReview(true)
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('reviews').insert({
@@ -92,6 +94,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     </div>
   )
 
+  if (!order) return null
+
   const currentStep = statusSteps.indexOf(order.status)
 
   return (
@@ -108,7 +112,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       <nav style={{background:'rgba(255,255,255,0.97)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1000,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center',gap:14}}>
           <Link href="/buyer/dashboard" style={{width:34,height:34,border:'1.5px solid #E0E0E0',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>←</Link>
-          <Link href="/"><img src="/Color_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
+          <Link href="/"><Logo height={32}/></Link>
           <span style={{fontSize:14,color:'#1A1A1A',fontWeight:400}}>Order #{order.id.slice(0,8).toUpperCase()}</span>
         </div>
       </nav>
@@ -181,7 +185,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
             {order.status === 'delivered' && !reviewed && (
               <div style={{background:'#fff',borderRadius:20,padding:'24px',boxShadow:'0 2px 10px rgba(200,0,106,0.06)',border:'1.5px solid rgba(200,0,106,0.07)'}}>
                 <h2 style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#1A1A1A',marginBottom:6}}>Rate your order</h2>
-                <p style={{fontSize:13,color:'#1A1A1A',marginBottom:16}}>How was {seller?.full_name}'s food?</p>
+                <p style={{fontSize:13,color:'#1A1A1A',marginBottom:16}}>How was {seller?.full_name}&apos;s food?</p>
                 <div style={{display:'flex',gap:8,marginBottom:16}}>
                   {[1,2,3,4,5].map(star=>(
                     <span key={star} className="star" onClick={()=>setRating(star)} style={{fontSize:32,cursor:'pointer',color:star<=rating?'#C8006A':'#E0E0E0',transition:'all 0.14s'}}>★</span>
@@ -213,8 +217,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               <h2 style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:'#1A1A1A',marginBottom:18}}>Payment summary</h2>
               <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:16}}>
                 {[
-                  {l:`${listing?.name} × ${order.quantity}`,v:`£${(order.total_amount - order.delivery_fee).toFixed(2)}`},
-                  ...(order.delivery_fee>0?[{l:'Delivery fee',v:`£${parseFloat(order.delivery_fee).toFixed(2)}`}]:[]),
+                  {l:`${listing?.name} × ${order.quantity}`,v:`£${(parseFloat(order.total_amount) - parseFloat(order.delivery_fee)).toFixed(2)}`},
+                  ...(parseFloat(order.delivery_fee)>0?[{l:'Delivery fee',v:`£${parseFloat(order.delivery_fee).toFixed(2)}`}]:[]),
                 ].map((row,i)=>(
                   <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'#1A1A1A'}}>
                     <span>{row.l}</span><span style={{fontWeight:600}}>{row.v}</span>

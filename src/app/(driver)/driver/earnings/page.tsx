@@ -3,10 +3,12 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Order, Profile } from '@/lib/types'
 
 export default function DriverEarnings() {
-  const [orders, setOrders] = useState<any[]>([])
-  const [profile, setProfile] = useState<any>(null)
+  const [orders, setOrders] = useState<Order[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -26,7 +28,7 @@ export default function DriverEarnings() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -47,13 +49,13 @@ export default function DriverEarnings() {
     </div>
   )
 
-  const totalEarned = orders.reduce((sum,o)=>sum+parseFloat(o.delivery_fee||0),0)
+  const totalEarned = orders.reduce((sum,o)=>sum+parseFloat(o.delivery_fee||'0'),0)
   const now = new Date()
   const thisMonthOrders = orders.filter(o => {
     const d = new Date(o.created_at)
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
   })
-  const thisMonthEarned = thisMonthOrders.reduce((sum,o)=>sum+parseFloat(o.delivery_fee||0),0)
+  const thisMonthEarned = thisMonthOrders.reduce((sum,o)=>sum+parseFloat(o.delivery_fee||'0'),0)
 
   return (
     <div style={{minHeight:'100vh',background:'#0D0D0D',fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -61,7 +63,7 @@ export default function DriverEarnings() {
 
       <nav style={{background:'rgba(0,0,0,0.85)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.15)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/" style={{marginRight:28}}><img src="/White_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
+          <Link href="/" style={{marginRight:28}}><Logo height={32} white/></Link>
           <div style={{display:'flex',gap:0,flex:1}}>
             {[{l:'Dashboard',h:'/driver/dashboard',a:false},{l:'My earnings',h:'/driver/earnings',a:true},{l:'History',h:'/driver/history',a:false}].map((t,i)=>(
               <Link key={i} href={t.h} style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'rgba(255,255,255,0.55)',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent'}}>{t.l}</Link>
@@ -107,7 +109,7 @@ export default function DriverEarnings() {
                 <div style={{fontSize:14,fontWeight:700,color:'#fff',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.listings?.name||'Delivery'}</div>
                 <div style={{fontSize:12,color:'rgba(255,255,255,0.45)'}}>#{o.id.slice(0,8).toUpperCase()} · {new Date(o.created_at).toLocaleDateString()}</div>
               </div>
-              <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#86EFAC',flexShrink:0}}>+£{parseFloat(o.delivery_fee||0).toFixed(2)}</div>
+              <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#86EFAC',flexShrink:0}}>+£{parseFloat(o.delivery_fee||'0').toFixed(2)}</div>
             </div>
           ))}
         </div>

@@ -4,19 +4,19 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Listing, Profile } from '@/lib/types'
 
 export default function SellerListings() {
-  const [listings, setListings] = useState<any[]>([])
+  const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     const getData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
-      setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
       const { data } = await supabase
@@ -28,7 +28,7 @@ export default function SellerListings() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const deleteListing = async (id: string) => {
     if (!confirm('Delete this listing?')) return
@@ -75,7 +75,7 @@ export default function SellerListings() {
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
           <Link href="/" style={{marginRight:28,flexShrink:0}}>
-            <img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/>
+            <Logo height={34}/>
           </Link>
           <div style={{display:'flex',gap:0,flex:1}}>
             {[

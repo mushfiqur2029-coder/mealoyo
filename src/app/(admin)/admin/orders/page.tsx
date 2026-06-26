@@ -3,10 +3,23 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Profile } from '@/lib/types'
+
+// admin_get_all_orders returns a flattened row (names joined in the RPC).
+type AdminOrder = {
+  id: string
+  listing_name: string | null
+  buyer_name: string | null
+  seller_name: string | null
+  total_amount: string
+  status: string
+  created_at: string
+}
 
 export default function AdminOrders() {
-  const [profile, setProfile] = useState<any>(null)
-  const [orders, setOrders] = useState<any[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [orders, setOrders] = useState<AdminOrder[]>([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -17,14 +30,14 @@ export default function AdminOrders() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/admin/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
-      if ((profile as any)?.role !== 'admin') { router.push('/'); return }
+      if ((profile as Profile | null)?.role !== 'admin') { router.push('/'); return }
       setProfile(profile)
       const { data } = await supabase.rpc('admin_get_all_orders')
       setOrders(data || [])
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const cancelOrder = async (id: string) => {
     if (!confirm('Cancel this order?')) return
@@ -56,7 +69,7 @@ export default function AdminOrders() {
       <nav style={{background:'rgba(0,0,0,0.9)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.2)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
           <Link href="/admin/dashboard" style={{display:'flex',alignItems:'center',gap:10,marginRight:28,flexShrink:0}}>
-            <img src="/White_Logo.png" alt="meaLoyo" style={{height:26,width:'auto'}}/>
+            <Logo height={26} white/>
             <span style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#C8006A'}}>Admin</span>
           </Link>
           <div style={{display:'flex',gap:0,flex:1}}>
@@ -101,7 +114,7 @@ export default function AdminOrders() {
                 <div style={{fontSize:13,color:'#fff',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.seller_name||'Unknown'}</div>
               </div>
               <div style={{textAlign:'right'}}>
-                <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#fff',marginBottom:4}}>£{parseFloat(o.total_amount||0).toFixed(2)}</div>
+                <div style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#fff',marginBottom:4}}>£{parseFloat(o.total_amount||'0').toFixed(2)}</div>
                 <span style={{background:statusBg(o.status),color:statusColor(o.status),padding:'2px 9px',borderRadius:20,fontSize:11,fontWeight:700,textTransform:'capitalize',whiteSpace:'nowrap'}}>{o.status.replace('_',' ')}</span>
               </div>
               <div style={{textAlign:'right'}}>

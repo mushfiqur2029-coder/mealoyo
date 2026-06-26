@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // One-off Node scaffolding/generator scripts (not part of the app bundle).
+    "*.js",
   ]),
 ]);
 

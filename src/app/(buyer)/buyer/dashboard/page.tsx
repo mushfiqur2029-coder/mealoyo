@@ -3,15 +3,17 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { User, Profile, Order, Review } from '@/lib/types'
 
 export default function BuyerDashboard() {
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
-  const [orders, setOrders] = useState<any[]>([])
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [orders, setOrders] = useState<Order[]>([])
   const [orderCount, setOrderCount] = useState(0)
   const [deliveredCount, setDeliveredCount] = useState(0)
   const [inProgressCount, setInProgressCount] = useState(0)
-  const [reviewsGiven, setReviewsGiven] = useState<any[]>([])
+  const [reviewsGiven, setReviewsGiven] = useState<Pick<Review, 'rating'>[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -35,7 +37,7 @@ export default function BuyerDashboard() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -62,7 +64,7 @@ export default function BuyerDashboard() {
 
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/" style={{marginRight:28,flexShrink:0}}><img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/></Link>
+          <Link href="/" style={{marginRight:28,flexShrink:0}}><Logo height={34}/></Link>
           <div className="nav-links" style={{display:'flex',gap:0,flex:1}}>
             {[{l:'Dashboard',h:'/buyer/dashboard',a:true},{l:'Browse food',h:'/',a:false},{l:'My orders',h:'/buyer/orders',a:false},{l:'Saved',h:'/buyer/saved',a:false},{l:'Profile',h:'/buyer/profile',a:false}].map((t,i)=>(
               <Link key={i} href={t.h} className="nav-link" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
@@ -110,7 +112,7 @@ export default function BuyerDashboard() {
           ) : orders.map((o,i)=>(
             <Link key={o.id} href={`/buyer/orders/${o.id}`} className="orow" style={{display:'flex',alignItems:'center',gap:14,padding:'14px 22px',borderBottom:i<orders.length-1?'1px solid #F5F0F3':'none',transition:'background 0.12s',cursor:'pointer'}}>
               <div style={{width:44,height:44,borderRadius:12,background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,flexShrink:0}}>
-                {cuisineEmoji[o.listings?.cuisine]||'🍽️'}
+                {cuisineEmoji[o.listings?.cuisine||'Other']||'🍽️'}
               </div>
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:14,fontWeight:700,color:'#1A1A1A',marginBottom:2,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.listings?.name||'Order'}</div>

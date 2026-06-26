@@ -3,9 +3,13 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Listing } from '@/lib/types'
+
+type SavedRow = { id: string; listing_id: string; listings: Listing | null }
 
 export default function BuyerSaved() {
-  const [saved, setSaved] = useState<any[]>([])
+  const [saved, setSaved] = useState<SavedRow[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -18,11 +22,11 @@ export default function BuyerSaved() {
         .select('id, listing_id, listings(*, profiles:seller_id(full_name))')
         .eq('buyer_id', user.id)
         .order('created_at', { ascending: false })
-      setSaved(data || [])
+      setSaved((data as unknown as SavedRow[]) || [])
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const unsave = async (savedId: string) => {
     await supabase.from('saved_listings').delete().eq('id', savedId)
@@ -54,7 +58,7 @@ export default function BuyerSaved() {
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center',gap:14}}>
           <Link href="/buyer/dashboard" style={{width:34,height:34,border:'1.5px solid #E0E0E0',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>←</Link>
-          <Link href="/"><img src="/Color_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
+          <Link href="/"><Logo height={32}/></Link>
           <span style={{fontSize:14,color:'#1A1A1A',fontWeight:500}}>Saved dishes</span>
           <div style={{display:'flex',gap:16,marginLeft:'auto'}}>
             <Link href="/buyer/orders" style={{fontSize:13,fontWeight:600,color:'#1A1A1A'}}>Orders</Link>

@@ -3,15 +3,16 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { Profile, Listing, Order, Review } from '@/lib/types'
 
 export default function SellerDashboard() {
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
-  const [listings, setListings] = useState<any[]>([])
-  const [orders, setOrders] = useState<any[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [listings, setListings] = useState<Listing[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const [orderCount, setOrderCount] = useState(0)
-  const [deliveredOrders, setDeliveredOrders] = useState<any[]>([])
-  const [reviews, setReviews] = useState<any[]>([])
+  const [deliveredOrders, setDeliveredOrders] = useState<Pick<Order, 'seller_payout'>[]>([])
+  const [reviews, setReviews] = useState<Pick<Review, 'rating'>[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -19,7 +20,6 @@ export default function SellerDashboard() {
     const getData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
-      setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
       const { data: listings } = await supabase.from('listings').select('*').eq('seller_id', user.id)
@@ -35,7 +35,7 @@ export default function SellerDashboard() {
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -62,7 +62,7 @@ export default function SellerDashboard() {
   const statusColor = (s:string) => s==='delivered'?'#2DA84E':s==='cooking'?'#E8930A':s==='ready'?'#C8006A':'#1A6ECC'
   const statusBg = (s:string) => s==='delivered'?'#E4F6EA':s==='cooking'?'#FFF4E0':s==='ready'?'#FFE8F4':'#EBF2FD'
   const liveListings = listings.filter(l=>l.status==='live').length
-  const totalEarnings = deliveredOrders.reduce((sum,o)=>sum+parseFloat(o.seller_payout||0),0)
+  const totalEarnings = deliveredOrders.reduce((sum,o)=>sum+parseFloat(o.seller_payout||'0'),0)
   const avgRating = reviews.length ? (reviews.reduce((sum,r)=>sum+r.rating,0)/reviews.length).toFixed(1) : null
 
   return (
@@ -71,7 +71,7 @@ export default function SellerDashboard() {
 
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/" style={{marginRight:28,flexShrink:0}}><img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/></Link>
+          <Link href="/" style={{marginRight:28,flexShrink:0}}><Logo height={34}/></Link>
           <div className="nav-links" style={{display:'flex',gap:0,flex:1}}>
             {[{l:'Dashboard',h:'/seller/dashboard',a:true},{l:'My listings',h:'/seller/listings',a:false},{l:'Orders',h:'/seller/orders',a:false},{l:'Earnings',h:'/seller/earnings',a:false},{l:'Profile',h:'/seller/profile',a:false}].map((t,i)=>(
               <Link key={i} href={t.h} style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent'}}>{t.l}</Link>
@@ -133,7 +133,7 @@ export default function SellerDashboard() {
                   <div style={{fontSize:11,color:'#1A1A1A',fontWeight:400}}>#{o.id.slice(0,8).toUpperCase()}</div>
                 </div>
                 <div style={{textAlign:'right',flexShrink:0}}>
-                  <div style={{fontFamily:'Georgia,serif',fontSize:13,fontWeight:700,color:'#1A1A1A',marginBottom:3}}>£{parseFloat(o.seller_payout||0).toFixed(2)}</div>
+                  <div style={{fontFamily:'Georgia,serif',fontSize:13,fontWeight:700,color:'#1A1A1A',marginBottom:3}}>£{parseFloat(o.seller_payout||'0').toFixed(2)}</div>
                   <span style={{background:statusBg(o.status),color:statusColor(o.status),padding:'2px 7px',borderRadius:20,fontSize:10,fontWeight:700,textTransform:'capitalize'}}>{o.status}</span>
                 </div>
               </div>

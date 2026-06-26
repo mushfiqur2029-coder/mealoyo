@@ -4,12 +4,14 @@ import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { User, Listing, Profile } from '@/lib/types'
 
 export default function DishPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
-  const [listing, setListing] = useState<any>(null)
-  const [seller, setSeller] = useState<any>(null)
-  const [user, setUser] = useState<any>(null)
+  const [listing, setListing] = useState<Listing | null>(null)
+  const [seller, setSeller] = useState<Pick<Profile, 'id' | 'full_name'> | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [deliveryType, setDeliveryType] = useState<'collection' | 'delivery'>('collection')
   const [address, setAddress] = useState('')
@@ -32,7 +34,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         .single()
       if (!listing) { router.push('/'); return }
       setListing(listing)
-      setSeller(listing.profiles)
+      setSeller(listing.profiles ?? null)
       if (user) {
         const { data: savedRow } = await supabase.from('saved_listings').select('id').eq('buyer_id', user.id).eq('listing_id', id).maybeSingle()
         if (savedRow) { setIsSaved(true); setSavedRowId(savedRow.id) }
@@ -40,7 +42,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       setLoading(false)
     }
     getData()
-  }, [id])
+  }, [id, router])
 
   const toggleSave = async () => {
     if (!user) { router.push('/login'); return }
@@ -57,13 +59,14 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
   const handleOrder = async () => {
     if (!user) { router.push('/login'); return }
+    if (!listing || !seller) return
     if (deliveryType === 'delivery' && !address.trim()) {
       setError('Please enter your delivery address')
       return
     }
     setOrdering(true)
     setError('')
-    const totalAmount = listing.price * quantity
+    const totalAmount = parseFloat(listing.price) * quantity
     const deliveryFee = deliveryType === 'delivery' ? 4.50 : 0
     const commission = totalAmount * 0.12
     const sellerPayout = totalAmount - commission
@@ -105,12 +108,14 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
     </div>
   )
 
+  if (!listing) return null
+
   const cuisineEmoji: Record<string,string> = {
     'Bangladeshi':'🍛','Pakistani':'🫕','Indian':'🥘','Caribbean':'🍗',
     'Middle Eastern':'🧆','West African':'🫘','Turkish':'🥙','Other':'🍽️'
   }
 
-  const totalAmount = listing.price * quantity
+  const totalAmount = parseFloat(listing.price) * quantity
   const deliveryFee = deliveryType === 'delivery' ? 4.50 : 0
   const grandTotal = totalAmount + deliveryFee
 
@@ -131,7 +136,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       <nav style={{background:'rgba(255,255,255,0.97)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center',gap:14}}>
           <Link href="/" style={{width:34,height:34,border:'1.5px solid #E0E0E0',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>←</Link>
-          <Link href="/"><img src="/Color_Logo.png" alt="meaLoyo" style={{height:32,width:'auto'}}/></Link>
+          <Link href="/"><Logo height={32}/></Link>
           <span style={{fontSize:14,color:'#1A1A1A',fontWeight:400,marginLeft:4,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{listing.name}</span>
         </div>
       </nav>
@@ -166,9 +171,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
                 </div>
               </div>
 
-              {listing.reviews_count > 0 && (
+              {(listing.reviews_count ?? 0) > 0 && (
                 <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:14}}>
-                  <span style={{color:'#C8006A',fontSize:16,letterSpacing:'1px'}}>{'★'.repeat(Math.round(listing.rating))}</span>
+                  <span style={{color:'#C8006A',fontSize:16,letterSpacing:'1px'}}>{'★'.repeat(Math.round(listing.rating ?? 0))}</span>
                   <span style={{fontSize:14,fontWeight:700,color:'#1A1A1A'}}>{listing.rating}</span>
                   <span style={{fontSize:13,color:'#1A1A1A'}}>({listing.reviews_count} reviews)</span>
                 </div>
@@ -211,7 +216,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
                 <div>
                   <div style={{fontSize:16,fontWeight:700,color:'#1A1A1A',marginBottom:3}}>{seller?.full_name||'Home cook'}</div>
                   <div style={{fontSize:13,color:'#1A1A1A'}}>Verified home cook · {listing.cuisine} specialist</div>
-                  {listing.reviews_count > 0 && <div style={{fontSize:13,color:'#C8006A',fontWeight:600,marginTop:2}}>★ {listing.rating} rating · {listing.reviews_count} reviews</div>}
+                  {(listing.reviews_count ?? 0) > 0 && <div style={{fontSize:13,color:'#C8006A',fontWeight:600,marginTop:2}}>★ {listing.rating} rating · {listing.reviews_count} reviews</div>}
                 </div>
               </div>
             </div>
@@ -296,7 +301,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
                   <Link href="/login" style={{display:'flex',alignItems:'center',justifyContent:'center',width:'100%',height:52,background:'#C8006A',color:'#fff',borderRadius:12,fontSize:16,fontWeight:700,boxShadow:'0 6px 20px rgba(200,0,106,0.3)',marginBottom:10}}>
                     Sign in to order →
                   </Link>
-                  <p style={{textAlign:'center',fontSize:12,color:'#1A1A1A'}}>Don't have an account? <Link href="/register" style={{color:'#C8006A',fontWeight:600}}>Register free</Link></p>
+                  <p style={{textAlign:'center',fontSize:12,color:'#1A1A1A'}}>Don&apos;t have an account? <Link href="/register" style={{color:'#C8006A',fontWeight:600}}>Register free</Link></p>
                 </div>
               )}
 

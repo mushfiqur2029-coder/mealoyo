@@ -4,13 +4,16 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { CSSProperties } from 'react'
+import type { User, Profile } from '@/lib/types'
 
 const ALLERGENS = ['Gluten','Dairy','Nuts','Eggs','Fish','Shellfish','Soya','Sesame','Celery','Mustard','Lupin','Sulphites','Molluscs','Peanuts']
 const CUISINES = ['Bangladeshi','Pakistani','Indian','Caribbean','Middle Eastern','West African','Turkish','Sri Lankan','Afghan','East African','Chinese','Other']
 
 export default function NewListing() {
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [checkingProfile, setCheckingProfile] = useState(true)
   const [loading, setLoading] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -42,11 +45,11 @@ export default function NewListing() {
       setCheckingProfile(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
-  const set = (k: string, v: any) => setForm(prev => ({...prev, [k]: v}))
+  const set = (k: string, v: string | boolean | string[]) => setForm(prev => ({...prev, [k]: v}))
 
   const toggleAllergen = (a: string) => setForm(prev => ({
     ...prev,
@@ -61,6 +64,7 @@ export default function NewListing() {
     if (!form.price || parseFloat(form.price) < 1) { setError('Price must be at least £1'); return }
     if (!form.cuisine) { setError('Please select a cuisine type'); return }
     if (!form.description.trim()) { setError('Please add a description'); return }
+    if (!user) return
     setLoading(true)
     setError('')
     const { error: dbError } = await supabase.from('listings').insert({
@@ -114,7 +118,7 @@ export default function NewListing() {
     </div>
   )
 
-  const inp = {height:46,border:'1.5px solid #E0E0E0',borderRadius:10,padding:'0 14px',fontSize:14,color:'#1A1A1A',background:'#FAFAFA',width:'100%',fontFamily:'Inter,system-ui,sans-serif',outline:'none'} as any
+  const inp: CSSProperties = {height:46,border:'1.5px solid #E0E0E0',borderRadius:10,padding:'0 14px',fontSize:14,color:'#1A1A1A',background:'#FAFAFA',width:'100%',fontFamily:'Inter,system-ui,sans-serif',outline:'none'}
   const lbl = {fontSize:11,fontWeight:700,color:'#1A1A1A',textTransform:'uppercase' as const,letterSpacing:'0.06em',marginBottom:6,display:'block'}
   const sec = {background:'#fff',borderRadius:18,padding:'24px',marginBottom:16,boxShadow:'0 2px 10px rgba(200,0,106,0.05)',border:'1.5px solid rgba(200,0,106,0.07)'}
   const sel = {...inp, appearance:'none' as const, paddingRight:36}
@@ -136,7 +140,7 @@ export default function NewListing() {
 
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/" style={{marginRight:28,flexShrink:0}}><img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/></Link>
+          <Link href="/" style={{marginRight:28,flexShrink:0}}><Logo height={34}/></Link>
           <div className="nav-links" style={{display:'flex',gap:0,flex:1}}>
             {[{l:'Dashboard',h:'/seller/dashboard',a:false},{l:'My listings',h:'/seller/listings',a:true},{l:'Orders',h:'/seller/orders',a:false},{l:'Earnings',h:'/seller/earnings',a:false},{l:'Profile',h:'/seller/profile',a:false}].map((t,i)=>(
               <Link key={i} href={t.h} className="nav-link" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
@@ -212,7 +216,7 @@ export default function NewListing() {
             <p style={{fontSize:13,color:'#1A1A1A',marginBottom:14,fontWeight:400}}>Select all that apply.</p>
             <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
               {[{k:'halal',l:'🟢 Halal'},{k:'vegan',l:'🌿 Vegan'},{k:'vegetarian',l:'🥦 Vegetarian'},{k:'spicy',l:'🌶️ Spicy'}].map(tag=>(
-                <div key={tag.k} className={`pill ${(form as any)[tag.k]?'on':''}`} onClick={()=>set(tag.k,!(form as any)[tag.k])}>{tag.l}</div>
+                <div key={tag.k} className={`pill ${(form as unknown as Record<string, boolean>)[tag.k]?'on':''}`} onClick={()=>set(tag.k,!(form as unknown as Record<string, boolean>)[tag.k])}>{tag.l}</div>
               ))}
             </div>
           </div>

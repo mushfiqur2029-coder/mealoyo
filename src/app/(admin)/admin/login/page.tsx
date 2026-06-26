@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import type { Profile } from '@/lib/types'
 
 export default function AdminLogin() {
   const [email, setEmail] = useState('')
@@ -17,7 +18,7 @@ export default function AdminLogin() {
     if (authError) { setError('Invalid credentials'); setLoading(false); return }
     if (data.user) {
       const { data: profile } = await supabase.rpc('get_my_profile')
-      if ((profile as any)?.role !== 'admin') { await supabase.auth.signOut(); setError('Access denied. Admin only.'); setLoading(false); return }
+      if ((profile as Profile | null)?.role !== 'admin') { await supabase.auth.signOut(); setError('Access denied. Admin only.'); setLoading(false); return }
       router.push('/admin/dashboard')
     }
   }

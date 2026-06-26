@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
+import type { User, Profile } from '@/lib/types'
 
 export default function SellerProfile() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
@@ -22,18 +24,20 @@ export default function SellerProfile() {
       if (!user) { router.push('/login'); return }
       setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
-      setFullName((profile as any)?.full_name || '')
-      setPhone((profile as any)?.phone || '')
-      setEmail((profile as any)?.email || user.email || '')
-      setStatus((profile as any)?.status || '')
+      const p = profile as Profile | null
+      setFullName(p?.full_name || '')
+      setPhone(p?.phone || '')
+      setEmail(p?.email || user.email || '')
+      setStatus(p?.status || '')
       setLoading(false)
     }
     getData()
-  }, [])
+  }, [router])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!fullName.trim()) { setError('Please enter your full name'); return }
+    if (!user) return
     setSaving(true)
     setError('')
     setSaved(false)
@@ -70,7 +74,7 @@ export default function SellerProfile() {
 
       <nav style={{background:'#fff',borderBottom:'1px solid rgba(200,0,106,0.08)',position:'sticky',top:0,zIndex:100,height:62}}>
         <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/" style={{marginRight:28,flexShrink:0}}><img src="/Color_Logo.png" alt="meaLoyo" style={{height:34,width:'auto'}}/></Link>
+          <Link href="/" style={{marginRight:28,flexShrink:0}}><Logo height={34}/></Link>
           <div className="nav-links" style={{display:'flex',gap:0,flex:1}}>
             {[{l:'Dashboard',h:'/seller/dashboard',a:false},{l:'My listings',h:'/seller/listings',a:false},{l:'Orders',h:'/seller/orders',a:false},{l:'Earnings',h:'/seller/earnings',a:false},{l:'Profile',h:'/seller/profile',a:true}].map((t,i)=>(
               <Link key={i} href={t.h} className="nav-link" style={{height:62,padding:'0 14px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.a?700:500,color:t.a?'#C8006A':'#1A1A1A',borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>

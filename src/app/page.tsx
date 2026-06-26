@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import Logo from '@/components/Logo'
+import type { Listing, Review } from '@/lib/types'
 
 const cuisineEmoji: Record<string,string> = {
   'Bangladeshi':'🍛','Pakistani':'🫕','Indian':'🥘','Caribbean':'🍗',
@@ -26,16 +28,6 @@ const cats = [
 const COMMISSION_RATE = 0.12
 const cookColors = ['#C8006A','#A00055']
 
-
-// ── REAL PNG LOGOS ──
-const Logo = ({height=38, white=false}:{height?:number, white?:boolean}) => (
-  <img
-    src={white ? '/White_Logo.png' : '/Color_Logo.png'}
-    alt="meaLoyo"
-    style={{height, width:'auto', objectFit:'contain', display:'block'}}
-  />
-)
-
 export default function Home() {
   const [cat, setCat] = useState('all')
   const [postcode, setPostcode] = useState('')
@@ -44,10 +36,10 @@ export default function Home() {
   const [saved, setSaved] = useState<string[]>([])
   const [userId, setUserId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
-  const [listings, setListings] = useState<any[]>([])
+  const [listings, setListings] = useState<Listing[]>([])
   const [loadingListings, setLoadingListings] = useState(true)
   const [reviewCount, setReviewCount] = useState<number | null>(null)
-  const [reviews, setReviews] = useState<any[]>([])
+  const [reviews, setReviews] = useState<Review[]>([])
   const [loadingReviews, setLoadingReviews] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
   const catRef = useRef<HTMLDivElement>(null)
@@ -120,9 +112,9 @@ export default function Home() {
     })).slice(0, 6)
   })()
 
-  const ratedListings = listings.filter(l => l.reviews_count > 0)
+  const ratedListings = listings.filter(l => (l.reviews_count ?? 0) > 0)
   const avgRating = ratedListings.length
-    ? (ratedListings.reduce((sum, l) => sum + l.rating, 0) / ratedListings.length).toFixed(1)
+    ? (ratedListings.reduce((sum, l) => sum + (l.rating ?? 0), 0) / ratedListings.length).toFixed(1)
     : null
   const payoutPct = Math.round((1 - COMMISSION_RATE) * 100)
   const showcaseListings = [...listings].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0)).slice(0, 3)
@@ -259,7 +251,7 @@ export default function Home() {
       <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:500, height:66}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px', height:66, display:'flex', alignItems:'center'}}>
           <Link href="/" style={{marginRight:28, flexShrink:0}}>
-            <img src="/Color_Logo.png" alt="meaLoyo" style={{height:38, width:'auto'}}/>
+            <Logo height={38}/>
           </Link>
           <div className="nav-links-wrap" style={{display:'flex', gap:0, flex:1}}>
             {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/register',a:false},{l:'Deliver & earn',h:'/register',a:false}].map((t,i) => (
@@ -316,7 +308,7 @@ export default function Home() {
 
             {/* Brand badge */}
             <div style={{display:'inline-flex', alignItems:'center', gap:10, background:'rgba(255,255,255,0.12)', border:'1px solid rgba(255,255,255,0.2)', borderRadius:100, padding:'6px 16px', marginBottom:24}}>
-              <img src="/White_Logo.png" alt="meaLoyo" style={{height:22, width:'auto'}}/>
+              <Logo height={22} white priority={false}/>
               <span style={{fontSize:12, fontWeight:700, color:'#fff', letterSpacing:'0.04em'}}>Available across the UK</span>
             </div>
 
@@ -428,7 +420,7 @@ export default function Home() {
           <div style={{position:'relative'}}>
             <div style={{position:'absolute', left:0, top:0, bottom:0, width:40, background:'linear-gradient(to right, #fff, transparent)', zIndex:1, pointerEvents:'none'}}/>
             <div style={{position:'absolute', right:0, top:0, bottom:0, width:40, background:'linear-gradient(to left, #fff, transparent)', zIndex:1, pointerEvents:'none'}}/>
-            <div ref={catRef} style={{display:'flex', gap:10, overflowX:'auto', paddingBottom:4, paddingTop:4, scrollBehavior:'smooth', msOverflowStyle:'none' as any, scrollbarWidth:'none' as any}}>
+            <div ref={catRef} style={{display:'flex', gap:10, overflowX:'auto', paddingBottom:4, paddingTop:4, scrollBehavior:'smooth', msOverflowStyle:'none', scrollbarWidth:'none'}}>
               {cats.map(c => (
                 <button key={c.id} onClick={() => setCat(c.id)} className="cat-pill" style={{display:'flex', alignItems:'center', gap:8, padding:'10px 20px', background:cat===c.id?'#FFE8F4':'#fff', border:cat===c.id?'2px solid #C8006A':'2px solid #E8E8E8', borderRadius:100, fontSize:14, fontWeight:700, color:cat===c.id?'#C8006A':'#1A1A1A', whiteSpace:'nowrap', flexShrink:0, boxShadow:'0 2px 8px rgba(0,0,0,0.04)', transition:'all 0.14s', cursor:'pointer'}}>
                   <span style={{fontSize:18, lineHeight:1}}>{c.emoji}</span>{c.label}
@@ -675,7 +667,7 @@ export default function Home() {
                 return (
                   <div key={r.id} className="review-card" style={{background:'#fff', borderRadius:18, padding:'22px', boxShadow:'0 2px 12px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.08)', display:'flex', flexDirection:'column', transition:'transform 0.18s'}}>
                     <div style={{color:'#C8006A', fontSize:14, letterSpacing:'2px', marginBottom:12}}>{'★'.repeat(r.rating)}{'☆'.repeat(5-r.rating)}</div>
-                    <p style={{fontFamily:'Georgia,serif', fontSize:14, fontStyle:'italic', color:'#1A1A1A', lineHeight:1.75, marginBottom:16, flex:1}}>"{r.comment}"</p>
+                    <p style={{fontFamily:'Georgia,serif', fontSize:14, fontStyle:'italic', color:'#1A1A1A', lineHeight:1.75, marginBottom:16, flex:1}}>&ldquo;{r.comment}&rdquo;</p>
                     <div style={{display:'flex', alignItems:'center', gap:10}}>
                       <div style={{width:38, height:38, borderRadius:'50%', background:cookColors[i % cookColors.length], display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:13, fontWeight:700, color:'#fff', flexShrink:0}}>{initials}</div>
                       <div>
@@ -696,7 +688,7 @@ export default function Home() {
         <div style={{position:'absolute', right:'-5%', top:'-40%', width:'50%', height:'200%', borderRadius:'50%', background:'rgba(255,255,255,0.05)', pointerEvents:'none'}}/>
         <div style={{maxWidth:660, margin:'0 auto', position:'relative', zIndex:1}}>
           <div style={{display:'flex', justifyContent:'center', marginBottom:20}}>
-            <img src="/White_Logo.png" alt="meaLoyo" style={{height:48, width:'auto'}}/>
+            <Logo height={48} white priority={false}/>
           </div>
           <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3.5vw,44px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:10, lineHeight:1.15}}>Hungry? Order home cooked food now.</h2>
           <p style={{fontSize:'clamp(14px,1.4vw,17px)', color:'rgba(255,255,255,0.85)', marginBottom:28, lineHeight:1.65, fontWeight:400}}>{cooks.length > 0 ? `${cooks.length} ` : ''}home cooks across the UK. Authentic food. No restaurant markup.</p>
@@ -713,7 +705,7 @@ export default function Home() {
           <div className="footer-grid" style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:40, marginBottom:32}}>
             <div>
               <div style={{marginBottom:12}}>
-                <img src="/White_Logo.png" alt="meaLoyo" style={{height:34, width:'auto'}}/>
+                <Logo height={34} white priority={false}/>
               </div>
               <p style={{fontSize:13, color:'rgba(255,255,255,0.55)', lineHeight:1.7, maxWidth:240, marginBottom:14, fontWeight:400}}>The UK home cook food marketplace. Authentic meals from verified home cooks across the UK.</p>
               <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'rgba(200,0,106,0.18)', color:'#FFE8F4', border:'1px solid rgba(200,0,106,0.28)', padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700}}>meaLoyo · Est. 2026</span>
