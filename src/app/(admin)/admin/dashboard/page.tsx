@@ -16,12 +16,45 @@ type PendingItem = {
   cuisine?: string | null
   created_at: string
 }
+type AdminOrderRow = { status: string; platform_commission?: string | null }
+type Stats = { users: number; sellers: number; drivers: number; orders: number; listings: number; revenue: number }
+
+const NAV = [
+  { l:'Dashboard', h:'/admin/dashboard' },
+  { l:'Sellers', h:'/admin/sellers' },
+  { l:'Drivers', h:'/admin/drivers' },
+  { l:'Orders', h:'/admin/orders' },
+  { l:'Settings', h:'/admin/settings' },
+]
+
+const dark = `
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  @keyframes shimmerD { 0% { background-position: -480px 0; } 100% { background-position: 480px 0; } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 0; height: 0; } * { scrollbar-width: none; -ms-overflow-style: none; }
+  a { text-decoration: none; color: inherit; }
+  button { font-family: Inter, system-ui, sans-serif; }
+  .skelD { background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
+  .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
+  .nav-link:hover { color: #fff !important; }
+  .approve:hover { background: #009836 !important; }
+  .reject:hover { background: #991010 !important; }
+  .stat-card { transition: transform 0.18s, border-color 0.18s; }
+  .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
+  .quick:hover { border-color: rgba(200,0,106,0.5) !important; background: rgba(200,0,106,0.07) !important; transform: translateY(-2px); }
+  .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
+  @media (max-width: 900px) { .nav-links { display: none !important; } }
+  @media (max-width: 768px) { .admin-grid { grid-template-columns: 1fr 1fr !important; } .quick-grid { grid-template-columns: 1fr 1fr !important; } }
+  @media (max-width: 480px) { .admin-grid { grid-template-columns: 1fr 1fr !important; } }
+`
 
 export default function AdminDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [sellers, setSellers] = useState<PendingItem[]>([])
   const [drivers, setDrivers] = useState<PendingItem[]>([])
   const [listings, setListings] = useState<PendingItem[]>([])
+  const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -32,18 +65,44 @@ export default function AdminDashboard() {
       const { data: profile } = await supabase.rpc('get_my_profile')
       if ((profile as Profile | null)?.role !== 'admin') { router.push('/'); return }
       setProfile(profile)
-      const { data: pendingSellers } = await supabase.rpc('admin_get_profiles_by_status', { p_role: 'seller', p_status: 'pending' })
-      const { data: pendingDrivers } = await supabase.rpc('admin_get_profiles_by_status', { p_role: 'driver', p_status: 'pending' })
-      const { data: pendingListings } = await supabase.rpc('admin_get_listings_by_status', { p_status: 'pending' })
+
+      const [
+        { data: pendingSellers }, { data: pendingDrivers }, { data: pendingListings },
+        { data: allSellers }, { data: allBuyers }, { data: allDrivers },
+        { data: allOrders }, { data: allListings },
+      ] = await Promise.all([
+        supabase.rpc('admin_get_profiles_by_status', { p_role: 'seller', p_status: 'pending' }),
+        supabase.rpc('admin_get_profiles_by_status', { p_role: 'driver', p_status: 'pending' }),
+        supabase.rpc('admin_get_listings_by_status', { p_status: 'pending' }),
+        supabase.rpc('admin_get_profiles_by_role', { p_role: 'seller' }),
+        supabase.rpc('admin_get_profiles_by_role', { p_role: 'buyer' }),
+        supabase.rpc('admin_get_profiles_by_role', { p_role: 'driver' }),
+        supabase.rpc('admin_get_all_orders'),
+        supabase.rpc('admin_get_all_listings'),
+      ])
+
       setSellers(pendingSellers || [])
       setDrivers(pendingDrivers || [])
       setListings(pendingListings || [])
+
+      const revenue = (allOrders as AdminOrderRow[] | null || [])
+        .filter(o => o.status === 'delivered')
+        .reduce((sum, o) => sum + parseFloat(o.platform_commission || '0'), 0)
+
+      setStats({
+        sellers: allSellers?.length || 0,
+        drivers: allDrivers?.length || 0,
+        users: (allSellers?.length || 0) + (allBuyers?.length || 0) + (allDrivers?.length || 0),
+        orders: allOrders?.length || 0,
+        listings: allListings?.length || 0,
+        revenue,
+      })
       setLoading(false)
     }
     getData()
   }, [router])
 
-  const approve = async (id: string, type: 'profile'|'listing') => {
+  const approve = async (id: string, type: 'profile' | 'listing') => {
     if (type === 'profile') {
       const { error } = await supabase.rpc('admin_update_profile_status', { p_id: id, p_status: 'active' })
       if (error) { alert('Could not approve: ' + error.message); return }
@@ -56,7 +115,7 @@ export default function AdminDashboard() {
     }
   }
 
-  const reject = async (id: string, type: 'profile'|'listing') => {
+  const reject = async (id: string, type: 'profile' | 'listing') => {
     if (type === 'profile') {
       const { error } = await supabase.rpc('admin_update_profile_status', { p_id: id, p_status: 'suspended' })
       if (error) { alert('Could not reject: ' + error.message); return }
@@ -71,84 +130,123 @@ export default function AdminDashboard() {
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/admin/login') }
 
+  const nav = (
+    <nav style={{background:'rgba(13,13,13,0.9)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid rgba(255,255,255,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+      <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
+        <Link href="/admin/dashboard" style={{display:'flex', alignItems:'center', gap:10, marginRight:28, flexShrink:0}}>
+          <Logo height={26} white/>
+          <span style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#C8006A'}}>Admin</span>
+        </Link>
+        <div className="nav-links" style={{display:'flex', flex:1}}>
+          {NAV.map(t => {
+            const active = t.h === '/admin/dashboard'
+            return <Link key={t.h} href={t.h} className="nav-link" style={{height:64, padding:'0 13px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#fff' : 'rgba(255,255,255,0.5)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+          })}
+        </div>
+        <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
+          <span style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>{profile?.full_name || profile?.email}</span>
+          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.6)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+        </div>
+      </div>
+    </nav>
+  )
+
   if (loading) return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0D0006',fontFamily:'Inter,system-ui,sans-serif'}}>
-      <div style={{textAlign:'center'}}><div style={{width:44,height:44,border:'4px solid rgba(200,0,106,0.2)',borderTop:'4px solid #C8006A',borderRadius:'50%',animation:'spin 0.8s linear infinite',margin:'0 auto 12px'}}/><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style><p style={{color:'#C8006A',fontWeight:600}}>Loading admin panel...</p></div>
+    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+      <style>{dark}</style>{nav}
+      <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
+        <div className="skelD" style={{height:28, width:240, borderRadius:8, marginBottom:8}}/>
+        <div className="skelD" style={{height:15, width:200, borderRadius:6, marginBottom:26}}/>
+        <div className="admin-grid" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24}}>{Array.from({length:4}).map((_, i) => <div key={i} className="skelD" style={{height:108, borderRadius:16}}/>)}</div>
+        <div className="skelD" style={{height:300, borderRadius:18}}/>
+      </div>
     </div>
   )
 
   const totalPending = sellers.length + drivers.length + listings.length
 
+  const overview = [
+    { value:String(stats?.users ?? 0), label:'Total users', icon:'👥', color:'#fff' },
+    { value:String(stats?.orders ?? 0), label:'Total orders', icon:'📦', color:'#fff' },
+    { value:`£${(stats?.revenue ?? 0).toFixed(2)}`, label:'Platform revenue', icon:'💷', color:'#34D399' },
+    { value:String(stats?.listings ?? 0), label:'Total listings', icon:'🍽️', color:'#fff' },
+  ]
+
+  const quickLinks = [
+    { l:'Sellers', s:`${stats?.sellers ?? 0} total`, i:'👩‍🍳', h:'/admin/sellers' },
+    { l:'Drivers', s:`${stats?.drivers ?? 0} total`, i:'🚴', h:'/admin/drivers' },
+    { l:'Orders', s:`${stats?.orders ?? 0} total`, i:'📦', h:'/admin/orders' },
+    { l:'Settings', s:'Platform config', i:'⚙️', h:'/admin/settings' },
+  ]
+
   return (
-    <div style={{minHeight:'100vh',background:'#0D0006',fontFamily:'Inter,system-ui,sans-serif'}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;} ::-webkit-scrollbar{width:0;}*{scrollbar-width:none;} a{text-decoration:none;} .approve:hover{background:#009836!important;} .reject:hover{background:#991010!important;} .nav-link:hover{color:#C8006A!important;} @media(max-width:768px){.admin-grid{grid-template-columns:1fr 1fr!important;}}`}</style>
-
-      <nav style={{background:'rgba(0,0,0,0.9)',backdropFilter:'blur(20px)',borderBottom:'1px solid rgba(200,0,106,0.2)',position:'sticky',top:0,zIndex:100,height:62}}>
-        <div style={{maxWidth:1200,margin:'0 auto',padding:'0 20px',height:62,display:'flex',alignItems:'center'}}>
-          <Link href="/admin/dashboard" style={{display:'flex',alignItems:'center',gap:10,marginRight:28,flexShrink:0}}>
-            <Logo height={26} white/>
-            <span style={{fontFamily:'Georgia,serif',fontSize:15,fontWeight:700,color:'#C8006A'}}>Admin</span>
-          </Link>
-          <div style={{display:'flex',gap:0,flex:1}}>
-            {[{l:'Dashboard',h:'/admin/dashboard'},{l:'Sellers',h:'/admin/sellers'},{l:'Drivers',h:'/admin/drivers'},{l:'Orders',h:'/admin/orders'},{l:'Settings',h:'/admin/settings'}].map(t=>(
-              <Link key={t.h} href={t.h} className="nav-link" style={{height:62,padding:'0 12px',display:'flex',alignItems:'center',fontSize:13,fontWeight:t.h==='/admin/dashboard'?700:400,color:t.h==='/admin/dashboard'?'#C8006A':'rgba(255,255,255,0.5)',borderBottom:t.h==='/admin/dashboard'?'2.5px solid #C8006A':'2.5px solid transparent',transition:'color 0.12s'}}>{t.l}</Link>
-            ))}
+    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+      <style>{dark}</style>{nav}
+      <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px 56px'}}>
+        <div className="fade-up" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12, marginBottom:24}}>
+          <div>
+            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>Platform overview</h1>
+            <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>meaLoyo admin — full control panel</p>
           </div>
-          <div style={{display:'flex',gap:8,marginLeft:'auto',alignItems:'center'}}>
-            <span style={{fontSize:12,color:'rgba(255,255,255,0.4)'}}>Admin: {profile?.full_name||profile?.email}</span>
-            <button onClick={signOut} style={{height:32,padding:'0 14px',border:'1px solid rgba(255,255,255,0.15)',borderRadius:8,fontSize:12,fontWeight:600,color:'rgba(255,255,255,0.6)',background:'transparent',cursor:'pointer'}}>Sign out</button>
-          </div>
-        </div>
-      </nav>
-
-      <div style={{maxWidth:1200,margin:'0 auto',padding:'32px 20px'}}>
-        <div style={{marginBottom:24}}>
-          <h1 style={{fontFamily:'Georgia,serif',fontSize:'clamp(22px,2.5vw,28px)',fontWeight:700,color:'#fff',marginBottom:4}}>Platform overview</h1>
-          <p style={{fontSize:14,color:'rgba(255,255,255,0.45)'}}>meaLoyo admin — full control panel</p>
+          {totalPending > 0 && (
+            <span style={{display:'inline-flex', alignItems:'center', gap:7, height:34, padding:'0 14px', background:'rgba(232,147,10,0.14)', border:'1px solid rgba(232,147,10,0.35)', borderRadius:100, fontSize:13, fontWeight:700, color:'#FBBF24'}}>⏳ {totalPending} pending approval{totalPending === 1 ? '' : 's'}</span>
+          )}
         </div>
 
-        <div className="admin-grid" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:28}}>
-          {[
-            {n:String(totalPending),l:'Pending approvals',icon:'⏳',color:'#E8930A'},
-            {n:'Sellers',l:'Pending: '+sellers.length,icon:'👩‍🍳',color:'#C8006A'},
-            {n:'Drivers',l:'Pending: '+drivers.length,icon:'🚴',color:'#2DA84E'},
-            {n:'Listings',l:'Pending: '+listings.length,icon:'🍽️',color:'#1A6ECC'},
-          ].map((s,i)=>(
-            <div key={i} style={{background:'rgba(255,255,255,0.04)',borderRadius:14,padding:'18px 16px',border:'1px solid rgba(255,255,255,0.07)',textAlign:'center'}}>
-              <div style={{fontSize:24,marginBottom:8}}>{s.icon}</div>
-              <div style={{fontFamily:'Georgia,serif',fontSize:26,fontWeight:700,color:s.color,letterSpacing:'-0.02em',marginBottom:4}}>{s.n}</div>
-              <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',fontWeight:600,textTransform:'uppercase',letterSpacing:'0.05em'}}>{s.l}</div>
+        {/* Platform stats */}
+        <div className="admin-grid fade-up" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24}}>
+          {overview.map((s, i) => (
+            <div key={i} className="stat-card" style={{background:'rgba(255,255,255,0.05)', borderRadius:16, padding:'18px', border:'1px solid rgba(255,255,255,0.08)'}}>
+              <div style={{fontSize:20, marginBottom:9}}>{s.icon}</div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,26px)', fontWeight:700, color:s.color, letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
+              <div style={{fontSize:11, color:'rgba(255,255,255,0.45)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:7}}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Pending Sellers */}
+        {/* Quick links */}
+        <div className="quick-grid fade-up" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:28}}>
+          {quickLinks.map((a, i) => (
+            <Link key={i} href={a.h} className="quick" style={{display:'flex', alignItems:'center', gap:13, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:14, padding:'16px', transition:'all 0.16s'}}>
+              <div style={{width:40, height:40, borderRadius:11, background:'rgba(200,0,106,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0}}>{a.i}</div>
+              <div style={{flex:1, minWidth:0}}>
+                <div style={{fontSize:14, fontWeight:700, color:'#fff'}}>{a.l}</div>
+                <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', marginTop:1}}>{a.s}</div>
+              </div>
+              <span style={{fontSize:15, color:'#C8006A', flexShrink:0}}>→</span>
+            </Link>
+          ))}
+        </div>
+
+        <h2 className="fade-up" style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#fff', marginBottom:14}}>Approval queue</h2>
+
+        {/* Pending approvals */}
         {[
-          {title:'Pending seller approvals',items:sellers,badge:'#E8930A',type:'profile' as const},
-          {title:'Pending driver approvals',items:drivers,badge:'#2DA84E',type:'profile' as const},
-          {title:'Pending listing approvals',items:listings,badge:'#1A6ECC',type:'listing' as const},
-        ].map(section=>(
-          <div key={section.title} style={{background:'rgba(255,255,255,0.03)',borderRadius:18,border:'1px solid rgba(255,255,255,0.07)',overflow:'hidden',marginBottom:16}}>
-            <div style={{padding:'16px 22px',borderBottom:'1px solid rgba(255,255,255,0.06)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <h2 style={{fontFamily:'Georgia,serif',fontSize:16,fontWeight:700,color:'#fff'}}>
+          { title:'Pending seller approvals', items:sellers, badge:'#E8930A', type:'profile' as const, empty:'No sellers awaiting approval' },
+          { title:'Pending driver approvals', items:drivers, badge:'#2DA84E', type:'profile' as const, empty:'No drivers awaiting approval' },
+          { title:'Pending listing approvals', items:listings, badge:'#1A6ECC', type:'listing' as const, empty:'No listings awaiting approval' },
+        ].map(section => (
+          <div key={section.title} className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden', marginBottom:16}}>
+            <div style={{padding:'16px 22px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', display:'flex', alignItems:'center'}}>
                 {section.title}
-                {section.items.length>0&&<span style={{marginLeft:8,background:section.badge,color:'#fff',fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:20}}>{section.items.length}</span>}
-              </h2>
+                {section.items.length > 0 && <span style={{marginLeft:8, background:section.badge, color:'#fff', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20}}>{section.items.length}</span>}
+              </h3>
             </div>
-            {section.items.length===0?(
-              <div style={{padding:'32px',textAlign:'center',color:'rgba(255,255,255,0.3)',fontSize:14}}>No {section.title.toLowerCase()}</div>
-            ):section.items.map((item,i)=>(
-              <div key={item.id} style={{display:'flex',alignItems:'center',gap:14,padding:'14px 22px',borderBottom:i<section.items.length-1?'1px solid rgba(255,255,255,0.05)':'none'}}>
-                <div style={{width:38,height:38,borderRadius:'50%',background:'#C8006A',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'#fff',flexShrink:0}}>
-                  {(item.full_name||item.name||'?')[0]}
+            {section.items.length === 0 ? (
+              <div style={{padding:'30px 22px', textAlign:'center', color:'rgba(255,255,255,0.35)', fontSize:14}}>{section.empty}</div>
+            ) : section.items.map((item, i) => (
+              <div key={item.id} style={{display:'flex', alignItems:'center', gap:14, padding:'14px 22px', borderBottom:i < section.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none'}}>
+                <div style={{width:40, height:40, borderRadius:'50%', background:'linear-gradient(135deg,#C8006A,#7A0042)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, color:'#fff', flexShrink:0}}>
+                  {(item.full_name || item.name || '?')[0]?.toUpperCase()}
                 </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:700,color:'#fff',marginBottom:1}}>{item.full_name||item.name||'Unknown'}</div>
-                  <div style={{fontSize:12,color:'rgba(255,255,255,0.4)'}}>{item.email||item.cuisine||''} · {new Date(item.created_at).toLocaleDateString()}</div>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontSize:14, fontWeight:700, color:'#fff', marginBottom:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.full_name || item.name || 'Unknown'}</div>
+                  <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.email || item.cuisine || ''} · {new Date(item.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
                 </div>
-                <div style={{display:'flex',gap:8,flexShrink:0}}>
-                  <button className="approve" onClick={()=>approve(item.id,section.type)} style={{height:32,padding:'0 16px',background:'#2DA84E',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',transition:'background 0.12s'}}>Approve</button>
-                  <button className="reject" onClick={()=>reject(item.id,section.type)} style={{height:32,padding:'0 14px',background:'rgba(192,57,43,0.8)',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',transition:'background 0.12s'}}>Reject</button>
+                <div style={{display:'flex', gap:8, flexShrink:0}}>
+                  <button className="approve" onClick={() => approve(item.id, section.type)} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s'}}>Approve</button>
+                  <button className="reject" onClick={() => reject(item.id, section.type)} style={{height:34, padding:'0 14px', background:'rgba(192,57,43,0.85)', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s'}}>Reject</button>
                 </div>
               </div>
             ))}
