@@ -127,11 +127,13 @@ export default function NewListing() {
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes shimmer { 0% { background-position: -480px 0; } 100% { background-position: 480px 0; } }
       * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
       ::-webkit-scrollbar { width: 0; height: 0; }
       * { scrollbar-width: none; -ms-overflow-style: none; }
       a { text-decoration: none; color: inherit; }
       button { font-family: Inter, system-ui, sans-serif; }
+      .skel { background: linear-gradient(90deg, #F3E6EE 0%, #FBF1F7 50%, #F3E6EE 100%); background-size: 960px 100%; animation: shimmer 1.4s ease-in-out infinite; }
       input:focus, select:focus, textarea:focus { border-color: #C8006A !important; outline: none; background: #fff !important; box-shadow: 0 0 0 3px rgba(200,0,106,0.08); }
       .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
       .nav-link:hover { color: #C8006A !important; }
@@ -173,11 +175,17 @@ export default function NewListing() {
   )
 
   if (checkingProfile) return (
-    <div style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
-      {pageStyles}
-      <div style={{textAlign:'center'}}>
-        <div style={{width:44, height:44, border:'4px solid #FFE8F4', borderTop:'4px solid #C8006A', borderRadius:'50%', animation:'spin 0.8s linear infinite', margin:'0 auto 12px'}}/>
-        <p style={{color:'#C8006A', fontWeight:600}}>Loading...</p>
+    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+      {pageStyles}{nav}
+      <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
+        <div className="skel" style={{height:30, width:260, borderRadius:8, marginBottom:8}}/>
+        <div className="skel" style={{height:15, width:200, borderRadius:6, marginBottom:26}}/>
+        <div className="form-grid" style={{display:'grid', gridTemplateColumns:'minmax(0,1.6fr) minmax(0,360px)', gap:24}}>
+          <div style={{display:'flex', flexDirection:'column', gap:16}}>
+            {Array.from({length:5}).map((_, i) => <div key={i} className="skel" style={{height:i === 0 ? 120 : 64, borderRadius:14}}/>)}
+          </div>
+          <div className="skel" style={{height:360, borderRadius:18}}/>
+        </div>
       </div>
     </div>
   )
