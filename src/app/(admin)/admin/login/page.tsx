@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { LogoMark } from '@/components/Logo'
 import type { Profile } from '@/lib/types'
 
 export default function AdminLogin() {
@@ -27,7 +28,7 @@ export default function AdminLogin() {
     <div style={{ minHeight:'100vh', background:'#1A1A1A', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, fontFamily:'Inter,system-ui,sans-serif' }}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0;} input:focus{border-color:#C8006A !important;outline:none;}`}</style>
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:28 }}>
-        <div style={{ width:40, height:40, background:'#C8006A', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🔐</div>
+        <LogoMark size={40} radius={10} />
         <span style={{ fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#C8006A' }}>meaLoyo Admin</span>
       </div>
       <div style={{ background:'#2A2A2A', borderRadius:20, padding:'36px', width:'100%', maxWidth:380, border:'1px solid rgba(200,0,106,0.2)' }}>
