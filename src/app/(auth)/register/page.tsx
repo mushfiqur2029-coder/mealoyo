@@ -7,6 +7,26 @@ import Logo from '@/components/Logo'
 
 type Role = 'buyer' | 'seller' | 'driver'
 
+// Turn whatever Supabase / fetch throws into a human-readable string. Supabase
+// auth errors can arrive as an AuthRetryableFetchError (transient 5xx, e.g. the
+// confirmation email failing to send) whose `.message` serialises to "{}" — the
+// raw object must never reach the UI.
+function getErrorMessage(err: unknown): string {
+  if (!err) return 'Something went wrong. Please try again.'
+  if (typeof err === 'string') return err
+  const e = err as { name?: string; status?: number; code?: string; message?: unknown; error_description?: string; msg?: string }
+  if (e.name === 'AuthRetryableFetchError' || e.status === 500) {
+    return 'We couldn’t complete your sign-up — the confirmation email failed to send. Please try again in a few minutes, or contact support if it keeps happening.'
+  }
+  if (e.status === 429) return 'Too many attempts. Please wait a moment and try again.'
+  if (e.code === 'user_already_exists' || (typeof e.message === 'string' && /already (registered|exists)/i.test(e.message))) {
+    return 'An account with this email already exists. Try signing in instead.'
+  }
+  const msg = typeof e.message === 'string' ? e.message.trim() : (e.error_description || e.msg || '')
+  if (msg && msg !== '{}') return msg
+  return 'Something went wrong. Please try again.'
+}
+
 export default function Register() {
   const [step, setStep] = useState(1)
   const [role, setRole] = useState<Role>('buyer')
@@ -17,6 +37,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const router = useRouter()
 
   const roles = [
@@ -29,19 +50,23 @@ export default function Register() {
     e.preventDefault()
     if (password !== confirmPassword) { setError('Passwords do not match'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setNotice('')
     const { data, error: authError } = await supabase.auth.signUp({
       email, password, options: { data: { full_name: fullName, phone, role } }
     })
-    if (authError) { setError(authError.message); setLoading(false); return }
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id, full_name: fullName, email, phone, role,
-        status: role === 'buyer' ? 'active' : 'pending', created_at: new Date().toISOString(),
-      })
-      if (role === 'buyer') router.push('/buyer/dashboard')
-      else router.push('/pending')
+    if (authError) { setError(getErrorMessage(authError)); setLoading(false); return }
+    // The profile row is created automatically by the handle_new_user DB trigger
+    // from the metadata above (full_name, phone, role + email). We deliberately
+    // do NOT insert it from the client — the table blocks direct client writes.
+    if (!data.session) {
+      // Email confirmation is enabled: there's no session until the user confirms,
+      // so we can't drop them into a protected dashboard yet.
+      setNotice('Account created! Please check your email to confirm your address, then sign in.')
+      setLoading(false)
+      return
     }
+    if (role === 'buyer') router.push('/buyer/dashboard')
+    else router.push('/pending')
   }
 
   return (
@@ -63,6 +88,11 @@ export default function Register() {
           ))}
         </div>
         {error && <div style={{ background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#C8006A', fontWeight:600 }}>{error}</div>}
+        {notice && (
+          <div style={{ background:'#E4F6EA', border:'1.5px solid rgba(45,168,78,0.3)', borderRadius:10, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#1A7A36', fontWeight:600, lineHeight:1.5 }}>
+            ✓ {notice} <Link href="/login" style={{ color:'#157A33', fontWeight:700, textDecoration:'underline' }}>Sign in →</Link>
+          </div>
+        )}
         {step === 1 && (
           <div>
             <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:4 }}>Join meaLoyo</h1>
