@@ -4,8 +4,16 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/components/AuthProvider'
 import Logo from '@/components/Logo'
 import type { Listing, Review } from '@/lib/types'
+
+function dashboardPath(role: string | null) {
+  if (role === 'seller') return '/seller/dashboard'
+  if (role === 'driver') return '/driver/dashboard'
+  if (role === 'admin') return '/admin/dashboard'
+  return '/buyer/dashboard'
+}
 
 const cuisineEmoji: Record<string,string> = {
   'Bangladeshi':'🍛','Pakistani':'🫕','Indian':'🥘','Caribbean':'🍗',
@@ -34,16 +42,23 @@ export default function Home() {
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [saved, setSaved] = useState<string[]>([])
-  const [userId, setUserId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
+  const [sort, setSort] = useState('rec')
   const [listings, setListings] = useState<Listing[]>([])
   const [loadingListings, setLoadingListings] = useState(true)
   const [reviewCount, setReviewCount] = useState<number | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [loadingReviews, setLoadingReviews] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [role, setRole] = useState<string | null>(null)
   const catRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
+  // Session comes from the app-wide AuthProvider. The homepage must NOT make its
+  // own getUser() call: a second concurrent token refresh (the proxy already
+  // calls getUser on navigation) can rotate the refresh token out from under the
+  // first and drop the session — which is what made clicking the logo "sign out".
+  const { user } = useAuth()
+  const userId = user?.id ?? null
 
   // Lock body scroll while the mobile menu overlay is open.
   useEffect(() => {
@@ -51,15 +66,20 @@ export default function Home() {
     return () => { document.body.style.overflow = '' }
   }, [menuOpen])
 
+  // Saved listings + role follow the signed-in user from context (no getUser here).
   useEffect(() => {
-    const getUserSaved = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      setUserId(user.id)
+    let active = true
+    ;(async () => {
+      if (!user) { if (active) { setSaved([]); setRole(null) } return }
       const { data } = await supabase.from('saved_listings').select('listing_id').eq('buyer_id', user.id)
-      setSaved((data || []).map(r => r.listing_id))
-    }
-    getUserSaved()
+      if (active) setSaved((data || []).map(r => r.listing_id))
+      const { data: profile } = await supabase.rpc('get_my_profile')
+      if (active) setRole((profile as { role?: string } | null)?.role ?? null)
+    })()
+    return () => { active = false }
+  }, [user])
+
+  useEffect(() => {
     const getListings = async () => {
       const { data } = await supabase
         .from('listings')
@@ -125,6 +145,17 @@ export default function Home() {
     (cat === 'all' || l.cuisine === cat) &&
     (query === '' || l.name.toLowerCase().includes(query.toLowerCase()))
   )
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sort === 'price-asc') return parseFloat(a.price) - parseFloat(b.price)
+    if (sort === 'price-desc') return parseFloat(b.price) - parseFloat(a.price)
+    if (sort === 'rating') return (b.rating ?? 0) - (a.rating ?? 0)
+    return 0
+  })
+
+  const scrollToListings = () => {
+    document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const toggleSave = async (id: string) => {
     if (!userId) { router.push('/login'); return }
@@ -259,8 +290,17 @@ export default function Home() {
             ))}
           </div>
           <div className="nav-desktop-cta" style={{display:'flex', gap:8, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
-            <Link href="/login" style={{height:36, padding:'0 14px', display:'flex', alignItems:'center', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', whiteSpace:'nowrap'}}>Sign in</Link>
-            <Link href="/register" className="nav-cta" style={{height:36, padding:'0 16px', display:'flex', alignItems:'center', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', whiteSpace:'nowrap', boxShadow:'0 4px 12px rgba(200,0,106,0.35)', transition:'background 0.12s'}}>Get started</Link>
+            {user ? (
+              <>
+                <Link href={dashboardPath(role)} className="nav-cta" style={{height:36, padding:'0 16px', display:'flex', alignItems:'center', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', whiteSpace:'nowrap', boxShadow:'0 4px 12px rgba(200,0,106,0.35)', transition:'background 0.12s'}}>My dashboard</Link>
+                <Link href={dashboardPath(role)} title={user.email ?? 'Account'} style={{width:36, height:36, borderRadius:'50%', background:'#FFE8F4', color:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, flexShrink:0}}>{user.email?.[0]?.toUpperCase() ?? 'A'}</Link>
+              </>
+            ) : (
+              <>
+                <Link href="/login" style={{height:36, padding:'0 14px', display:'flex', alignItems:'center', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', whiteSpace:'nowrap'}}>Sign in</Link>
+                <Link href="/register" className="nav-cta" style={{height:36, padding:'0 16px', display:'flex', alignItems:'center', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', whiteSpace:'nowrap', boxShadow:'0 4px 12px rgba(200,0,106,0.35)', transition:'background 0.12s'}}>Get started</Link>
+              </>
+            )}
           </div>
 
           {/* Hamburger — visible under 768px */}
@@ -290,8 +330,14 @@ export default function Home() {
                 ))}
               </div>
               <div style={{display:'flex', flexDirection:'column', gap:10, marginTop:18}}>
-                <Link href="/login" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:15, fontWeight:600, color:'#1A1A1A'}}>Sign in</Link>
-                <Link href="/register" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', borderRadius:10, fontSize:15, fontWeight:700, color:'#fff', boxShadow:'0 6px 18px rgba(200,0,106,0.35)'}}>Get started</Link>
+                {user ? (
+                  <Link href={dashboardPath(role)} onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', borderRadius:10, fontSize:15, fontWeight:700, color:'#fff', boxShadow:'0 6px 18px rgba(200,0,106,0.35)'}}>My dashboard</Link>
+                ) : (
+                  <>
+                    <Link href="/login" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:15, fontWeight:600, color:'#1A1A1A'}}>Sign in</Link>
+                    <Link href="/register" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', borderRadius:10, fontSize:15, fontWeight:700, color:'#fff', boxShadow:'0 6px 18px rgba(200,0,106,0.35)'}}>Get started</Link>
+                  </>
+                )}
               </div>
             </div>
           </>
@@ -333,7 +379,7 @@ export default function Home() {
                       : '🧭'}
                   </button>
                 </div>
-                <button className="primary-btn" style={{height:52, padding:'0 28px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(200,0,106,0.4)', transition:'background 0.12s', flexShrink:0}}>
+                <button type="button" onClick={scrollToListings} className="primary-btn" style={{height:52, padding:'0 28px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(200,0,106,0.4)', transition:'background 0.12s', flexShrink:0}}>
                   Find food →
                 </button>
               </div>
@@ -432,7 +478,7 @@ export default function Home() {
       </section>
 
       {/* ── LISTINGS ── */}
-      <section style={{padding:'52px 0', background:'#F8F0F4'}}>
+      <section id="listings" style={{padding:'52px 0', background:'#F8F0F4', scrollMarginTop:66}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
           {postcode.trim() && (
             <div style={{fontSize:13, fontWeight:600, color:'#C8006A', marginBottom:14}}>📍 Showing food near {postcode.trim()}</div>
@@ -444,11 +490,11 @@ export default function Home() {
                 <span style={{fontSize:14}}>🔍</span>
                 <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search dishes..." style={{border:'none', outline:'none', fontSize:13, fontWeight:600, color:'#1A1A1A', background:'transparent', width:160}}/>
               </div>
-              <select style={{height:38, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', outline:'none'}}>
-                <option>Recommended</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
-                <option>Highest rated</option>
+              <select value={sort} onChange={e => setSort(e.target.value)} style={{height:38, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', outline:'none'}}>
+                <option value="rec">Recommended</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+                <option value="rating">Highest rated</option>
               </select>
             </div>
           </div>
@@ -480,7 +526,7 @@ export default function Home() {
             </div>
           ) : (
             <div className="listings-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:18}}>
-              {filtered.map(l => {
+              {sorted.map(l => {
                 const tags = [l.halal && 'Halal', l.vegan && 'Vegan', l.vegetarian && 'Vegetarian', l.spicy && 'Spicy'].filter(Boolean) as string[]
                 return (
                   <Link key={l.id} href={`/dish/${l.id}`} className="lcard" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'block'}}>
@@ -552,7 +598,7 @@ export default function Home() {
               <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.2vw,30px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.015em'}}>Top home cooks near you</h2>
               <p style={{fontSize:13, color:'#1A1A1A', marginTop:4, fontWeight:400}}>Every cook is verified, ID checked and hygiene certified.</p>
             </div>
-            <button style={{height:36, padding:'0 16px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', cursor:'pointer', flexShrink:0}}>Browse all →</button>
+            <button type="button" onClick={scrollToListings} style={{height:36, padding:'0 16px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', cursor:'pointer', flexShrink:0}}>Browse all →</button>
           </div>
           {loadingListings ? (
             <div className="cooks-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))', gap:14}}>
@@ -634,7 +680,7 @@ export default function Home() {
                   </div>
                 ))}
               </div>
-              <button className="primary-btn" style={{width:'100%', height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.12s'}}>
+              <button type="button" onClick={scrollToListings} className="primary-btn" style={{width:'100%', height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.12s'}}>
                 Find cooks near me →
               </button>
             </div>
@@ -693,7 +739,7 @@ export default function Home() {
           <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3.5vw,44px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:10, lineHeight:1.15}}>Hungry? Order home cooked food now.</h2>
           <p style={{fontSize:'clamp(14px,1.4vw,17px)', color:'rgba(255,255,255,0.85)', marginBottom:28, lineHeight:1.65, fontWeight:400}}>{cooks.length > 0 ? `${cooks.length} ` : ''}home cooks across the UK. Authentic food. No restaurant markup.</p>
           <div className="cta-btns" style={{display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap'}}>
-            <button style={{height:52, padding:'0 32px', background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(0,0,0,0.15)', flexShrink:0}}>Order food now</button>
+            <button type="button" onClick={() => { if (user) scrollToListings(); else router.push('/register') }} style={{height:52, padding:'0 32px', background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(0,0,0,0.15)', flexShrink:0}}>Order food now</button>
             <Link href="/register" style={{height:52, padding:'0 32px', background:'rgba(255,255,255,0.12)', color:'#fff', border:'2px solid rgba(255,255,255,0.28)', borderRadius:12, fontSize:15, fontWeight:600, display:'flex', alignItems:'center', flexShrink:0}}>Start selling your food</Link>
           </div>
         </div>
@@ -711,14 +757,26 @@ export default function Home() {
               <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'rgba(200,0,106,0.18)', color:'#FFE8F4', border:'1px solid rgba(200,0,106,0.28)', padding:'4px 12px', borderRadius:20, fontSize:11, fontWeight:700}}>meaLoyo · Est. 2026</span>
             </div>
             {[
-              {head:'Buy food', links:['Browse listings','Find local cooks','Event catering','Office lunches','Meal prep boxes']},
-              {head:'Sell food', links:['Start selling','Seller dashboard','Pricing & packages','Compliance guide','Seller support']},
-              {head:'Company', links:['About us','Deliver with us','Blog','Contact','Privacy policy']},
+              {head:'Buy food', links:[
+                {l:'Browse listings', h:'/#listings'}, {l:'Find local cooks', h:'/#listings'},
+                {l:'Event catering', h:'/#listings'}, {l:'Office lunches', h:'/#listings'}, {l:'Meal prep boxes', h:'/#listings'},
+              ]},
+              {head:'Sell food', links:[
+                {l:'Start selling', h:'/register'}, {l:'Seller dashboard', h:'/seller/dashboard'},
+                {l:'Pricing & packages', h:'/register'}, {l:'Compliance guide', h:'/register'}, {l:'Seller support', h:'mailto:hello@mealoyo.com'},
+              ]},
+              {head:'Company', links:[
+                {l:'About us', h:'/'}, {l:'Deliver with us', h:'/register'}, {l:'Terms', h:'/terms'},
+                {l:'Contact', h:'mailto:hello@mealoyo.com'}, {l:'Privacy policy', h:'/privacy'},
+              ]},
             ].map(s => (
               <div key={s.head}>
                 <div style={{fontSize:11, fontWeight:700, color:'#fff', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:12}}>{s.head}</div>
                 <div style={{display:'flex', flexDirection:'column', gap:9}}>
-                  {s.links.map(l => <a key={l} href="#" className="footer-link" style={{fontSize:13, color:'rgba(255,255,255,0.45)', fontWeight:500, transition:'color 0.12s'}}>{l}</a>)}
+                  {s.links.map(link => link.h.startsWith('mailto:')
+                    ? <a key={link.l} href={link.h} className="footer-link" style={{fontSize:13, color:'rgba(255,255,255,0.45)', fontWeight:500, transition:'color 0.12s'}}>{link.l}</a>
+                    : <Link key={link.l} href={link.h} className="footer-link" style={{fontSize:13, color:'rgba(255,255,255,0.45)', fontWeight:500, transition:'color 0.12s'}}>{link.l}</Link>
+                  )}
                 </div>
               </div>
             ))}

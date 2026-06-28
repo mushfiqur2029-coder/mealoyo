@@ -165,7 +165,7 @@ export default function DriverEarnings() {
             <div style={{background:'rgba(255,255,255,0.05)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', padding:'22px'}}>
               <div style={{fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.45)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>Available to withdraw</div>
               <div style={{fontFamily:'Georgia,serif', fontSize:34, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1, marginBottom:18}}>£{totalEarned.toFixed(2)}</div>
-              <button className="prim" style={{width:'100%', height:46, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:12, transition:'background 0.14s'}}>Withdraw to bank</button>
+              <button onClick={() => alert('Instant payouts are coming soon. For now your earnings settle to your account weekly — no action needed.')} className="prim" style={{width:'100%', height:46, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:12, transition:'background 0.14s'}}>Withdraw to bank</button>
               <div style={{display:'flex', alignItems:'flex-start', gap:8, padding:'12px 14px', background:'rgba(255,255,255,0.03)', borderRadius:12, border:'1px solid rgba(255,255,255,0.06)'}}>
                 <span style={{fontSize:14, flexShrink:0}}>🔒</span>
                 <p style={{fontSize:12, color:'rgba(255,255,255,0.5)', lineHeight:1.55}}>Instant payouts are coming soon. For now earnings settle to your account weekly.</p>

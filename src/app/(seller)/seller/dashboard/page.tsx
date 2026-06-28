@@ -344,7 +344,7 @@ export default function SellerDashboard() {
                 <span style={{fontSize:13, color:'rgba(255,255,255,0.85)', fontWeight:500}}>Pending</span>
                 <span style={{fontSize:15, color:'#fff', fontWeight:700, fontFamily:'Georgia,serif'}}>£{pendingAmount.toFixed(2)}</span>
               </div>
-              <button className="ghost-btn" style={{width:'100%', height:46, background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:10, transition:'all 0.16s'}}>Withdraw funds</button>
+              <button onClick={() => alert('Payouts are coming soon. Once Stripe Connect onboarding is live, your earnings will pay out automatically to your bank on a weekly schedule.')} className="ghost-btn" style={{width:'100%', height:46, background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:10, transition:'all 0.16s'}}>Withdraw funds</button>
               <Link href="/seller/earnings" style={{display:'block', textAlign:'center', fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.85)'}}>Transaction history →</Link>
             </div>
 

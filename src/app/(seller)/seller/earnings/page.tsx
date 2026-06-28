@@ -166,7 +166,7 @@ export default function SellerEarnings() {
           <div className="fade-up" style={{background:'#fff', borderRadius:20, boxShadow:'0 2px 10px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)', padding:'22px'}}>
             <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>Available to withdraw</div>
             <div style={{fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:14}}>£{totalEarned.toFixed(2)}</div>
-            <button style={{width:'100%', height:46, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:18}}>Withdraw to bank</button>
+            <button onClick={() => alert('Instant payouts are coming soon. For now your earnings settle to your account on the weekly payout schedule below — no action needed.')} style={{width:'100%', height:46, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:18}}>Withdraw to bank</button>
             <div style={{borderTop:'1px solid #F5F0F3', paddingTop:16}}>
               <div style={{fontSize:13, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Payout schedule</div>
               {[
