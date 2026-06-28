@@ -208,8 +208,9 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const delivered = order.status === 'delivered'
   const emoji = cuisineEmoji[listing?.cuisine || 'Other'] || '🍽️'
   const deliveryFee = parseFloat(order.delivery_fee)
+  const serviceFeeAmt = parseFloat(order.service_fee || '0')
   const total = parseFloat(order.total_amount)
-  const subtotal = total - deliveryFee
+  const subtotal = total - deliveryFee - serviceFeeAmt
   const isDelivery = order.delivery_type === 'delivery'
 
   return (
@@ -351,6 +352,12 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                     <span style={{minWidth:0}}>{listing?.name || 'Dish'} × {order.quantity}</span>
                     <span style={{fontWeight:600, flexShrink:0}}>£{subtotal.toFixed(2)}</span>
                   </div>
+                  {serviceFeeAmt > 0 && (
+                    <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#1A1A1A'}}>
+                      <span>Service fee</span>
+                      <span style={{fontWeight:600}}>£{serviceFeeAmt.toFixed(2)}</span>
+                    </div>
+                  )}
                   {deliveryFee > 0 && (
                     <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#1A1A1A'}}>
                       <span>Delivery fee</span>

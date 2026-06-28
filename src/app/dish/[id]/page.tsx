@@ -4,7 +4,17 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { isValidUKPostcode, lookupPostcode, haversineDistance, deliveryFeeForDistance, serviceFee, commission as calcCommission, FLAT_DELIVERY_FEE } from '@/lib/pricing'
 import type { User, Listing, Profile } from '@/lib/types'
+
+type DeliveryQuote =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'ok'; distance: number; fee: number }
+  | { status: 'unavailable'; distance: number }
+  | { status: 'flat'; fee: number }
+  | { status: 'invalid' }
+  | { status: 'notfound' }
 
 const cuisineEmoji: Record<string, string> = {
   'Bangladeshi':'🍛','Pakistani':'🫕','Indian':'🥘','Caribbean':'🍗',
@@ -15,12 +25,14 @@ const cuisineEmoji: Record<string, string> = {
 export default function DishPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const [listing, setListing] = useState<Listing | null>(null)
-  const [seller, setSeller] = useState<Pick<Profile, 'id' | 'full_name'> | null>(null)
+  const [seller, setSeller] = useState<Pick<Profile, 'id' | 'full_name' | 'postcode'> | null>(null)
   const [orderCount, setOrderCount] = useState<number>(0)
   const [user, setUser] = useState<User | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [deliveryType, setDeliveryType] = useState<'collection' | 'delivery'>('collection')
   const [address, setAddress] = useState('')
+  const [buyerPostcode, setBuyerPostcode] = useState('')
+  const [quote, setQuote] = useState<DeliveryQuote>({ status: 'idle' })
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -36,7 +48,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       setUser(user)
       const { data: listing } = await supabase
         .from('listings')
-        .select('*, profiles:seller_id(id, full_name)')
+        .select('*, profiles:seller_id(id, full_name, postcode)')
         .eq('id', id)
         .single()
       if (!listing) { setNotFound(true); setLoading(false); return }
@@ -56,6 +68,35 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
     getData()
   }, [id, router])
 
+  // Distance-based delivery quote. Recomputes when the buyer edits their
+  // postcode or switches to delivery. Debounced so we don't hammer postcodes.io
+  // on every keystroke.
+  useEffect(() => {
+    let active = true
+    // Everything (including the synchronous decisions) runs inside the debounce
+    // callback so no setState fires synchronously in the effect body.
+    const t = setTimeout(async () => {
+      if (!active) return
+      if (deliveryType !== 'delivery' || !listing || !seller) { setQuote({ status: 'idle' }); return }
+      const radius = listing.delivery_radius_miles ?? 3
+      // Seller hasn't set a usable postcode → flat fee, settled at dispatch.
+      if (!seller.postcode || !isValidUKPostcode(seller.postcode)) { setQuote({ status: 'flat', fee: FLAT_DELIVERY_FEE }); return }
+      const pc = buyerPostcode.trim()
+      if (!pc) { setQuote({ status: 'idle' }); return }
+      if (!isValidUKPostcode(pc)) { setQuote({ status: 'invalid' }); return }
+      setQuote({ status: 'checking' })
+      const [buyerLoc, sellerLoc] = await Promise.all([lookupPostcode(pc), lookupPostcode(seller.postcode)])
+      if (!active) return
+      if (!buyerLoc) { setQuote({ status: 'notfound' }); return }
+      if (!sellerLoc) { setQuote({ status: 'flat', fee: FLAT_DELIVERY_FEE }); return }
+      const distance = haversineDistance(buyerLoc.latitude, buyerLoc.longitude, sellerLoc.latitude, sellerLoc.longitude)
+      const fee = deliveryFeeForDistance(distance, radius)
+      if (fee === null) setQuote({ status: 'unavailable', distance })
+      else setQuote({ status: 'ok', distance, fee })
+    }, 450)
+    return () => { active = false; clearTimeout(t) }
+  }, [buyerPostcode, deliveryType, listing, seller])
+
   const toggleSave = async () => {
     if (!user) { router.push('/login'); return }
     if (isSaved && savedRowId) {
@@ -72,16 +113,20 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const handleOrder = async () => {
     if (!user) { router.push('/login'); return }
     if (!listing || !seller) return
-    if (deliveryType === 'delivery' && !address.trim()) {
-      setError('Please enter your delivery address')
-      return
+    const subtotal = parseFloat(listing.price) * quantity
+    let deliveryFee = 0
+    if (deliveryType === 'delivery') {
+      if (!address.trim()) { setError('Please enter your delivery address'); return }
+      if (quote.status === 'ok' || quote.status === 'flat') deliveryFee = quote.fee
+      else if (quote.status === 'checking') { setError('Checking delivery distance — one moment…'); return }
+      else { setError('Please enter a valid postcode we can deliver to'); return }
     }
     setOrdering(true)
     setError('')
-    const totalAmount = parseFloat(listing.price) * quantity
-    const deliveryFee = deliveryType === 'delivery' ? 4.50 : 0
-    const commission = totalAmount * 0.12
-    const sellerPayout = totalAmount - commission
+    const svcFee = serviceFee(subtotal)
+    const commission = calcCommission(subtotal) // 12% of food subtotal
+    const sellerPayout = subtotal - commission
+    const total = subtotal + svcFee + deliveryFee
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -90,8 +135,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         seller_id: seller.id,
         listing_id: listing.id,
         quantity,
-        total_amount: totalAmount + deliveryFee,
+        total_amount: total,
         delivery_fee: deliveryFee,
+        service_fee: svcFee,
         platform_commission: commission,
         seller_payout: sellerPayout,
         status: 'pending',
@@ -217,8 +263,15 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
   const price = parseFloat(listing.price)
   const totalAmount = price * quantity
-  const deliveryFee = deliveryType === 'delivery' ? 4.50 : 0
-  const grandTotal = totalAmount + deliveryFee
+  const svcFee = serviceFee(totalAmount)
+  const radius = listing.delivery_radius_miles ?? 3
+  const deliveryOffered = radius > 0
+  // Effective delivery fee for the current quote (null = can't price yet / unavailable).
+  const deliveryFee: number | null = deliveryType === 'delivery'
+    ? (quote.status === 'ok' || quote.status === 'flat' ? quote.fee : null)
+    : 0
+  const canOrder = deliveryType === 'collection' || deliveryFee !== null
+  const grandTotal = totalAmount + svcFee + (deliveryFee ?? 0)
   const reviews = listing.reviews_count ?? 0
   const rating = listing.rating ?? 0
   const initial = (seller?.full_name?.trim()?.[0] || 'C').toUpperCase()
@@ -254,11 +307,14 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       {/* Delivery type */}
       <div style={{marginBottom:18}}>
         <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:8}}>How do you want it?</label>
-        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:8}}>
-          {[
+        <div style={{display:'grid', gridTemplateColumns: deliveryOffered ? '1fr 1fr' : '1fr', gap:8}}>
+          {([
             { type:'collection' as const, icon:'📍', label:'Collect free', sub:'Pick up from cook' },
-            { type:'delivery' as const, icon:'🚴', label:'Delivery', sub:'£4.50 to your door' },
-          ].map(opt => {
+            ...(deliveryOffered ? [{ type:'delivery' as const, icon:'🚴', label:'Delivery',
+              sub: quote.status === 'ok' ? `£${quote.fee.toFixed(2)} to your door`
+                : quote.status === 'flat' ? 'From £3.99'
+                : 'Enter postcode' }] : []),
+          ]).map(opt => {
             const on = deliveryType === opt.type
             return (
               <div key={opt.type} className="dt-card" onClick={() => setDeliveryType(opt.type)}
@@ -270,12 +326,24 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
             )
           })}
         </div>
+        {!deliveryOffered && <p style={{fontSize:12, color:'#1A1A1A', opacity:0.6, marginTop:8}}>This cook offers collection only.</p>}
       </div>
 
-      {/* Delivery address */}
+      {/* Delivery postcode + address */}
       {deliveryType === 'delivery' && (
         <div style={{marginBottom:18}}>
-          <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:6}}>Delivery address</label>
+          <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:6}}>Delivery postcode</label>
+          <input value={buyerPostcode} onChange={e => setBuyerPostcode(e.target.value)} placeholder="e.g. E3 4SS" autoCapitalize="characters"
+            style={{width:'100%', height:42, border:'1.5px solid #E0E0E0', borderRadius:10, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#FAFAFA', fontFamily:'Inter,system-ui,sans-serif', outline:'none', textTransform:'uppercase'}}/>
+          {/* Live distance/fee feedback */}
+          {quote.status === 'checking' && <p style={{fontSize:12, color:'#1A1A1A', opacity:0.7, marginTop:7}}>Checking distance…</p>}
+          {quote.status === 'invalid' && <p style={{fontSize:12, color:'#C8006A', fontWeight:600, marginTop:7}}>Enter a valid UK postcode.</p>}
+          {quote.status === 'notfound' && <p style={{fontSize:12, color:'#C8006A', fontWeight:600, marginTop:7}}>We couldn&apos;t find that postcode — please check it.</p>}
+          {quote.status === 'ok' && <p style={{fontSize:13, color:'#C8006A', fontWeight:700, marginTop:7}}>{quote.distance.toFixed(1)} miles away — delivery £{quote.fee.toFixed(2)}</p>}
+          {quote.status === 'unavailable' && <p style={{fontSize:13, color:'#C8006A', fontWeight:700, marginTop:7}}>Delivery not available to your postcode ({quote.distance.toFixed(1)} miles away). Try collection.</p>}
+          {quote.status === 'flat' && <p style={{fontSize:12, color:'#1A1A1A', opacity:0.7, marginTop:7}}>Flat delivery £{quote.fee.toFixed(2)} — exact fee calculated at dispatch.</p>}
+
+          <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:6, marginTop:14}}>Delivery address</label>
           <textarea value={address} onChange={e => setAddress(e.target.value)} placeholder="Enter your full delivery address including postcode..." rows={3}
             style={{width:'100%', border:'1.5px solid #E0E0E0', borderRadius:10, padding:'10px 14px', fontSize:14, color:'#1A1A1A', background:'#FAFAFA', fontFamily:'Inter,system-ui,sans-serif', outline:'none', resize:'none', lineHeight:1.55}}/>
         </div>
@@ -290,12 +358,18 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       {/* Order summary */}
       <div style={{background:'#F8F0F4', borderRadius:12, padding:'14px 16px', marginBottom:18}}>
         <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#1A1A1A', marginBottom:6}}>
-          <span>£{price.toFixed(2)} × {quantity}</span>
+          <span>Food subtotal (£{price.toFixed(2)} × {quantity})</span>
           <span style={{fontWeight:600}}>£{totalAmount.toFixed(2)}</span>
         </div>
         <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#1A1A1A', marginBottom:6}}>
+          <span>Service fee</span>
+          <span style={{fontWeight:600}}>£{svcFee.toFixed(2)}</span>
+        </div>
+        <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#1A1A1A', marginBottom:6}}>
           <span>{deliveryType === 'delivery' ? 'Delivery fee' : 'Collection'}</span>
-          <span style={{fontWeight:600}}>{deliveryType === 'delivery' ? `£${deliveryFee.toFixed(2)}` : 'Free'}</span>
+          <span style={{fontWeight:600}}>
+            {deliveryType !== 'delivery' ? 'Free' : deliveryFee !== null ? `£${deliveryFee.toFixed(2)}` : '—'}
+          </span>
         </div>
         <div style={{borderTop:'1px solid rgba(200,0,106,0.12)', paddingTop:8, marginTop:4, display:'flex', justifyContent:'space-between', fontSize:15, fontWeight:700, color:'#1A1A1A'}}>
           <span>Total</span>
@@ -305,9 +379,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
       {/* CTA */}
       {user ? (
-        <button onClick={handleOrder} disabled={ordering} className="order-btn"
-          style={{width:'100%', height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:ordering ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', opacity:ordering ? 0.8 : 1}}>
-          {ordering ? 'Placing order...' : `Order for £${grandTotal.toFixed(2)} →`}
+        <button onClick={handleOrder} disabled={ordering || !canOrder} className="order-btn"
+          style={{width:'100%', height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:(ordering || !canOrder) ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', opacity:(ordering || !canOrder) ? 0.55 : 1}}>
+          {ordering ? 'Placing order...' : !canOrder ? 'Enter a deliverable postcode' : `Order for £${grandTotal.toFixed(2)} →`}
         </button>
       ) : (
         <div>
@@ -442,8 +516,8 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
           <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', lineHeight:1}}>£{grandTotal.toFixed(2)}</div>
         </div>
         {user ? (
-          <button onClick={handleOrder} disabled={ordering} className="order-btn" style={{flex:1, height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:ordering ? 'not-allowed' : 'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.3)', opacity:ordering ? 0.8 : 1}}>
-            {ordering ? 'Placing...' : 'Order now →'}
+          <button onClick={handleOrder} disabled={ordering || !canOrder} className="order-btn" style={{flex:1, height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:(ordering || !canOrder) ? 'not-allowed' : 'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.3)', opacity:(ordering || !canOrder) ? 0.55 : 1}}>
+            {ordering ? 'Placing...' : !canOrder ? 'Enter postcode' : 'Order now →'}
           </button>
         ) : (
           <Link href="/login" className="order-btn" style={{flex:1, height:50, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', color:'#fff', borderRadius:12, fontSize:15, fontWeight:700, boxShadow:'0 6px 18px rgba(200,0,106,0.3)'}}>

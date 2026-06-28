@@ -40,6 +40,7 @@ export interface Listing {
   serves: number | null
   prep_time: string | null
   delivery_options: string[] | string | null
+  delivery_radius_miles: number | null
   allergens: string[] | null
   created_at: string
   profiles?: Pick<Profile, 'full_name'> | null
@@ -57,6 +58,7 @@ export interface Order {
   seller_payout: string
   platform_commission: string
   delivery_fee: string
+  service_fee: string
   delivery_type: string | null
   delivery_address: string | null
   collection_code: string | null

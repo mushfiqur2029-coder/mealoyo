@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { isValidUKPostcode } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
 const NAV = [
@@ -18,6 +19,7 @@ export default function SellerProfile() {
   const [user, setUser] = useState<User | null>(null)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
+  const [postcode, setPostcode] = useState('')
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
@@ -37,6 +39,10 @@ export default function SellerProfile() {
       setPhone(p?.phone || '')
       setEmail(p?.email || user.email || '')
       setStatus(p?.status || '')
+      // postcode isn't part of the get_my_profile RPC's fixed column list, so
+      // read it straight from the row.
+      const { data: row } = await supabase.from('profiles').select('postcode').eq('id', user.id).maybeSingle()
+      setPostcode(row?.postcode || '')
       setLoading(false)
     }
     getData()
@@ -45,9 +51,11 @@ export default function SellerProfile() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!fullName.trim()) { setError('Please enter your full name'); return }
+    if (!postcode.trim()) { setError('Please enter your postcode — buyers need it to calculate delivery distance'); return }
+    if (!isValidUKPostcode(postcode)) { setError('Please enter a valid UK postcode (e.g. E3 4SS)'); return }
     if (!user) return
     setSaving(true); setError(''); setSavedOk(false)
-    const { error: dbError } = await supabase.from('profiles').update({ full_name: fullName.trim(), phone: phone.trim() }).eq('id', user.id)
+    const { error: dbError } = await supabase.from('profiles').update({ full_name: fullName.trim(), phone: phone.trim(), postcode: postcode.trim().toUpperCase() }).eq('id', user.id)
     if (dbError) { setError(dbError.message); setSaving(false); return }
     setSavedOk(true); setSaving(false)
   }
@@ -144,6 +152,11 @@ export default function SellerProfile() {
           <div>
             <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:7}}>Phone number</label>
             <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={{height:48, border:'1.5px solid #EAD9E4', borderRadius:11, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#FBF6F9', width:'100%', transition:'border-color 0.14s'}}/>
+          </div>
+          <div>
+            <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:7}}>Postcode *</label>
+            <input value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. E3 4SS" autoCapitalize="characters" style={{height:48, border:'1.5px solid #EAD9E4', borderRadius:11, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#FBF6F9', width:'100%', transition:'border-color 0.14s', textTransform:'uppercase'}}/>
+            <p style={{fontSize:12, color:'#1A1A1A', opacity:0.6, marginTop:6}}>Your postcode is used to calculate delivery distance for buyers.</p>
           </div>
           <div>
             <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'flex', alignItems:'center', gap:6, marginBottom:7}}>Email address <span style={{fontSize:12}}>🔒</span></label>

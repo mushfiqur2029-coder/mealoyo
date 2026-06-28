@@ -4,8 +4,17 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { commission, sellerReceives, COMMISSION_RATE } from '@/lib/pricing'
 import type { CSSProperties } from 'react'
 import type { User, Profile } from '@/lib/types'
+
+const RADIUS_OPTIONS = [
+  { v: '1', l: '1 mile' },
+  { v: '2', l: '2 miles' },
+  { v: '3', l: '3 miles (default)' },
+  { v: '5', l: '5 miles' },
+  { v: '0', l: 'Collection only (no delivery)' },
+]
 
 const ALLERGENS = ['Gluten','Dairy','Nuts','Eggs','Fish','Shellfish','Soya','Sesame','Celery','Mustard','Lupin','Sulphites','Molluscs','Peanuts']
 const CUISINES = ['Bangladeshi','Pakistani','Indian','Caribbean','Middle Eastern','West African','Turkish','Sri Lankan','Afghan','East African','Chinese','Other']
@@ -44,6 +53,7 @@ export default function NewListing() {
     serves: '1',
     prep_time: '1 hour',
     delivery_options: 'Collection & delivery',
+    delivery_radius: '3',
     allergens: [] as string[],
     halal: false,
     vegan: false,
@@ -107,6 +117,7 @@ export default function NewListing() {
       serves: parseInt(form.serves),
       prep_time: form.prep_time,
       delivery_options: [form.delivery_options],
+      delivery_radius_miles: parseFloat(form.delivery_radius),
       allergens: form.allergens,
       halal: form.halal,
       vegan: form.vegan,
@@ -296,6 +307,19 @@ export default function NewListing() {
                       <input type="number" value={form.price} onChange={e=>set('price',e.target.value)} placeholder="0.00" min="1" step="0.50" style={inp}/>
                     </div>
                   </div>
+                  {parseFloat(form.price) > 0 && (
+                    <div style={{background:'#FFF5FA', border:'1.5px solid rgba(200,0,106,0.14)', borderRadius:12, padding:'12px 15px', display:'flex', flexDirection:'column', gap:6}}>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:13, color:'#1A1A1A'}}>
+                        <span>Platform commission ({Math.round(COMMISSION_RATE*100)}%)</span>
+                        <span style={{fontWeight:700, color:'#C8006A', fontFamily:'Georgia,serif'}}>£{commission(parseFloat(form.price)).toFixed(2)}</span>
+                      </div>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:13, color:'#1A1A1A'}}>
+                        <span>You receive ({Math.round((1-COMMISSION_RATE)*100)}%)</span>
+                        <span style={{fontWeight:700, color:'#C8006A', fontFamily:'Georgia,serif', fontSize:15}}>£{sellerReceives(parseFloat(form.price)).toFixed(2)}</span>
+                      </div>
+                      <p style={{fontSize:11, color:'#1A1A1A', opacity:0.6, marginTop:2}}>Per portion, before delivery. Buyers also pay a small service fee.</p>
+                    </div>
+                  )}
                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
                     <div>
                       <label style={lbl}>Serves how many?</label>
@@ -318,16 +342,25 @@ export default function NewListing() {
                       </select>
                     </div>
                   </div>
-                  <div>
-                    <label style={lbl}>Delivery options</label>
-                    <select value={form.delivery_options} onChange={e=>set('delivery_options',e.target.value)} style={sel}>
-                      <option>Collection &amp; delivery</option>
-                      <option>Collection only</option>
-                      <option>Delivery only</option>
-                      <option>Pre-order catering only</option>
-                      <option>Postal UK-wide</option>
-                    </select>
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
+                    <div>
+                      <label style={lbl}>Delivery options</label>
+                      <select value={form.delivery_options} onChange={e=>set('delivery_options',e.target.value)} style={sel}>
+                        <option>Collection &amp; delivery</option>
+                        <option>Collection only</option>
+                        <option>Delivery only</option>
+                        <option>Pre-order catering only</option>
+                        <option>Postal UK-wide</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={lbl}>Delivery radius</label>
+                      <select value={form.delivery_radius} onChange={e=>set('delivery_radius',e.target.value)} style={sel}>
+                        {RADIUS_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                      </select>
+                    </div>
                   </div>
+                  <p style={{fontSize:12, color:'#1A1A1A', opacity:0.65, marginTop:-6}}>Buyers beyond your radius (or over 5 miles) won&apos;t see a delivery option — collection only.</p>
                 </div>
               </div>
 
