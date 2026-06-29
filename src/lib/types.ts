@@ -13,6 +13,9 @@ export interface Profile {
   email: string | null
   phone: string | null
   address: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
   postcode: string | null
   bio: string | null
   cuisine: string | null

@@ -14,16 +14,30 @@ const NAV = [
   { l:'Profile', h:'/buyer/profile' },
 ]
 
+const inputStyle: React.CSSProperties = { height:48, border:'1.5px solid #EAD9E4', borderRadius:11, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#FBF6F9', width:'100%', transition:'border-color 0.14s' }
+const labelStyle: React.CSSProperties = { fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:7 }
+
 export default function BuyerProfile() {
   const [user, setUser] = useState<User | null>(null)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
+  const [addr1, setAddr1] = useState('')
+  const [addr2, setAddr2] = useState('')
+  const [city, setCity] = useState('')
+  const [postcode, setPostcode] = useState('')
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
   const [error, setError] = useState('')
+  // Change-password card state
+  const [curPw, setCurPw] = useState('')
+  const [newPw, setNewPw] = useState('')
+  const [confirmPw, setConfirmPw] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwOk, setPwOk] = useState(false)
+  const [pwError, setPwError] = useState('')
   const router = useRouter()
 
   useEffect(() => {
@@ -37,6 +51,13 @@ export default function BuyerProfile() {
       setPhone(p?.phone || '')
       setEmail(p?.email || user.email || '')
       setStatus(p?.status || 'active')
+      // Address columns aren't part of the get_my_profile RPC's fixed column
+      // list, so read them straight from the row (own-row select).
+      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode').eq('id', user.id).maybeSingle()
+      setAddr1(row?.address_line1 || '')
+      setAddr2(row?.address_line2 || '')
+      setCity(row?.city || '')
+      setPostcode(row?.postcode || '')
       setLoading(false)
     }
     getData()
@@ -47,9 +68,33 @@ export default function BuyerProfile() {
     if (!fullName.trim()) { setError('Please enter your full name'); return }
     if (!user) return
     setSaving(true); setError(''); setSavedOk(false)
-    const { error: dbError } = await supabase.from('profiles').update({ full_name: fullName.trim(), phone: phone.trim() }).eq('id', user.id)
+    const { error: dbError } = await supabase.from('profiles').update({
+      full_name: fullName.trim(),
+      phone: phone.trim(),
+      address_line1: addr1.trim() || null,
+      address_line2: addr2.trim() || null,
+      city: city.trim() || null,
+      postcode: postcode.trim().toUpperCase() || null,
+    }).eq('id', user.id)
     if (dbError) { setError(dbError.message); setSaving(false); return }
     setSavedOk(true); setSaving(false)
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPwError(''); setPwOk(false)
+    if (!curPw) { setPwError('Please enter your current password'); return }
+    if (newPw.length < 6) { setPwError('New password must be at least 6 characters'); return }
+    if (newPw !== confirmPw) { setPwError('New passwords do not match'); return }
+    if (!email) { setPwError('Could not verify your account — please sign in again'); return }
+    setPwSaving(true)
+    // Verify the current password by re-authenticating before changing it.
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: curPw })
+    if (signInErr) { setPwError('Your current password is incorrect'); setPwSaving(false); return }
+    const { error: updErr } = await supabase.auth.updateUser({ password: newPw })
+    if (updErr) { setPwError(updErr.message); setPwSaving(false); return }
+    setPwOk(true); setPwSaving(false)
+    setCurPw(''); setNewPw(''); setConfirmPw('')
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
@@ -137,22 +182,72 @@ export default function BuyerProfile() {
         <form onSubmit={handleSave} className="fade-up" style={{background:'#fff', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column', gap:18, marginBottom:18}}>
           <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#1A1A1A'}}>Account details</h3>
           <div>
-            <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:7}}>Full name</label>
-            <input value={fullName} onChange={e => setFullName(e.target.value)} style={{height:48, border:'1.5px solid #EAD9E4', borderRadius:11, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#FBF6F9', width:'100%', transition:'border-color 0.14s'}}/>
+            <label style={labelStyle}>Full name</label>
+            <input value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle}/>
           </div>
           <div>
-            <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:7}}>Phone number</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={{height:48, border:'1.5px solid #EAD9E4', borderRadius:11, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#FBF6F9', width:'100%', transition:'border-color 0.14s'}}/>
+            <label style={labelStyle}>Phone number</label>
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={inputStyle}/>
           </div>
-          <div>
-            <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'flex', alignItems:'center', gap:6, marginBottom:7}}>Email address <span style={{fontSize:12}}>🔒</span></label>
+
+          {/* Delivery address */}
+          <div style={{borderTop:'1px solid #F0E6EE', paddingTop:18}}>
+            <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'#1A1A1A', marginBottom:4}}>Delivery address</h4>
+            <p style={{fontSize:12, color:'#1A1A1A', opacity:0.6, marginBottom:14}}>Saved here so we can auto-fill it at checkout.</p>
+            <div style={{display:'flex', flexDirection:'column', gap:14}}>
+              <div>
+                <label style={labelStyle}>Address line 1</label>
+                <input value={addr1} onChange={e => setAddr1(e.target.value)} placeholder="House number and street" style={inputStyle}/>
+              </div>
+              <div>
+                <label style={labelStyle}>Address line 2</label>
+                <input value={addr2} onChange={e => setAddr2(e.target.value)} placeholder="Flat, building (optional)" style={inputStyle}/>
+              </div>
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                <div>
+                  <label style={labelStyle}>City / Town</label>
+                  <input value={city} onChange={e => setCity(e.target.value)} placeholder="London" style={inputStyle}/>
+                </div>
+                <div>
+                  <label style={labelStyle}>Postcode</label>
+                  <input value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="E3 4SS" autoCapitalize="characters" style={{...inputStyle, textTransform:'uppercase'}}/>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{borderTop:'1px solid #F0E6EE', paddingTop:18}}>
+            <label style={{...labelStyle, display:'flex', alignItems:'center', gap:6}}>Email address <span style={{fontSize:12}}>🔒</span></label>
             <div style={{position:'relative'}}>
-              <input value={email} disabled style={{height:48, border:'1.5px solid #EAD9E4', borderRadius:11, padding:'0 40px 0 14px', fontSize:14, color:'#1A1A1A', opacity:0.7, background:'#F3ECF1', width:'100%', cursor:'not-allowed'}}/>
+              <input value={email} disabled style={{...inputStyle, padding:'0 40px 0 14px', opacity:0.7, background:'#F3ECF1', cursor:'not-allowed'}}/>
               <span style={{position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', fontSize:15, opacity:0.6}}>🔒</span>
             </div>
             <p style={{fontSize:12, color:'#1A1A1A', opacity:0.6, marginTop:6}}>Your email is used to sign in and can&apos;t be changed here.</p>
           </div>
           <button type="submit" disabled={saving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:saving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:saving ? 0.8 : 1, marginTop:4}}>{saving ? 'Saving…' : 'Save changes'}</button>
+        </form>
+
+        {/* Change password */}
+        <form onSubmit={handleChangePassword} className="fade-up" style={{background:'#fff', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column', gap:16, marginBottom:18}}>
+          <div>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#1A1A1A', marginBottom:2}}>Change password</h3>
+            <p style={{fontSize:12, color:'#1A1A1A', opacity:0.6}}>Use at least 6 characters.</p>
+          </div>
+          {pwError && <div style={{background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#C8006A', fontWeight:600}}>{pwError}</div>}
+          {pwOk && <div style={{background:'#E4F6EA', border:'1.5px solid rgba(45,168,78,0.25)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#1A6030', fontWeight:600}}>✅ Password updated</div>}
+          <div>
+            <label style={labelStyle}>Current password</label>
+            <input type="password" value={curPw} onChange={e => setCurPw(e.target.value)} placeholder="Enter current password" autoComplete="current-password" style={inputStyle}/>
+          </div>
+          <div>
+            <label style={labelStyle}>New password</label>
+            <input type="password" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Minimum 6 characters" autoComplete="new-password" style={inputStyle}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Confirm new password</label>
+            <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" style={inputStyle}/>
+          </div>
+          <button type="submit" disabled={pwSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:pwSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:pwSaving ? 0.8 : 1, marginTop:4}}>{pwSaving ? 'Saving…' : 'Save password'}</button>
         </form>
 
         {/* Danger zone */}

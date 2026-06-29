@@ -6,9 +6,30 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import type { Profile } from '@/lib/types'
 
+// Eye / eye-off toggle for password fields. Brand-pink stroke.
+function EyeToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={shown ? 'Hide password' : 'Show password'}
+      style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', background:'transparent', border:'none', cursor:'pointer', padding:0 }}>
+      {shown ? (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8006A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+      ) : (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8006A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      )}
+    </button>
+  )
+}
+
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -49,7 +70,10 @@ export default function Login() {
               <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Password</label>
               <Link href="/forgot-password" style={{ fontSize:12, color:'#C8006A', fontWeight:600 }}>Forgot password?</Link>
             </div>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" required style={{ height:48, border:'1.5px solid #E0E0E0', borderRadius:10, padding:'0 14px', fontSize:15, color:'#1A1A1A', background:'#F8F0F4', width:'100%' }}/>
+            <div style={{ position:'relative' }}>
+              <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Enter your password" required style={{ height:48, border:'1.5px solid #E0E0E0', borderRadius:10, padding:'0 44px 0 14px', fontSize:15, color:'#1A1A1A', background:'#F8F0F4', width:'100%' }}/>
+              <EyeToggle shown={showPw} onClick={() => setShowPw(s => !s)}/>
+            </div>
           </div>
           <button type="submit" disabled={loading} className="sbtn" style={{ height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:loading?'not-allowed':'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.35)', transition:'background 0.14s', opacity:loading?0.8:1, marginTop:4 }}>
             {loading ? 'Signing in...' : 'Sign in →'}

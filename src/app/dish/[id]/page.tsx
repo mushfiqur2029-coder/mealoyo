@@ -32,6 +32,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const [deliveryType, setDeliveryType] = useState<'collection' | 'delivery'>('collection')
   const [address, setAddress] = useState('')
   const [buyerPostcode, setBuyerPostcode] = useState('')
+  const [savedAddress, setSavedAddress] = useState('')
+  const [savedPostcode, setSavedPostcode] = useState('')
+  const [usingSaved, setUsingSaved] = useState(false)
   const [quote, setQuote] = useState<DeliveryQuote>({ status: 'idle' })
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(true)
@@ -62,6 +65,13 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       if (user) {
         const { data: savedRow } = await supabase.from('saved_listings').select('id').eq('buyer_id', user.id).eq('listing_id', id).maybeSingle()
         if (savedRow) { setIsSaved(true); setSavedRowId(savedRow.id) }
+        // Pull the buyer's saved delivery address so we can auto-fill checkout.
+        const { data: profileRow } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode').eq('id', user.id).maybeSingle()
+        if (profileRow?.address_line1) {
+          const full = [profileRow.address_line1, profileRow.address_line2, profileRow.city, profileRow.postcode].filter(Boolean).join(', ')
+          setSavedAddress(full)
+          setSavedPostcode(profileRow.postcode || '')
+        }
       }
       setLoading(false)
     }
@@ -109,6 +119,19 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       setSavedRowId(data?.id || null)
     }
   }
+
+  // Choosing delivery auto-fills the buyer's saved address (if any) the first
+  // time, so they don't retype it. They can still edit or clear it.
+  const chooseDelivery = (type: 'collection' | 'delivery') => {
+    setDeliveryType(type)
+    if (type === 'delivery' && !address.trim() && savedAddress) {
+      setAddress(savedAddress)
+      if (savedPostcode && !buyerPostcode.trim()) setBuyerPostcode(savedPostcode)
+      setUsingSaved(true)
+    }
+  }
+
+  const clearSavedAddress = () => { setAddress(''); setBuyerPostcode(''); setUsingSaved(false) }
 
   const handleOrder = async () => {
     if (!user) { router.push('/login'); return }
@@ -317,7 +340,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
           ]).map(opt => {
             const on = deliveryType === opt.type
             return (
-              <div key={opt.type} className="dt-card" onClick={() => setDeliveryType(opt.type)}
+              <div key={opt.type} className="dt-card" onClick={() => chooseDelivery(opt.type)}
                 style={{padding:'14px 12px', border:on ? '2px solid #C8006A' : '1.5px solid #E0E0E0', borderRadius:12, background:on ? '#FFE8F4' : '#fff', textAlign:'center'}}>
                 <div style={{fontSize:22, marginBottom:5}}>{opt.icon}</div>
                 <div style={{fontSize:13, fontWeight:700, color:on ? '#C8006A' : '#1A1A1A'}}>{opt.label}</div>
@@ -343,8 +366,16 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
           {quote.status === 'unavailable' && <p style={{fontSize:13, color:'#C8006A', fontWeight:700, marginTop:7}}>Delivery not available to your postcode ({quote.distance.toFixed(1)} miles away). Try collection.</p>}
           {quote.status === 'flat' && <p style={{fontSize:12, color:'#1A1A1A', opacity:0.7, marginTop:7}}>Flat delivery £{quote.fee.toFixed(2)} — exact fee calculated at dispatch.</p>}
 
-          <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:6, marginTop:14}}>Delivery address</label>
-          <textarea value={address} onChange={e => setAddress(e.target.value)} placeholder="Enter your full delivery address including postcode..." rows={3}
+          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:6, marginTop:14}}>
+            <label style={{fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em'}}>Delivery address</label>
+            {usingSaved && (
+              <span style={{fontSize:11, color:'#2DA84E', fontWeight:600, display:'flex', alignItems:'center', gap:6}}>
+                ✓ Using your saved address
+                <button type="button" onClick={clearSavedAddress} style={{background:'none', border:'none', color:'#C8006A', fontSize:11, fontWeight:700, cursor:'pointer', textDecoration:'underline', padding:0}}>Change</button>
+              </span>
+            )}
+          </div>
+          <textarea value={address} onChange={e => { setAddress(e.target.value); if (usingSaved) setUsingSaved(false) }} placeholder="Enter your full delivery address including postcode..." rows={3}
             style={{width:'100%', border:'1.5px solid #E0E0E0', borderRadius:10, padding:'10px 14px', fontSize:14, color:'#1A1A1A', background:'#FAFAFA', fontFamily:'Inter,system-ui,sans-serif', outline:'none', resize:'none', lineHeight:1.55}}/>
         </div>
       )}

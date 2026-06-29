@@ -27,6 +27,26 @@ function getErrorMessage(err: unknown): string {
   return 'Something went wrong. Please try again.'
 }
 
+// Eye / eye-off toggle for password fields. Brand-pink stroke.
+function EyeToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} aria-label={shown ? 'Hide password' : 'Show password'}
+      style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center', background:'transparent', border:'none', cursor:'pointer', padding:0 }}>
+      {shown ? (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8006A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+      ) : (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C8006A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      )}
+    </button>
+  )
+}
+
 export default function Register() {
   const [step, setStep] = useState(1)
   const [role, setRole] = useState<Role>('buyer')
@@ -35,6 +55,8 @@ export default function Register() {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -126,17 +148,23 @@ export default function Register() {
               </p>
             </div>
             {[
-              { label:'Full name', val:fullName, set:setFullName, type:'text', ph:'Your full name' },
-              { label:'Email address', val:email, set:setEmail, type:'email', ph:'you@example.com' },
-              { label:'Phone number', val:phone, set:setPhone, type:'tel', ph:'+44 7700 000000' },
-              { label:'Password', val:password, set:setPassword, type:'password', ph:'Minimum 6 characters' },
-              { label:'Confirm password', val:confirmPassword, set:setConfirmPassword, type:'password', ph:'Repeat your password' },
-            ].map(f => (
-              <div key={f.label} style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>{f.label}</label>
-                <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} required style={{ height:46, border:'1.5px solid #E0E0E0', borderRadius:10, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#F8F0F4', width:'100%' }}/>
-              </div>
-            ))}
+              { label:'Full name', val:fullName, set:setFullName, type:'text', ph:'Your full name', toggle:null as null | { shown:boolean; set:(v:boolean)=>void } },
+              { label:'Email address', val:email, set:setEmail, type:'email', ph:'you@example.com', toggle:null },
+              { label:'Phone number', val:phone, set:setPhone, type:'tel', ph:'+44 7700 000000', toggle:null },
+              { label:'Password', val:password, set:setPassword, type:'password', ph:'Minimum 6 characters', toggle:{ shown:showPw, set:setShowPw } },
+              { label:'Confirm password', val:confirmPassword, set:setConfirmPassword, type:'password', ph:'Repeat your password', toggle:{ shown:showConfirm, set:setShowConfirm } },
+            ].map(f => {
+              const inputType = f.toggle ? (f.toggle.shown ? 'text' : 'password') : f.type
+              return (
+                <div key={f.label} style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                  <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>{f.label}</label>
+                  <div style={{ position:'relative' }}>
+                    <input type={inputType} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} required style={{ height:46, border:'1.5px solid #E0E0E0', borderRadius:10, padding:f.toggle ? '0 44px 0 14px' : '0 14px', fontSize:14, color:'#1A1A1A', background:'#F8F0F4', width:'100%' }}/>
+                    {f.toggle && <EyeToggle shown={f.toggle.shown} onClick={() => f.toggle!.set(!f.toggle!.shown)}/>}
+                  </div>
+                </div>
+              )
+            })}
             <div style={{ display:'flex', gap:10, marginTop:4 }}>
               <button type="button" onClick={() => setStep(1)} style={{ flex:1, height:48, background:'#F5F5F5', color:'#1A1A1A', border:'1.5px solid #E0E0E0', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer' }}>← Back</button>
               <button type="submit" disabled={loading} style={{ flex:2, height:48, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:loading?'not-allowed':'pointer', opacity:loading?0.8:1 }}>

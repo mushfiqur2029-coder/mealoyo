@@ -10,12 +10,7 @@ const NAV = [
   { l:'Dashboard', h:'/driver/dashboard' },
   { l:'My earnings', h:'/driver/earnings' },
   { l:'History', h:'/driver/history' },
-]
-
-const MOCK_JOBS = [
-  { id:1, from:'Bow, E3', to:'Ilford, IG1', dish:'Beef Biryani × 2', pay:'4.50', dist:'1.8 km', eta:'Ready now', tag:'Hot', tagColor:'#34D399' },
-  { id:2, from:'Whitechapel, E1', to:'Hammersmith, W6', dish:'Curry box × 1', pay:'5.50', dist:'2.4 km', eta:'10 min wait', tag:'Soon', tagColor:'#FBBF24' },
-  { id:3, from:'Peckham, SE15', to:'Brixton, SW2', dish:'Catering order × 4', pay:'8.00', dist:'3.1 km', eta:'30 min', tag:'Big', tagColor:'#C8006A' },
+  { l:'Profile', h:'/driver/profile' },
 ]
 
 const dark = `
@@ -46,6 +41,7 @@ export default function DriverDashboard() {
   const [orders, setOrders] = useState<Order[]>([])
   const [online, setOnline] = useState(true)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -60,6 +56,19 @@ export default function DriverDashboard() {
     }
     getData()
   }, [router])
+
+  // Live dispatch isn't built yet, so there are no real jobs to fetch. The
+  // refresh re-checks for newly available work (currently always none) without
+  // ever showing fake jobs.
+  const refreshJobs = async () => {
+    setRefreshing(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase.from('orders').select('*, listings(name,cuisine)').eq('driver_id', user.id).eq('status', 'delivered').order('created_at', { ascending: false })
+      setOrders(data || [])
+    }
+    setRefreshing(false)
+  }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -134,7 +143,7 @@ export default function DriverDashboard() {
     { icon:'📦', value:String(todayOrders.length), label:'Drops today', color:'#fff' },
     { icon:'⏱️', value:online ? 'On shift' : '—', label:'Active time', color:'#fff' },
     { icon:'💷', value:`£${todayPay.toFixed(2)}`, label:"Today's pay", color:'#34D399' },
-    { icon:'⭐', value:orders.length ? '5.0' : 'New', label:'Your rating', color:'#FBBF24' },
+    { icon:'⭐', value:'—', label:'Your rating', color:'#FBBF24' },
   ]
 
   return (
@@ -144,7 +153,7 @@ export default function DriverDashboard() {
 
         <div className="fade-up" style={{marginBottom:24}}>
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 🚴</h1>
-          <p style={{fontSize:14, color:'rgba(255,255,255,0.55)'}}>{online ? `You're online — ${MOCK_JOBS.length} jobs available near you.` : "You're offline. Go online to start receiving jobs."}</p>
+          <p style={{fontSize:14, color:'rgba(255,255,255,0.55)'}}>{online ? "You're online — we'll surface jobs here as they come in near you." : "You're offline. Go online to start receiving jobs."}</p>
         </div>
 
         {/* Stats */}
@@ -164,7 +173,11 @@ export default function DriverDashboard() {
           <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
             <div style={{padding:'18px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
               <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#fff'}}>Available jobs near you</h2>
-              <span style={{fontSize:11, fontWeight:600, color:'rgba(255,255,255,0.4)', background:'rgba(255,255,255,0.05)', padding:'4px 10px', borderRadius:100}}>Demo · live dispatch soon</span>
+              {online && (
+                <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:32, padding:'0 14px', background:'rgba(200,0,106,0.16)', color:'#fff', border:'1px solid rgba(200,0,106,0.35)', borderRadius:8, fontSize:12, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.14s'}}>
+                  <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Refreshing…' : 'Refresh'}
+                </button>
+              )}
             </div>
             {!online ? (
               <div style={{padding:'48px 24px', textAlign:'center'}}>
@@ -172,21 +185,13 @@ export default function DriverDashboard() {
                 <p style={{fontSize:14, color:'rgba(255,255,255,0.5)', lineHeight:1.6}}>You&apos;re offline. Flip the switch to go online and see jobs.</p>
               </div>
             ) : (
-              <div style={{padding:'12px'}}>
-                {MOCK_JOBS.map(j => (
-                  <div key={j.id} className="job" style={{background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14, marginBottom:10, transition:'all 0.16s'}}>
-                    <div style={{width:44, height:44, borderRadius:12, background:'linear-gradient(135deg,rgba(200,0,106,0.3),rgba(200,0,106,0.1))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0}}>🚴</div>
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:3}}>
-                        <span style={{fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{j.from} → {j.to}</span>
-                        <span style={{fontSize:9.5, fontWeight:700, color:j.tagColor, background:`${j.tagColor}22`, padding:'2px 7px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em', flexShrink:0}}>{j.tag}</span>
-                      </div>
-                      <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{j.dist} · {j.dish} · {j.eta}</div>
-                    </div>
-                    <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#34D399', flexShrink:0}}>£{j.pay}</div>
-                    <button onClick={() => alert('Live job dispatch is coming soon — these are sample jobs. You\'ll be able to accept real deliveries here once dispatch goes live in your area.')} className="accept" style={{height:36, padding:'0 16px', background:'rgba(52,211,153,0.18)', color:'#34D399', border:'1px solid rgba(52,211,153,0.35)', borderRadius:9, fontSize:13, fontWeight:700, cursor:'pointer', flexShrink:0, transition:'all 0.14s'}}>Accept</button>
-                  </div>
-                ))}
+              <div style={{padding:'48px 24px', textAlign:'center'}}>
+                <div style={{fontSize:40, marginBottom:12}}>🛵</div>
+                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#fff', marginBottom:8}}>No jobs available right now</h3>
+                <p style={{fontSize:14, color:'rgba(255,255,255,0.5)', lineHeight:1.6, maxWidth:340, margin:'0 auto 18px'}}>You&apos;re online and ready. New delivery jobs near you will appear here as soon as buyers place orders.</p>
+                <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:40, padding:'0 20px', background:'rgba(52,211,153,0.18)', color:'#34D399', border:'1px solid rgba(52,211,153,0.35)', borderRadius:10, fontSize:14, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'inline-flex', alignItems:'center', gap:8, transition:'all 0.14s'}}>
+                  <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Checking…' : 'Check for jobs'}
+                </button>
               </div>
             )}
           </div>
