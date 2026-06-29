@@ -12,13 +12,11 @@ export interface Profile {
   full_name: string | null
   email: string | null
   phone: string | null
-  address: string | null
+  avatar_url: string | null
   address_line1: string | null
   address_line2: string | null
   city: string | null
   postcode: string | null
-  bio: string | null
-  cuisine: string | null
   role: string | null
   status: string
   created_at: string
@@ -32,6 +30,7 @@ export interface Listing {
   cuisine: string
   price: string
   status: string
+  image_url: string | null
   rating: number | null
   reviews_count: number | null
   featured: boolean | null
@@ -39,7 +38,6 @@ export interface Listing {
   vegan: boolean | null
   vegetarian: boolean | null
   spicy: boolean | null
-  available: boolean | null
   serves: number | null
   prep_time: string | null
   delivery_options: string[] | string | null

@@ -1,9 +1,11 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import ListingImageUpload from '@/components/ListingImageUpload'
 import { commission, sellerReceives, COMMISSION_RATE } from '@/lib/pricing'
 import type { CSSProperties } from 'react'
 import type { User, Profile } from '@/lib/types'
@@ -41,6 +43,8 @@ export default function NewListing() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [activeStep, setActiveStep] = useState(0)
+  const [imageBlob, setImageBlob] = useState<Blob | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const router = useRouter()
 
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -108,7 +112,7 @@ export default function NewListing() {
     if (!user) return
     setLoading(true)
     setError('')
-    const { error: dbError } = await supabase.from('listings').insert({
+    const { data: inserted, error: dbError } = await supabase.from('listings').insert({
       seller_id: user.id,
       name: form.name.trim(),
       description: form.description.trim(),
@@ -127,8 +131,19 @@ export default function NewListing() {
       featured: false,
       rating: 0,
       reviews_count: 0,
-    })
+    }).select('id').single()
     if (dbError) { setError(dbError.message); setLoading(false); return }
+
+    // The listing id only exists after insert, so upload the (already
+    // compressed) photo now and write its public URL back to the row.
+    if (imageBlob && inserted) {
+      const path = `${user.id}/${inserted.id}/image.jpg`
+      const { error: upErr } = await supabase.storage.from('listings').upload(path, imageBlob, { upsert: true, contentType: 'image/jpeg' })
+      if (!upErr) {
+        const { data: pub } = supabase.storage.from('listings').getPublicUrl(path)
+        await supabase.from('listings').update({ image_url: pub.publicUrl }).eq('id', inserted.id)
+      }
+    }
     setSaved(true)
     setTimeout(() => router.push('/seller/listings'), 2000)
   }
@@ -367,12 +382,11 @@ export default function NewListing() {
               {/* 2. Photo */}
               <div ref={el => { sectionRefs.current[1] = el }} style={sec}>
                 {secTitle(2, 'Dish photo', 'A great photo can double your orders')}
-                <div className="upload-zone" style={{border:'2px dashed #E0BCD2', borderRadius:14, background:'#FAFAFA', padding:'36px 20px', textAlign:'center', cursor:'pointer', transition:'all 0.16s'}}>
-                  <div style={{width:60, height:60, borderRadius:'50%', background:'#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, margin:'0 auto 12px'}}>📷</div>
-                  <p style={{fontSize:14, fontWeight:700, color:'#1A1A1A', marginBottom:4}}>Add a photo of your dish</p>
-                  <p style={{fontSize:12, color:'#1A1A1A', opacity:0.7}}>Drag &amp; drop or click to upload · JPG or PNG</p>
-                  <span style={{display:'inline-block', marginTop:14, padding:'4px 12px', background:'#FFF4E0', color:'#B8730A', borderRadius:100, fontSize:11, fontWeight:700}}>Photo upload coming soon</span>
-                </div>
+                <ListingImageUpload
+                  previewUrl={imagePreview}
+                  onPicked={(blob, url) => { setImageBlob(blob); setImagePreview(url) }}
+                  onRemove={() => { setImageBlob(null); setImagePreview(null) }}
+                />
               </div>
 
               {/* 3. Dietary */}
@@ -431,8 +445,10 @@ export default function NewListing() {
             <div className="preview-col" style={{position:'sticky', top:140}}>
               <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10}}>Live preview</div>
               <div style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 4px 20px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
-                <div style={{height:130, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:56, position:'relative'}}>
-                  {cuisineEmoji[form.cuisine] || '🍽️'}
+                <div style={{height:130, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:56, position:'relative', overflow:'hidden'}}>
+                  {imagePreview
+                    ? <Image src={imagePreview} alt="" fill sizes="360px" style={{objectFit:'cover'}} unoptimized />
+                    : (cuisineEmoji[form.cuisine] || '🍽️')}
                   <span style={{position:'absolute', top:12, right:12, background:'#FFF4E0', color:'#B8730A', padding:'4px 11px', borderRadius:100, fontSize:11, fontWeight:700}}>Pending</span>
                 </div>
                 <div style={{padding:'18px'}}>

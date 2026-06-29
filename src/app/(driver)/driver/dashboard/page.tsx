@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NavAvatar from '@/components/NavAvatar'
 import type { Profile, Order } from '@/lib/types'
 
 const NAV = [
@@ -38,6 +39,7 @@ const dark = `
 
 export default function DriverDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [orders, setOrders] = useState<Order[]>([])
   const [online, setOnline] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -50,6 +52,8 @@ export default function DriverDashboard() {
       if (!user) { router.push('/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
+      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
+      setAvatarUrl(avatarRow?.avatar_url || null)
       const { data } = await supabase.from('orders').select('*, listings(name,cuisine)').eq('driver_id', user.id).eq('status', 'delivered').order('created_at', { ascending: false })
       setOrders(data || [])
       setLoading(false)
@@ -93,7 +97,7 @@ export default function DriverDashboard() {
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           {toggle}
-          <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff'}}>{profile?.full_name?.[0]?.toUpperCase() || 'D'}</div>
+          <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || 'D'}/>
           <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.7)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>

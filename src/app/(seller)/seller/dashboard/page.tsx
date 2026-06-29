@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NavAvatar from '@/components/NavAvatar'
 import type { Profile, Listing, Order, Review } from '@/lib/types'
 
 const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
@@ -32,6 +33,7 @@ const NAV = [
 
 export default function SellerDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [listings, setListings] = useState<Listing[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [orderCount, setOrderCount] = useState(0)
@@ -49,6 +51,8 @@ export default function SellerDashboard() {
       if (!user) { router.push('/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
+      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
+      setAvatarUrl(avatarRow?.avatar_url || null)
       const { data: listings } = await supabase.from('listings').select('*').eq('seller_id', user.id)
       setListings(listings || [])
       const { data: orders } = await supabase.from('orders').select('*, listings(name,cuisine), profiles:buyer_id(full_name)').eq('seller_id', user.id).order('created_at', { ascending: false }).limit(5)
@@ -131,7 +135,7 @@ export default function SellerDashboard() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center'}}>
-          <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff'}}>{profile?.full_name?.[0]?.toUpperCase() || 'S'}</div>
+          <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || 'S'}/>
           <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
         </div>
       </div>

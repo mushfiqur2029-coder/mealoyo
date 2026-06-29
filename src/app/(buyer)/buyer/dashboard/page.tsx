@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NavAvatar from '@/components/NavAvatar'
 import type { User, Profile, Order, Listing } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -26,6 +27,7 @@ type RecListing = Listing & { profiles?: Pick<Profile, 'full_name'> | null }
 export default function BuyerDashboard() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [orders, setOrders] = useState<Order[]>([])
   const [orderCount, setOrderCount] = useState(0)
   const [deliveredCount, setDeliveredCount] = useState(0)
@@ -43,6 +45,8 @@ export default function BuyerDashboard() {
       setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
+      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
+      setAvatarUrl(avatarRow?.avatar_url || null)
       const { data: orders } = await supabase.from('orders').select('*, listings(name,cuisine), profiles:seller_id(full_name)').eq('buyer_id', user.id).order('created_at', { ascending: false }).limit(5)
       setOrders(orders || [])
       const { count: total } = await supabase.from('orders').select('id', { count: 'exact', head: true }).eq('buyer_id', user.id)
@@ -113,7 +117,7 @@ export default function BuyerDashboard() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
-          <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff'}}>{profile?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'B'}</div>
+          <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'B'}/>
           <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
         </div>
       </div>

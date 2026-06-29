@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NavAvatar from '@/components/NavAvatar'
 import type { Profile } from '@/lib/types'
 
 // Pending sellers, drivers and listings are all rendered through the same row
@@ -51,6 +52,7 @@ const dark = `
 
 export default function AdminDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [sellers, setSellers] = useState<PendingItem[]>([])
   const [drivers, setDrivers] = useState<PendingItem[]>([])
   const [listings, setListings] = useState<PendingItem[]>([])
@@ -65,6 +67,8 @@ export default function AdminDashboard() {
       const { data: profile } = await supabase.rpc('get_my_profile')
       if ((profile as Profile | null)?.role !== 'admin') { router.push('/'); return }
       setProfile(profile)
+      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
+      setAvatarUrl(avatarRow?.avatar_url || null)
 
       const [
         { data: pendingSellers }, { data: pendingDrivers }, { data: pendingListings },
@@ -144,6 +148,7 @@ export default function AdminDashboard() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
+          <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || 'A'}/>
           <span style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>{profile?.full_name || profile?.email}</span>
           <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.6)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>

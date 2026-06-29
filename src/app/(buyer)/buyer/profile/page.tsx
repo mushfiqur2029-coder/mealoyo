@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import AvatarUpload from '@/components/AvatarUpload'
+import NavAvatar from '@/components/NavAvatar'
 import type { User, Profile } from '@/lib/types'
 
 const NAV = [
@@ -26,6 +28,7 @@ export default function BuyerProfile() {
   const [city, setCity] = useState('')
   const [postcode, setPostcode] = useState('')
   const [email, setEmail] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -53,11 +56,12 @@ export default function BuyerProfile() {
       setStatus(p?.status || 'active')
       // Address columns aren't part of the get_my_profile RPC's fixed column
       // list, so read them straight from the row (own-row select).
-      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode').eq('id', user.id).maybeSingle()
+      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode, avatar_url').eq('id', user.id).maybeSingle()
       setAddr1(row?.address_line1 || '')
       setAddr2(row?.address_line2 || '')
       setCity(row?.city || '')
       setPostcode(row?.postcode || '')
+      setAvatarUrl(row?.avatar_url || null)
       setLoading(false)
     }
     getData()
@@ -135,7 +139,7 @@ export default function BuyerProfile() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
-          <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff'}}>{initials[0]}</div>
+          <NavAvatar url={avatarUrl} initial={initials[0]}/>
           <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
         </div>
       </div>
@@ -167,7 +171,9 @@ export default function BuyerProfile() {
 
         {/* Identity card */}
         <div className="fade-up" style={{background:'#fff', borderRadius:22, padding:'28px 24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', textAlign:'center', marginBottom:18}}>
-          <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#fff', margin:'0 auto 14px', boxShadow:'0 8px 22px rgba(200,0,106,0.28)'}}>{initials}</div>
+          <div style={{marginBottom:14}}>
+            {user && <AvatarUpload userId={user.id} initialUrl={avatarUrl} initials={initials} onUploaded={setAvatarUrl}/>}
+          </div>
           <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#1A1A1A', marginBottom:4}}>{fullName.trim() || 'Your name'}</h2>
           <p style={{fontSize:13, color:'#1A1A1A', opacity:0.8, marginBottom:12}}>{email}</p>
           <span style={{display:'inline-flex', alignItems:'center', gap:6, background:status === 'active' ? '#E4F6EA' : '#FFF4E0', color:status === 'active' ? '#2DA84E' : '#B8730A', padding:'5px 12px', borderRadius:100, fontSize:11.5, fontWeight:700, textTransform:'capitalize', letterSpacing:'0.02em'}}>

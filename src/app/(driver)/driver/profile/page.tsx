@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import AvatarUpload from '@/components/AvatarUpload'
+import NavAvatar from '@/components/NavAvatar'
 import type { User, Profile } from '@/lib/types'
 
 const NAV = [
@@ -48,6 +50,7 @@ export default function DriverProfile() {
   const [city, setCity] = useState('')
   const [postcode, setPostcode] = useState('')
   const [email, setEmail] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [status, setStatus] = useState('')
   const [orig, setOrig] = useState({ fullName:'', addr1:'', addr2:'', city:'' })
   const [loading, setLoading] = useState(true)
@@ -75,11 +78,12 @@ export default function DriverProfile() {
       setEmail(p?.email || user.email || '')
       setStatus(p?.status || '')
       // Address columns aren't part of the get_my_profile RPC, so read directly.
-      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode').eq('id', user.id).maybeSingle()
+      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode, avatar_url').eq('id', user.id).maybeSingle()
       setAddr1(row?.address_line1 || '')
       setAddr2(row?.address_line2 || '')
       setCity(row?.city || '')
       setPostcode(row?.postcode || '')
+      setAvatarUrl(row?.avatar_url || null)
       setOrig({ fullName: p?.full_name || '', addr1: row?.address_line1 || '', addr2: row?.address_line2 || '', city: row?.city || '' })
       setLoading(false)
     }
@@ -150,7 +154,7 @@ export default function DriverProfile() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
-          <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff'}}>{initials[0]}</div>
+          <NavAvatar url={avatarUrl} initial={initials[0]}/>
           <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.7)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>
@@ -180,7 +184,9 @@ export default function DriverProfile() {
 
         {/* Identity card */}
         <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:22, padding:'28px 24px', border:'1px solid rgba(255,255,255,0.08)', textAlign:'center', marginBottom:18}}>
-          <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,#C8006A 0%,#7A0042 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#fff', margin:'0 auto 14px', boxShadow:'0 8px 22px rgba(200,0,106,0.32)'}}>{initials}</div>
+          <div style={{marginBottom:14}}>
+            {user && <AvatarUpload userId={user.id} initialUrl={avatarUrl} initials={initials} dark onUploaded={setAvatarUrl}/>}
+          </div>
           <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#fff', marginBottom:4}}>{fullName.trim() || 'Your name'}</h2>
           <p style={{fontSize:13, color:'rgba(255,255,255,0.6)', marginBottom:12}}>{email} · Courier</p>
           <span style={{display:'inline-flex', alignItems:'center', gap:6, background:statusOk ? 'rgba(45,168,78,0.15)' : 'rgba(184,115,10,0.18)', color:statusOk ? '#34D399' : '#FBBF24', padding:'5px 12px', borderRadius:100, fontSize:11.5, fontWeight:700, textTransform:'capitalize', letterSpacing:'0.02em'}}>

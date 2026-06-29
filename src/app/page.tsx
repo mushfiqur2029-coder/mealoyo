@@ -2,6 +2,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
@@ -411,8 +412,10 @@ export default function Home() {
                     <div key={l.id} style={{gridColumn:wide?'span 2':'auto', background:'rgba(255,255,255,0.11)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', border:'1px solid rgba(255,255,255,0.18)', borderRadius:18, overflow:'hidden', transition:'transform 0.2s'}}
                       onMouseEnter={e => (e.currentTarget as HTMLElement).style.transform='translateY(-5px)'}
                       onMouseLeave={e => (e.currentTarget as HTMLElement).style.transform='translateY(0)'}>
-                      <div style={{height:wide?148:96, display:'flex', alignItems:'center', justifyContent:'center', fontSize:wide?58:40, background:'rgba(255,255,255,0.06)', position:'relative'}}>
-                        {cuisineEmoji[l.cuisine] || '🍽️'}
+                      <div style={{height:wide?148:96, display:'flex', alignItems:'center', justifyContent:'center', fontSize:wide?58:40, background:'rgba(255,255,255,0.06)', position:'relative', overflow:'hidden'}}>
+                        {l.image_url
+                          ? <Image src={l.image_url} alt={l.name} fill sizes="(max-width:900px) 50vw, 210px" style={{objectFit:'cover'}} unoptimized />
+                          : (cuisineEmoji[l.cuisine] || '🍽️')}
                         {l.featured && <div style={{position:'absolute', top:8, left:8, background:'#fff', color:'#C8006A', fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:100}}>🔥 Featured</div>}
                       </div>
                       <div style={{padding:'10px 12px 12px'}}>
@@ -530,8 +533,10 @@ export default function Home() {
                 const tags = [l.halal && 'Halal', l.vegan && 'Vegan', l.vegetarian && 'Vegetarian', l.spicy && 'Spicy'].filter(Boolean) as string[]
                 return (
                   <Link key={l.id} href={`/dish/${l.id}`} className="lcard" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'block'}}>
-                    <div style={{height:180, display:'flex', alignItems:'center', justifyContent:'center', fontSize:64, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', position:'relative'}}>
-                      {cuisineEmoji[l.cuisine] || '🍽️'}
+                    <div style={{height:180, display:'flex', alignItems:'center', justifyContent:'center', fontSize:64, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', position:'relative', overflow:'hidden'}}>
+                      {l.image_url
+                        ? <Image src={l.image_url} alt={l.name} fill sizes="(max-width:900px) 100vw, 300px" style={{objectFit:'cover'}} unoptimized />
+                        : (cuisineEmoji[l.cuisine] || '🍽️')}
                       <button className="save-btn" onClick={e => { e.preventDefault(); e.stopPropagation(); toggleSave(l.id) }} style={{position:'absolute', top:12, right:12, width:34, height:34, borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1.5px solid rgba(200,0,106,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.08)', transition:'transform 0.14s'}}>
                         {saved.includes(l.id)?'❤️':'🤍'}
                       </button>
