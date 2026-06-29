@@ -37,8 +37,19 @@ const cats = [
 const COMMISSION_RATE = 0.12
 const cookColors = ['#C8006A','#A00055']
 
+// Occasion / order-type cards. Each one filters the live listings grid:
+// office + party narrow to large portions (serves 10+), the rest show everything.
+const orderTypes = [
+  { id:'all',      emoji:'🍽️', name:'Order now',       desc:'Browse every live dish available today' },
+  { id:'office',   emoji:'🏢', name:'Office catering',  desc:'Large portions that serve 10 or more' },
+  { id:'party',    emoji:'🎉', name:'Party & events',   desc:'Big batches for celebrations & gatherings' },
+  { id:'mealprep', emoji:'📦', name:'Meal prep',        desc:'Weekly meal boxes — more filters soon' },
+]
+const orderTypeLabel = (id: string) => orderTypes.find(o => o.id === id)?.name ?? ''
+
 export default function Home() {
   const [cat, setCat] = useState('all')
+  const [orderType, setOrderType] = useState('all')
   const [postcode, setPostcode] = useState('')
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
@@ -142,8 +153,13 @@ export default function Home() {
 
   // TODO: once we have a UK postcode geocoding table, filter `listings` by
   // distance from `postcode` here instead of just passing it through unused.
+  // Occasion filter: office & party catering need dishes that serve a crowd (10+).
+  const matchesOrderType = (l: Listing) =>
+    (orderType === 'office' || orderType === 'party') ? (l.serves ?? 0) >= 10 : true
+
   const filtered = listings.filter(l =>
     (cat === 'all' || l.cuisine === cat) &&
+    matchesOrderType(l) &&
     (query === '' || l.name.toLowerCase().includes(query.toLowerCase()))
   )
 
@@ -156,6 +172,12 @@ export default function Home() {
 
   const scrollToListings = () => {
     document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // Pick an occasion and jump to the (now filtered) listings grid.
+  const selectOrderType = (id: string) => {
+    setOrderType(id)
+    setTimeout(scrollToListings, 60)
   }
 
   const toggleSave = async (id: string) => {
@@ -230,7 +252,7 @@ export default function Home() {
         .hiw-card:hover { transform: translateY(-4px) !important; }
         .review-card:hover { transform: translateY(-4px) !important; }
         .dmode:hover { border-color: #C8006A !important; background: #FFF5FA !important; }
-        .ot-card:hover { border-color: #C8006A !important; background: #FFF5FA !important; }
+        .ot-card:hover { border-color: #C8006A !important; transform: translateY(-4px) !important; box-shadow: 0 14px 36px rgba(200,0,106,0.14) !important; }
         .scroll-arrow:hover { background: #C8006A !important; color: #fff !important; border-color: #C8006A !important; }
         .order-btn, .save-btn, .primary-btn, .nav-cta, .cat-pill, .scroll-arrow { transition: all 0.18s cubic-bezier(0.34,1.2,0.64,1); }
 
@@ -257,6 +279,7 @@ export default function Home() {
           .hero-left { padding: 56px 24px 48px !important; }
           .delivery-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
           .hiw-grid { grid-template-columns: 1fr 1fr !important; }
+          .ot-grid { grid-template-columns: 1fr 1fr !important; }
           .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
         }
         @media (max-width: 768px) {
@@ -273,6 +296,7 @@ export default function Home() {
         @media (max-width: 480px) {
           .listings-grid { grid-template-columns: 1fr !important; }
           .hiw-grid { grid-template-columns: 1fr !important; }
+          .ot-grid { grid-template-columns: 1fr !important; }
           .footer-grid { grid-template-columns: 1fr !important; }
           .nav-links-wrap { display: none !important; }
           .hero-stats { flex-wrap: wrap !important; }
@@ -487,7 +511,15 @@ export default function Home() {
             <div style={{fontSize:13, fontWeight:600, color:'#C8006A', marginBottom:14}}>📍 Showing food near {postcode.trim()}</div>
           )}
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:12}}>
-            <div style={{fontSize:15, fontWeight:700, color:'#1A1A1A'}}><span style={{color:'#C8006A'}}>{filtered.length}</span> dishes available</div>
+            <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
+              <div style={{fontSize:15, fontWeight:700, color:'#1A1A1A'}}><span style={{color:'#C8006A'}}>{filtered.length}</span> dishes available</div>
+              {orderType !== 'all' && (
+                <button type="button" onClick={() => setOrderType('all')} style={{display:'inline-flex', alignItems:'center', gap:8, height:30, padding:'0 6px 0 12px', background:'#FFE8F4', border:'1.5px solid #C8006A', borderRadius:100, fontSize:12.5, fontWeight:700, color:'#C8006A', cursor:'pointer'}}>
+                  {orderTypeLabel(orderType)}
+                  <span style={{display:'inline-flex', alignItems:'center', justifyContent:'center', width:18, height:18, borderRadius:'50%', background:'#C8006A', color:'#fff', fontSize:11, lineHeight:1}}>✕</span>
+                </button>
+              )}
+            </div>
             <div style={{display:'flex', gap:8}}>
               <div style={{display:'flex', alignItems:'center', gap:6, height:38, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, background:'#fff'}}>
                 <span style={{fontSize:14}}>🔍</span>
@@ -568,26 +600,25 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ── */}
+      {/* ── HOW IT WORKS FOR BUYERS ── */}
       <section style={{padding:'72px 0', background:'#fff'}}>
-        <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
+        <div style={{maxWidth:1100, margin:'0 auto', padding:'0 20px'}}>
           <div style={{textAlign:'center', marginBottom:44}}>
-            <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>Simple process</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,38px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:12}}>From browse to bite in 4 steps</h2>
-            <p style={{fontSize:'clamp(14px,1.4vw,16px)', color:'#1A1A1A', maxWidth:420, margin:'0 auto', fontWeight:400, lineHeight:1.65}}>Authentic food, trusted cooks, flexible delivery.</p>
+            <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>How it works for buyers</div>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,38px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:12}}>Home cooked food in three steps</h2>
+            <p style={{fontSize:'clamp(14px,1.4vw,16px)', color:'#1A1A1A', maxWidth:440, margin:'0 auto', fontWeight:400, lineHeight:1.65}}>Find a cook near you, order in seconds, and eat well.</p>
           </div>
-          <div className="hiw-grid" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:18}}>
+          <div className="hiw-grid" style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20}}>
             {[
-              {n:'01', icon:'📍', title:'Enter your postcode', desc:'See home cooks within your area, sorted by cuisine, rating and availability.'},
-              {n:'02', icon:'🛒', title:'Browse & pay securely', desc:'Pick your food, choose delivery or free collection. Pay by card or Apple Pay.'},
-              {n:'03', icon:'👩‍🍳', title:'Cook prepares it fresh', desc:'Your cook gets the order and cooks fresh. Real-time updates keep you informed.'},
-              {n:'04', icon:'🏠', title:'Delivered or collected', desc:'Hot food at your door in 45 mins via community drivers, or collect free with QR code.'},
+              {n:'01', icon:'📍', title:'Enter your postcode', desc:'Find verified home cooks near you, sorted by cuisine, rating and availability.'},
+              {n:'02', icon:'🍽️', title:'Choose your dish', desc:'Collection is always free, or get it delivered from £2.49. Pay securely by card or Apple Pay.'},
+              {n:'03', icon:'⭐', title:'Track & rate your order', desc:'Follow your order in real time, then rate your cook after it arrives to help the community.'},
             ].map(s => (
-              <div key={s.n} className="hiw-card" style={{background:'linear-gradient(135deg,#FFF0F8 0%,#FFE8F4 100%)', borderRadius:20, padding:'26px 20px', border:'1.5px solid rgba(200,0,106,0.1)', transition:'all 0.2s'}}>
-                <div style={{fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'rgba(200,0,106,0.12)', lineHeight:1, marginBottom:14}}>{s.n}</div>
-                <div style={{fontSize:28, marginBottom:10}}>{s.icon}</div>
-                <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A', marginBottom:7}}>{s.title}</div>
-                <div style={{fontSize:12, color:'#1A1A1A', lineHeight:1.65, fontWeight:400}}>{s.desc}</div>
+              <div key={s.n} className="hiw-card" style={{position:'relative', background:'linear-gradient(135deg,#FFF0F8 0%,#FFE8F4 100%)', borderRadius:20, padding:'30px 24px', border:'1.5px solid rgba(200,0,106,0.1)', transition:'all 0.2s'}}>
+                <div style={{fontFamily:'Georgia,serif', fontSize:44, fontWeight:700, color:'rgba(200,0,106,0.13)', lineHeight:1, marginBottom:14}}>{s.n}</div>
+                <div style={{width:52, height:52, borderRadius:14, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, marginBottom:14, boxShadow:'0 4px 14px rgba(200,0,106,0.12)'}}>{s.icon}</div>
+                <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', marginBottom:8, letterSpacing:'-0.01em'}}>{s.title}</div>
+                <div style={{fontSize:13.5, color:'#1A1A1A', lineHeight:1.7, fontWeight:400}}>{s.desc}</div>
               </div>
             ))}
           </div>
@@ -642,53 +673,26 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── DELIVERY & ORDER TYPE ── */}
+      {/* ── ORDER TYPE / OCCASION FILTER ── */}
       <section style={{padding:'72px 0', background:'#fff'}}>
-        <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
-          <div className="delivery-grid" style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:60, alignItems:'start'}}>
-            <div>
-              <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>Delivery options</div>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.2vw,30px)', fontWeight:700, color:'#1A1A1A', marginBottom:8}}>Get it your way</h2>
-              <p style={{fontSize:14, color:'#1A1A1A', lineHeight:1.65, marginBottom:24, maxWidth:380, fontWeight:400}}>Four flexible ways to receive your food. No hidden charges.</p>
-              <div style={{display:'flex', flexDirection:'column', gap:10}}>
-                {[
-                  {icon:'📍', title:'Collect for free', desc:'Walk or drive to your cook. QR code confirms collection instantly.', tag:'Always free', active:true},
-                  {icon:'🚴', title:'Community delivery', desc:'Hot food at your door in under 45 mins via local drivers.', tag:'From £4.50', active:false},
-                  {icon:'🎉', title:'Catering & events', desc:'Full catering for parties, weddings, Eid and office events.', tag:'Cook delivers', active:false},
-                  {icon:'📦', title:'Postal nationwide', desc:'Meal prep, sauces and baked goods posted anywhere in UK.', tag:'From £2.99', active:false},
-                ].map((d,i) => (
-                  <div key={i} className="dmode" style={{display:'flex', alignItems:'flex-start', gap:12, padding:'14px', background:d.active?'#FFE8F4':'#fff', border:d.active?'2px solid #C8006A':'1.5px solid #E8E8E8', borderRadius:14, boxShadow:'0 2px 8px rgba(0,0,0,0.04)', transition:'all 0.14s'}}>
-                    <div style={{width:40, height:40, borderRadius:10, background:d.active?'#C8006A':'#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0}}>{d.icon}</div>
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{fontSize:13, fontWeight:700, color:'#1A1A1A', marginBottom:2}}>{d.title}</div>
-                      <div style={{fontSize:12, color:'#1A1A1A', lineHeight:1.5, marginBottom:4, fontWeight:400}}>{d.desc}</div>
-                      <span style={{fontSize:11, fontWeight:700, color:'#C8006A'}}>{d.tag}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <div style={{fontSize:17, fontWeight:700, color:'#1A1A1A', marginBottom:6}}>What do you need today?</div>
-              <p style={{fontSize:14, color:'#1A1A1A', marginBottom:18, fontWeight:400}}>Select your order type and we will match you with the right cooks.</p>
-              <div className="ot-grid" style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:18}}>
-                {[
-                  {emoji:'🍽️', name:'Today meal', desc:'Delivery or collection now', active:true},
-                  {emoji:'🏢', name:'Office lunches', desc:'Weekly catering contract', active:false},
-                  {emoji:'🎉', name:'Party catering', desc:'Book for your event', active:false},
-                  {emoji:'📦', name:'Meal prep', desc:'Weekly boxes delivered', active:false},
-                ].map((o,i) => (
-                  <div key={i} className="ot-card" style={{padding:'16px', background:o.active?'#FFE8F4':'#fff', border:o.active?'2px solid #C8006A':'1.5px solid #E8E8E8', borderRadius:14, boxShadow:'0 2px 8px rgba(0,0,0,0.04)', transition:'all 0.14s', cursor:'pointer'}}>
-                    <div style={{fontSize:22, marginBottom:8}}>{o.emoji}</div>
-                    <div style={{fontSize:13, fontWeight:700, color:o.active?'#C8006A':'#1A1A1A', marginBottom:3}}>{o.name}</div>
-                    <div style={{fontSize:11, color:'#1A1A1A', lineHeight:1.4, fontWeight:400}}>{o.desc}</div>
-                  </div>
-                ))}
-              </div>
-              <button type="button" onClick={scrollToListings} className="primary-btn" style={{width:'100%', height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.12s'}}>
-                Find cooks near me →
-              </button>
-            </div>
+        <div style={{maxWidth:1100, margin:'0 auto', padding:'0 20px'}}>
+          <div style={{textAlign:'center', marginBottom:40}}>
+            <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>What&apos;s the occasion?</div>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,38px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:12}}>Find food for any moment</h2>
+            <p style={{fontSize:'clamp(14px,1.4vw,16px)', color:'#1A1A1A', maxWidth:440, margin:'0 auto', fontWeight:400, lineHeight:1.65}}>Tap an option to filter the dishes below.</p>
+          </div>
+          <div className="ot-grid" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16}}>
+            {orderTypes.map(o => {
+              const active = orderType === o.id
+              return (
+                <button key={o.id} type="button" onClick={() => selectOrderType(o.id)} className="ot-card"
+                  style={{textAlign:'left', minHeight:160, padding:'24px 20px', background:active?'#FFE8F4':'#fff', border:active?'2px solid #C8006A':'1.5px solid #E8E8E8', borderRadius:18, boxShadow:'0 2px 10px rgba(0,0,0,0.04)', transition:'all 0.18s', cursor:'pointer', display:'flex', flexDirection:'column'}}>
+                  <div style={{width:56, height:56, borderRadius:15, background:active?'#C8006A':'#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, marginBottom:16, transition:'background 0.18s'}}>{o.emoji}</div>
+                  <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:active?'#C8006A':'#1A1A1A', marginBottom:6, letterSpacing:'-0.01em'}}>{o.name}</div>
+                  <div style={{fontSize:12.5, color:'#1A1A1A', lineHeight:1.55, fontWeight:400}}>{o.desc}</div>
+                </button>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -763,24 +767,24 @@ export default function Home() {
             </div>
             {[
               {head:'Buy food', links:[
-                {l:'Browse listings', h:'/#listings'}, {l:'Find local cooks', h:'/#listings'},
-                {l:'Event catering', h:'/#listings'}, {l:'Office lunches', h:'/#listings'}, {l:'Meal prep boxes', h:'/#listings'},
+                {l:'Browse listings', action:scrollToListings}, {l:'Find local cooks', h:'/register'},
+                {l:'Event catering', action:() => selectOrderType('party')}, {l:'Office lunches', action:() => selectOrderType('office')}, {l:'Meal prep boxes', action:() => selectOrderType('mealprep')},
               ]},
               {head:'Sell food', links:[
                 {l:'Start selling', h:'/register'}, {l:'Seller dashboard', h:'/seller/dashboard'},
-                {l:'Pricing & packages', h:'/register'}, {l:'Compliance guide', h:'/register'}, {l:'Seller support', h:'mailto:hello@mealoyo.com'},
+                {l:'Pricing & packages', h:'/register'}, {l:'Seller support', h:'/seller-support'},
               ]},
               {head:'Company', links:[
-                {l:'About us', h:'/'}, {l:'Deliver with us', h:'/register'}, {l:'Terms', h:'/terms'},
-                {l:'Contact', h:'mailto:hello@mealoyo.com'}, {l:'Privacy policy', h:'/privacy'},
+                {l:'About us', h:'/about'}, {l:'Blog', h:'/blog'}, {l:'Deliver with us', h:'/register'},
+                {l:'Contact', h:'/contact'}, {l:'Terms', h:'/terms'}, {l:'Privacy policy', h:'/privacy'},
               ]},
             ].map(s => (
               <div key={s.head}>
                 <div style={{fontSize:11, fontWeight:700, color:'#fff', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:12}}>{s.head}</div>
-                <div style={{display:'flex', flexDirection:'column', gap:9}}>
-                  {s.links.map(link => link.h.startsWith('mailto:')
-                    ? <a key={link.l} href={link.h} className="footer-link" style={{fontSize:13, color:'rgba(255,255,255,0.45)', fontWeight:500, transition:'color 0.12s'}}>{link.l}</a>
-                    : <Link key={link.l} href={link.h} className="footer-link" style={{fontSize:13, color:'rgba(255,255,255,0.45)', fontWeight:500, transition:'color 0.12s'}}>{link.l}</Link>
+                <div style={{display:'flex', flexDirection:'column', gap:9, alignItems:'flex-start'}}>
+                  {s.links.map(link => 'action' in link && link.action
+                    ? <button key={link.l} type="button" onClick={link.action} className="footer-link" style={{fontSize:13, color:'rgba(255,255,255,0.45)', fontWeight:500, transition:'color 0.12s', background:'none', border:'none', padding:0, cursor:'pointer', textAlign:'left'}}>{link.l}</button>
+                    : <Link key={link.l} href={(link as { h:string }).h} className="footer-link" style={{fontSize:13, color:'rgba(255,255,255,0.45)', fontWeight:500, transition:'color 0.12s'}}>{link.l}</Link>
                   )}
                 </div>
               </div>
