@@ -38,12 +38,15 @@ export default function SellerOrders() {
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [filter, setFilter] = useState('all')
+  const [sellerId, setSellerId] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     const getData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
+      setSellerId(user.id)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
       const { data } = await supabase
@@ -56,6 +59,46 @@ export default function SellerOrders() {
     }
     getData()
   }, [router])
+
+  // ── REALTIME: new orders appear instantly + live status sync ──
+  useEffect(() => {
+    if (!sellerId) return
+    const ORDER_SELECT = '*, listings(name,cuisine), profiles:buyer_id(full_name)'
+    const channel = supabase
+      .channel(`seller-orders-${sellerId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders', filter: `seller_id=eq.${sellerId}` },
+        async (payload) => {
+          // The realtime payload has only the base row — re-fetch with the
+          // listing/buyer joins so the new card renders fully.
+          const newId = (payload.new as Order).id
+          const { data } = await supabase.from('orders').select(ORDER_SELECT).eq('id', newId).single()
+          if (data) {
+            setOrders(prev => prev.some(o => o.id === data.id) ? prev : [data, ...prev])
+            setToast('New order received')
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `seller_id=eq.${sellerId}` },
+        (payload) => {
+          const updated = payload.new as Order
+          setOrders(prev => prev.map(o => o.id === updated.id ? { ...o, ...updated } : o))
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [sellerId])
+
+  // Auto-dismiss the "new order" toast.
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4500)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -87,6 +130,8 @@ export default function SellerOrders() {
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes shimmer { 0% { background-position: -480px 0; } 100% { background-position: 480px 0; } }
       @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes toastIn { from { opacity: 0; transform: translateX(20px) translateY(-4px); } to { opacity: 1; transform: translateX(0) translateY(0); } }
+      @keyframes toastDot { 0% { box-shadow: 0 0 0 0 rgba(200,0,106,0.5); } 70% { box-shadow: 0 0 0 8px rgba(200,0,106,0); } 100% { box-shadow: 0 0 0 0 rgba(200,0,106,0); } }
       * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
       ::-webkit-scrollbar { width: 0; height: 0; }
       * { scrollbar-width: none; -ms-overflow-style: none; }
@@ -182,6 +227,18 @@ export default function SellerOrders() {
     <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
+
+      {/* ── REALTIME TOAST: new order received ── */}
+      {toast && (
+        <div role="status" aria-live="polite" style={{position:'fixed', top:78, right:20, zIndex:300, display:'flex', alignItems:'center', gap:12, background:'#fff', borderLeft:'4px solid #C8006A', borderRadius:14, padding:'14px 18px 14px 16px', boxShadow:'0 12px 36px rgba(200,0,106,0.22)', animation:'toastIn 0.32s cubic-bezier(0.34,1.3,0.64,1) both', maxWidth:'calc(100vw - 40px)'}}>
+          <span style={{width:38, height:38, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0, animation:'toastDot 1.8s ease-out infinite'}}>🔔</span>
+          <div>
+            <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A', lineHeight:1.2}}>{toast}</div>
+            <div style={{fontSize:12, color:'#C8006A', fontWeight:600, marginTop:2}}>It&apos;s ready for you to accept</div>
+          </div>
+          <button onClick={() => setToast(null)} aria-label="Dismiss" style={{marginLeft:6, width:26, height:26, border:'none', background:'#F8F0F4', borderRadius:'50%', color:'#1A1A1A', fontSize:14, cursor:'pointer', flexShrink:0, lineHeight:1}}>✕</button>
+        </div>
+      )}
 
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px 56px'}}>
 

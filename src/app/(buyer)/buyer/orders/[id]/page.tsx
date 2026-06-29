@@ -32,6 +32,15 @@ const statusShort: Record<string, string> = {
 const statusIcons: Record<string, string> = {
   pending: '🕐', accepted: '✅', cooking: '👩‍🍳', ready: '📦', picked_up: '🚴', delivered: '🏠',
 }
+// Simple, friendly estimated delivery / progress message per status.
+const etaMessages: Record<string, string> = {
+  pending: 'Waiting for cook to accept',
+  accepted: 'Cook accepted — preparing your food',
+  cooking: 'Being cooked fresh for you — ready in ~45 mins',
+  ready: 'Ready — driver will collect shortly',
+  picked_up: 'On the way to you — arriving soon',
+  delivered: 'Delivered — enjoy your meal!',
+}
 
 export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -83,6 +92,24 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     }
     getData()
   }, [id, router])
+
+  // ── REALTIME: live status updates from the seller, no refresh needed ──
+  useEffect(() => {
+    const channel = supabase
+      .channel(`order-${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
+        (payload) => {
+          // Merge the new base-order columns over existing state, keeping the
+          // already-joined listing/seller data we loaded on mount.
+          setOrder(prev => (prev ? { ...prev, ...(payload.new as Order) } : prev))
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [id])
 
   const submitReview = async () => {
     if (rating === 0 || !order) return
@@ -229,6 +256,12 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               <div style={{fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.75)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4}}>{delivered ? 'Order complete' : 'Order status'}</div>
               <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,3vw,28px)', fontWeight:700, letterSpacing:'-0.01em', lineHeight:1.1}}>{statusLabels[order.status]}</div>
             </div>
+          </div>
+
+          {/* Estimated delivery / progress message */}
+          <div style={{position:'relative', display:'inline-flex', alignItems:'center', gap:8, background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.22)', borderRadius:100, padding:'8px 16px', marginBottom:22}}>
+            {!delivered && <span style={{width:8, height:8, borderRadius:'50%', background:'#fff', flexShrink:0, animation:'pulseRing 1.8s ease-out infinite'}}/>}
+            <span style={{fontSize:13.5, fontWeight:600, color:'#fff'}}>{delivered ? '🎉 ' : '⏱ '}{etaMessages[order.status] || 'Tracking your order'}</span>
           </div>
 
           {/* ── PROGRESS STEPS ── */}
