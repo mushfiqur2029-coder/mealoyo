@@ -16,7 +16,7 @@ const cuisineEmoji: Record<string, string> = {
 
 const NAV = [
   { l:'Dashboard', h:'/buyer/dashboard' },
-  { l:'Browse food', h:'/' },
+  { l:'Browse food', h:'/browse' },
   { l:'My orders', h:'/buyer/orders' },
   { l:'Points', h:'/buyer/points' },
   { l:'Saved', h:'/buyer/saved' },
@@ -164,7 +164,7 @@ export default function BuyerDashboard() {
   const today = new Date().toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
 
   const quickActions = [
-    { l:'Browse food', s:'Find home cooks near you', i:'🍽️', h:'/' },
+    { l:'Browse food', s:'Find home cooks near you', i:'🍽️', h:'/browse' },
     { l:'My orders', s:'Track & view history', i:'📦', h:'/buyer/orders' },
     { l:'Saved listings', s:'Dishes you loved', i:'❤️', h:'/buyer/saved' },
     { l:'Edit profile', s:'Update your details', i:'⚙️', h:'/buyer/profile' },
@@ -220,7 +220,7 @@ export default function BuyerDashboard() {
                 <div style={{padding:'40px 32px', textAlign:'center'}}>
                   <div style={{fontSize:36, marginBottom:10}}>🛒</div>
                   <p style={{fontSize:14, color:'#1A1A1A', marginBottom:16, lineHeight:1.6}}>No orders yet — find a home cook near you and place your first order.</p>
-                  <Link href="/" className="browse-btn" style={{display:'inline-flex', alignItems:'center', height:42, padding:'0 20px', background:'#C8006A', color:'#fff', borderRadius:10, fontSize:13, fontWeight:700, boxShadow:'0 4px 14px rgba(200,0,106,0.28)', transition:'all 0.16s'}}>Browse food →</Link>
+                  <Link href="/browse" className="browse-btn" style={{display:'inline-flex', alignItems:'center', height:42, padding:'0 20px', background:'#C8006A', color:'#fff', borderRadius:10, fontSize:13, fontWeight:700, boxShadow:'0 4px 14px rgba(200,0,106,0.28)', transition:'all 0.16s'}}>Browse food →</Link>
                 </div>
               ) : orders.map((o, i) => {
                 const cookFirst = (o.profiles?.full_name || 'Home cook').trim().split(/\s+/)[0]
@@ -244,7 +244,7 @@ export default function BuyerDashboard() {
             <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'18px 22px 22px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
                 <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#1A1A1A'}}>Recommended for you</h3>
-                <Link href="/" className="nav-link" style={{fontSize:13, fontWeight:700, color:'#C8006A'}}>See more →</Link>
+                <Link href="/browse" className="nav-link" style={{fontSize:13, fontWeight:700, color:'#C8006A'}}>See more →</Link>
               </div>
               {recommended.length === 0 ? (
                 <div style={{padding:'24px 12px', textAlign:'center'}}>

@@ -175,6 +175,15 @@ export default function Home() {
     document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  // Hero search → the dedicated /browse shopping experience, carrying postcode + query.
+  const goToBrowse = () => {
+    const qs = new URLSearchParams()
+    if (postcode.trim()) qs.set('postcode', postcode.trim())
+    if (query.trim()) qs.set('q', query.trim())
+    const s = qs.toString()
+    router.push(s ? `/browse?${s}` : '/browse')
+  }
+
   // Pick an occasion and jump to the (now filtered) listings grid.
   const selectOrderType = (id: string) => {
     setOrderType(id)
@@ -311,7 +320,7 @@ export default function Home() {
             <Logo height={38}/>
           </Link>
           <div className="nav-links-wrap" style={{display:'flex', gap:0, flex:1}}>
-            {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/become-a-seller',a:false},{l:'Deliver & earn',h:'/become-a-driver',a:false}].map((t,i) => (
+            {[{l:'Explore food',h:'/browse',a:true},{l:'Sell & cater',h:'/become-a-seller',a:false},{l:'Deliver & earn',h:'/become-a-driver',a:false}].map((t,i) => (
               <Link key={i} href={t.h} style={{height:66, padding:'0 14px', display:'flex', alignItems:'center', fontSize:14, fontWeight:t.a?700:500, color:t.a?'#C8006A':'#1A1A1A', borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent', whiteSpace:'nowrap'}}>{t.l}</Link>
             ))}
           </div>
@@ -349,7 +358,7 @@ export default function Home() {
             <div onClick={() => setMenuOpen(false)} style={{position:'fixed', inset:'66px 0 0', background:'rgba(26,26,26,0.35)', backdropFilter:'blur(2px)', zIndex:498}}/>
             <div style={{position:'fixed', top:66, left:0, right:0, background:'#fff', borderBottom:'1px solid rgba(200,0,106,0.1)', boxShadow:'0 16px 40px rgba(26,26,26,0.12)', zIndex:499, padding:'14px 20px 22px', animation:'menuIn 0.22s ease'}}>
               <div style={{display:'flex', flexDirection:'column'}}>
-                {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/become-a-seller',a:false},{l:'Deliver & earn',h:'/become-a-driver',a:false}].map((t,i) => (
+                {[{l:'Explore food',h:'/browse',a:true},{l:'Sell & cater',h:'/become-a-seller',a:false},{l:'Deliver & earn',h:'/become-a-driver',a:false}].map((t,i) => (
                   <Link key={i} href={t.h} onClick={() => setMenuOpen(false)} style={{padding:'15px 4px', fontSize:16, fontWeight:t.a?700:600, color:t.a?'#C8006A':'#1A1A1A', borderBottom:'1px solid #F3E6EE', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                     {t.l}<span style={{color:'#C8006A', fontSize:18}}>›</span>
                   </Link>
@@ -406,7 +415,7 @@ export default function Home() {
                       : '🧭'}
                   </button>
                 </div>
-                <button type="button" onClick={scrollToListings} className="primary-btn" style={{height:52, padding:'0 28px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(200,0,106,0.4)', transition:'background 0.12s', flexShrink:0}}>
+                <button type="button" onClick={goToBrowse} className="primary-btn" style={{height:52, padding:'0 28px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 4px 16px rgba(200,0,106,0.4)', transition:'background 0.12s', flexShrink:0}}>
                   Find food →
                 </button>
               </div>

@@ -16,7 +16,7 @@ const cuisineEmoji: Record<string, string> = {
 
 const NAV = [
   { l:'Dashboard', h:'/buyer/dashboard' },
-  { l:'Browse food', h:'/' },
+  { l:'Browse food', h:'/browse' },
   { l:'My orders', h:'/buyer/orders' },
   { l:'Points', h:'/buyer/points' },
   { l:'Saved', h:'/buyer/saved' },
