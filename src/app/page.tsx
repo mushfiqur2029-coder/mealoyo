@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import Logo from '@/components/Logo'
+import HeroVideoBg from '@/components/HeroVideoBg'
 import type { Listing, Review } from '@/lib/types'
 
 function dashboardPath(role: string | null) {
@@ -310,7 +311,7 @@ export default function Home() {
             <Logo height={38}/>
           </Link>
           <div className="nav-links-wrap" style={{display:'flex', gap:0, flex:1}}>
-            {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/register',a:false},{l:'Deliver & earn',h:'/register',a:false}].map((t,i) => (
+            {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/become-a-seller',a:false},{l:'Deliver & earn',h:'/become-a-driver',a:false}].map((t,i) => (
               <Link key={i} href={t.h} style={{height:66, padding:'0 14px', display:'flex', alignItems:'center', fontSize:14, fontWeight:t.a?700:500, color:t.a?'#C8006A':'#1A1A1A', borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent', whiteSpace:'nowrap'}}>{t.l}</Link>
             ))}
           </div>
@@ -348,7 +349,7 @@ export default function Home() {
             <div onClick={() => setMenuOpen(false)} style={{position:'fixed', inset:'66px 0 0', background:'rgba(26,26,26,0.35)', backdropFilter:'blur(2px)', zIndex:498}}/>
             <div style={{position:'fixed', top:66, left:0, right:0, background:'#fff', borderBottom:'1px solid rgba(200,0,106,0.1)', boxShadow:'0 16px 40px rgba(26,26,26,0.12)', zIndex:499, padding:'14px 20px 22px', animation:'menuIn 0.22s ease'}}>
               <div style={{display:'flex', flexDirection:'column'}}>
-                {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/register',a:false},{l:'Deliver & earn',h:'/register',a:false}].map((t,i) => (
+                {[{l:'Explore food',h:'/',a:true},{l:'Sell & cater',h:'/become-a-seller',a:false},{l:'Deliver & earn',h:'/become-a-driver',a:false}].map((t,i) => (
                   <Link key={i} href={t.h} onClick={() => setMenuOpen(false)} style={{padding:'15px 4px', fontSize:16, fontWeight:t.a?700:600, color:t.a?'#C8006A':'#1A1A1A', borderBottom:'1px solid #F3E6EE', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                     {t.l}<span style={{color:'#C8006A', fontSize:18}}>›</span>
                   </Link>
@@ -371,6 +372,7 @@ export default function Home() {
 
       {/* ── HERO ── */}
       <section style={{background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', minHeight:'90vh', position:'relative', overflow:'hidden', display:'flex', alignItems:'center'}}>
+        <HeroVideoBg src="/videos/hero-buyer.mp4" poster="/videos/hero-buyer-poster.jpg" />
         <div style={{position:'absolute', top:'-15%', right:'-5%', width:'55%', height:'130%', background:'radial-gradient(ellipse,rgba(255,255,255,0.06) 0%,transparent 65%)', pointerEvents:'none'}}/>
         <div style={{position:'absolute', bottom:'-10%', left:'5%', width:'30%', height:'50%', background:'radial-gradient(ellipse,rgba(255,232,244,0.06) 0%,transparent 65%)', pointerEvents:'none'}}/>
 
@@ -757,7 +759,7 @@ export default function Home() {
       {/* ── FOOTER ── */}
       <footer style={{background:'#1A1A1A', padding:'48px 0 24px'}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
-          <div className="footer-grid" style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:40, marginBottom:32}}>
+          <div className="footer-grid" style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr', gap:40, marginBottom:32}}>
             <div>
               <div style={{marginBottom:12}}>
                 <Logo height={34} white priority={false}/>
@@ -771,11 +773,15 @@ export default function Home() {
                 {l:'Event catering', action:() => selectOrderType('party')}, {l:'Office lunches', action:() => selectOrderType('office')}, {l:'Meal prep boxes', action:() => selectOrderType('mealprep')},
               ]},
               {head:'Sell food', links:[
-                {l:'Start selling', h:'/register'}, {l:'Seller dashboard', h:'/seller/dashboard'},
-                {l:'Pricing & packages', h:'/register'}, {l:'Seller support', h:'/seller-support'},
+                {l:'Become a seller', h:'/become-a-seller'}, {l:'Start selling', h:'/register'},
+                {l:'Seller dashboard', h:'/seller/dashboard'}, {l:'Seller support', h:'/seller-support'},
+              ]},
+              {head:'Drive & deliver', links:[
+                {l:'Become a driver', h:'/become-a-driver'}, {l:'Driver dashboard', h:'/driver/dashboard'},
+                {l:'Deliver with us', h:'/become-a-driver'},
               ]},
               {head:'Company', links:[
-                {l:'About us', h:'/about'}, {l:'Blog', h:'/blog'}, {l:'Deliver with us', h:'/register'},
+                {l:'About us', h:'/about'}, {l:'Blog', h:'/blog'},
                 {l:'Contact', h:'/contact'}, {l:'Terms', h:'/terms'}, {l:'Privacy policy', h:'/privacy'},
               ]},
             ].map(s => (

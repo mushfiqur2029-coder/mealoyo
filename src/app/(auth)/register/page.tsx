@@ -1,8 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Logo from '@/components/Logo'
 
 type Role = 'buyer' | 'seller' | 'driver'
@@ -47,9 +47,14 @@ function EyeToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) 
   )
 }
 
-export default function Register() {
-  const [step, setStep] = useState(1)
-  const [role, setRole] = useState<Role>('buyer')
+function RegisterForm() {
+  const searchParams = useSearchParams()
+  const roleParam = searchParams.get('role')
+  const preselectedRole: Role | null = roleParam === 'seller' || roleParam === 'driver' ? roleParam : null
+  // When arriving from a "become a seller/driver" CTA, pre-select that role and
+  // jump straight to the details step (the "change" link still returns to step 1).
+  const [step, setStep] = useState(preselectedRole ? 2 : 1)
+  const [role, setRole] = useState<Role>(preselectedRole ?? 'buyer')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -181,5 +186,13 @@ export default function Register() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function Register() {
+  return (
+    <Suspense fallback={<div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)' }} />}>
+      <RegisterForm />
+    </Suspense>
   )
 }
