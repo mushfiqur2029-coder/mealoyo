@@ -69,6 +69,16 @@ export interface Order {
   profiles?: Pick<Profile, 'full_name'> | null
 }
 
+export interface LoyaltyPoint {
+  id: string
+  buyer_id: string
+  order_id: string | null
+  points: number
+  type: 'earned' | 'redeemed'
+  description: string | null
+  created_at: string
+}
+
 export interface Review {
   id: string
   buyer_id: string

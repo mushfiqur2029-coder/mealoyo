@@ -71,6 +71,9 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
       if (!order) { setNotFound(true); setLoading(false); return }
       setOrder(order)
+      // Backstop loyalty award: if the order is already delivered, make sure
+      // points were granted. Idempotent DB-side; no-ops until the SQL is run.
+      if (order.status === 'delivered') supabase.rpc('award_loyalty_points', { p_order_id: order.id })
 
       const { data: listing } = await supabase
         .from('listings')
@@ -103,7 +106,10 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
         (payload) => {
           // Merge the new base-order columns over existing state, keeping the
           // already-joined listing/seller data we loaded on mount.
-          setOrder(prev => (prev ? { ...prev, ...(payload.new as Order) } : prev))
+          const next = payload.new as Order
+          setOrder(prev => (prev ? { ...prev, ...next } : prev))
+          // Award points live the moment the status flips to delivered.
+          if (next.status === 'delivered') supabase.rpc('award_loyalty_points', { p_order_id: next.id })
         }
       )
       .subscribe()

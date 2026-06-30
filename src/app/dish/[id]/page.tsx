@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import { isValidUKPostcode, lookupPostcode, haversineDistance, deliveryFeeForDistance, serviceFee, commission as calcCommission, FLAT_DELIVERY_FEE } from '@/lib/pricing'
+import { pointsToPounds, maxRedeemablePounds, poundsToPoints } from '@/lib/loyalty'
 import type { User, Listing, Profile } from '@/lib/types'
 
 type DeliveryQuote =
@@ -44,6 +45,8 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const [error, setError] = useState('')
   const [isSaved, setIsSaved] = useState(false)
   const [savedRowId, setSavedRowId] = useState<string | null>(null)
+  const [pointsBalance, setPointsBalance] = useState(0)
+  const [applyPoints, setApplyPoints] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -66,6 +69,10 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       if (user) {
         const { data: savedRow } = await supabase.from('saved_listings').select('id').eq('buyer_id', user.id).eq('listing_id', id).maybeSingle()
         if (savedRow) { setIsSaved(true); setSavedRowId(savedRow.id) }
+        // Loyalty balance for the redeem-at-checkout option. Falls back to 0
+        // (no redeem UI shown) until the SQL is run.
+        const { data: balance } = await supabase.rpc('get_points_balance', { p_buyer_id: user.id })
+        setPointsBalance(typeof balance === 'number' ? balance : 0)
         // Pull the buyer's saved delivery address so we can auto-fill checkout.
         const { data: profileRow } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode').eq('id', user.id).maybeSingle()
         if (profileRow?.address_line1) {
@@ -149,8 +156,11 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
     setError('')
     const svcFee = serviceFee(subtotal)
     const commission = calcCommission(subtotal) // 12% of food subtotal
-    const sellerPayout = subtotal - commission
-    const total = subtotal + svcFee + deliveryFee
+    const sellerPayout = subtotal - commission // unaffected by loyalty discount (platform-funded)
+    // Loyalty discount only reduces what the buyer pays, not the seller payout.
+    const discountPounds = applyPoints ? maxRedeemablePounds(pointsBalance, subtotal) : 0
+    const pointsToRedeem = poundsToPoints(discountPounds)
+    const total = subtotal + svcFee + deliveryFee - discountPounds
 
     const { data: order, error: orderError } = await supabase
       .from('orders')
@@ -176,6 +186,17 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       setError(orderError.message)
       setOrdering(false)
       return
+    }
+    // Record the redemption in the loyalty ledger. Best-effort: if the table
+    // isn't there yet (SQL not run) the order still succeeds.
+    if (pointsToRedeem > 0) {
+      await supabase.from('loyalty_points').insert({
+        buyer_id: user.id,
+        order_id: order.id,
+        points: pointsToRedeem,
+        type: 'redeemed',
+        description: `Redeemed on order #${order.id.slice(0, 8)}`,
+      })
     }
     router.push(`/buyer/orders/${order.id}`)
   }
@@ -295,7 +316,12 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
     ? (quote.status === 'ok' || quote.status === 'flat' ? quote.fee : null)
     : 0
   const canOrder = deliveryType === 'collection' || deliveryFee !== null
-  const grandTotal = totalAmount + svcFee + (deliveryFee ?? 0)
+  // Loyalty redemption: whole-pound discount, capped by balance and subtotal.
+  const redeemablePounds = maxRedeemablePounds(pointsBalance, totalAmount)
+  const canRedeem = redeemablePounds >= 1
+  const discount = applyPoints && canRedeem ? redeemablePounds : 0
+  const pointsRedeemed = poundsToPoints(discount)
+  const grandTotal = totalAmount + svcFee + (deliveryFee ?? 0) - discount
   const reviews = listing.reviews_count ?? 0
   const rating = listing.rating ?? 0
   const initial = (seller?.full_name?.trim()?.[0] || 'C').toUpperCase()
@@ -387,6 +413,21 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. extra spicy, no onions..." style={{width:'100%', height:42, border:'1.5px solid #E0E0E0', borderRadius:10, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#FAFAFA', fontFamily:'Inter,system-ui,sans-serif', outline:'none'}}/>
       </div>
 
+      {/* Loyalty points redemption */}
+      {user && canRedeem && (
+        <div onClick={() => setApplyPoints(v => !v)} className="dt-card" style={{display:'flex', alignItems:'center', gap:12, padding:'13px 15px', border:applyPoints ? '2px solid #C8006A' : '1.5px solid #E0E0E0', borderRadius:12, background:applyPoints ? '#FFE8F4' : '#fff', marginBottom:18}}>
+          <div style={{fontSize:22, flexShrink:0}}>⭐</div>
+          <div style={{flex:1, minWidth:0}}>
+            <div style={{fontSize:13, fontWeight:700, color:applyPoints ? '#C8006A' : '#1A1A1A'}}>Use {poundsToPoints(redeemablePounds).toLocaleString('en-GB')} points</div>
+            <div style={{fontSize:12, color:'#1A1A1A', opacity:0.8, marginTop:1}}>£{redeemablePounds.toFixed(2)} off · you have {pointsBalance.toLocaleString('en-GB')} pts (£{pointsToPounds(pointsBalance).toFixed(2)})</div>
+          </div>
+          {/* Visual toggle */}
+          <div aria-hidden="true" style={{width:42, height:24, borderRadius:100, background:applyPoints ? '#C8006A' : '#E0E0E0', position:'relative', flexShrink:0, transition:'background 0.16s'}}>
+            <div style={{position:'absolute', top:2, left:applyPoints ? 20 : 2, width:20, height:20, borderRadius:'50%', background:'#fff', transition:'left 0.16s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)'}}/>
+          </div>
+        </div>
+      )}
+
       {/* Order summary */}
       <div style={{background:'#F8F0F4', borderRadius:12, padding:'14px 16px', marginBottom:18}}>
         <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#1A1A1A', marginBottom:6}}>
@@ -403,6 +444,12 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
             {deliveryType !== 'delivery' ? 'Free' : deliveryFee !== null ? `£${deliveryFee.toFixed(2)}` : '—'}
           </span>
         </div>
+        {discount > 0 && (
+          <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#2DA84E', marginBottom:6, fontWeight:600}}>
+            <span>⭐ Points discount ({pointsRedeemed.toLocaleString('en-GB')} pts)</span>
+            <span>−£{discount.toFixed(2)}</span>
+          </div>
+        )}
         <div style={{borderTop:'1px solid rgba(200,0,106,0.12)', paddingTop:8, marginTop:4, display:'flex', justifyContent:'space-between', fontSize:15, fontWeight:700, color:'#1A1A1A'}}>
           <span>Total</span>
           <span style={{color:'#C8006A', fontFamily:'Georgia,serif', fontSize:18}}>£{grandTotal.toFixed(2)}</span>

@@ -82,6 +82,9 @@ export default function SellerDashboard() {
     const { error } = await supabase.from('orders').update({ status: step.next }).eq('id', order.id)
     if (!error) {
       setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: step.next } : o))
+      // Award loyalty points on delivery. Idempotent DB-side; no-ops until the
+      // loyalty SQL has been run.
+      if (step.next === 'delivered') await supabase.rpc('award_loyalty_points', { p_order_id: order.id })
     }
     setUpdatingId(null)
   }

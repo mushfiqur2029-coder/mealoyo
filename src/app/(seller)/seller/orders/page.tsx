@@ -109,6 +109,10 @@ export default function SellerOrders() {
     const { error } = await supabase.from('orders').update({ status: step.next }).eq('id', order.id)
     if (!error) {
       setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: step.next } : o))
+      // Award loyalty points the moment an order is marked delivered. The DB
+      // function is idempotent, so a repeat call is harmless; it no-ops until
+      // the loyalty SQL has been run.
+      if (step.next === 'delivered') await supabase.rpc('award_loyalty_points', { p_order_id: order.id })
     }
     setUpdatingId(null)
   }

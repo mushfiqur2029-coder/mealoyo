@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
+import { pointsToPounds } from '@/lib/loyalty'
 import type { User, Profile, Order, Listing } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -17,6 +18,7 @@ const NAV = [
   { l:'Dashboard', h:'/buyer/dashboard' },
   { l:'Browse food', h:'/' },
   { l:'My orders', h:'/buyer/orders' },
+  { l:'Points', h:'/buyer/points' },
   { l:'Saved', h:'/buyer/saved' },
   { l:'Profile', h:'/buyer/profile' },
 ]
@@ -33,6 +35,7 @@ export default function BuyerDashboard() {
   const [deliveredCount, setDeliveredCount] = useState(0)
   const [inProgressCount, setInProgressCount] = useState(0)
   const [spent, setSpent] = useState(0)
+  const [points, setPoints] = useState(0)
   const [recommended, setRecommended] = useState<RecListing[]>([])
   const [saved, setSaved] = useState<SavedRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,6 +60,9 @@ export default function BuyerDashboard() {
       setInProgressCount(inProgress ?? 0)
       const { data: spendRows } = await supabase.from('orders').select('total_amount').eq('buyer_id', user.id).neq('status', 'cancelled')
       setSpent((spendRows || []).reduce((sum, o) => sum + parseFloat(o.total_amount || '0'), 0))
+      // Loyalty balance. Fails gracefully to 0 until the SQL (table + function) is run.
+      const { data: pointsBalance } = await supabase.rpc('get_points_balance', { p_buyer_id: user.id })
+      setPoints(typeof pointsBalance === 'number' ? pointsBalance : 0)
       const { data: recs } = await supabase.from('listings').select('*, profiles:seller_id(full_name)').eq('status', 'live').order('created_at', { ascending: false }).limit(3)
       setRecommended((recs as unknown as RecListing[]) || [])
       const { data: savedRows } = await supabase.from('saved_listings').select('id, listings(id,name,cuisine,price)').eq('buyer_id', user.id).order('created_at', { ascending: false }).limit(3)
@@ -86,6 +92,8 @@ export default function BuyerDashboard() {
       .nav-link:hover { color: #C8006A !important; }
       .stat-card { transition: transform 0.18s; }
       .stat-card:hover { transform: translateY(-2px); }
+      .points-card { transition: transform 0.18s, box-shadow 0.18s; }
+      .points-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(200,0,106,0.32) !important; }
       .orow:hover { background: #FFF5FA !important; }
       .qa-row:hover { background: #FFF5FA !important; transform: translateX(2px); }
       .rec-card { transition: transform 0.18s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.18s; }
@@ -265,6 +273,18 @@ export default function BuyerDashboard() {
 
           {/* RIGHT (sticky) */}
           <div className="col-right" style={{position:'sticky', top:84, display:'flex', flexDirection:'column', gap:20, minWidth:0}}>
+
+            {/* Loyalty points */}
+            <Link href="/buyer/points" className="fade-up points-card" style={{display:'block', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)', borderRadius:20, padding:'22px', boxShadow:'0 8px 24px rgba(200,0,106,0.25)', position:'relative', overflow:'hidden'}}>
+              <div aria-hidden="true" style={{position:'absolute', top:-30, right:-20, fontSize:120, opacity:0.12, lineHeight:1}}>🎁</div>
+              <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:14}}>
+                <span style={{fontSize:18}}>⭐</span>
+                <span style={{fontSize:12, fontWeight:700, color:'rgba(255,255,255,0.85)', textTransform:'uppercase', letterSpacing:'0.06em'}}>Loyalty points</span>
+              </div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'#fff', letterSpacing:'-0.02em', lineHeight:1}}>{points.toLocaleString('en-GB')}</div>
+              <div style={{fontSize:13, color:'rgba(255,255,255,0.85)', marginTop:6}}>worth £{pointsToPounds(points).toFixed(2)} off your next order</div>
+              <div style={{display:'inline-flex', alignItems:'center', gap:6, marginTop:16, fontSize:13, fontWeight:700, color:'#fff', background:'rgba(255,255,255,0.16)', padding:'7px 14px', borderRadius:100}}>View history →</div>
+            </Link>
 
             {/* Quick actions */}
             <div className="fade-up" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
