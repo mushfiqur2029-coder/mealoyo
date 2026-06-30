@@ -47,6 +47,13 @@ const SORTS = [
 
 const NEW_DAYS = 14
 const isNew = (l: Listing) => (Date.now() - new Date(l.created_at).getTime()) < NEW_DAYS * 86400000
+// Social proof — only surfaced when meaningfully high. Rounds down to a tidy 10
+// (27 → "20+ orders", 53 → "50+ orders") so the number reads as a milestone.
+const ordersBadge = (l: Listing): string | null => {
+  const c = l.order_count ?? 0
+  if (c < 20) return null
+  return `${Math.floor(c / 10) * 10}+ orders`
+}
 const deliveryOpts = (l: Listing): string[] => {
   const d = l.delivery_options
   if (Array.isArray(d)) return d.map(x => String(x).toLowerCase())
@@ -65,6 +72,7 @@ const dietBadges = (l: Listing) => [
 // ── Reusable listing card ──
 function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; onToggleSave: (id: string) => void }) {
   const badges = dietBadges(l)
+  const orders = ordersBadge(l)
   const isSaved = saved.includes(l.id)
   return (
     <Link href={`/dish/${l.id}`} className="bcard" style={{background:'#fff', borderRadius:18, overflow:'hidden', boxShadow:'0 2px 14px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column', height:'100%'}}>
@@ -85,6 +93,9 @@ function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; o
               <span key={b.key} title={b.label} style={{width:24, height:24, borderRadius:'50%', background:b.bg, color:b.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, boxShadow:'0 2px 6px rgba(0,0,0,0.1)'}}>{b.icon}</span>
             ))}
           </div>
+        )}
+        {orders && (
+          <span style={{position:'absolute', bottom:10, right:10, display:'inline-flex', alignItems:'center', gap:4, background:'rgba(26,26,26,0.82)', color:'#fff', fontSize:10.5, fontWeight:800, padding:'4px 9px', borderRadius:100, boxShadow:'0 2px 8px rgba(0,0,0,0.18)'}}>🔥 {orders}</span>
         )}
       </div>
       <div style={{padding:'13px 14px', display:'flex', flexDirection:'column', flex:1}}>
@@ -263,7 +274,7 @@ function Browse() {
       if (sort === 'price-asc') return parseFloat(a.price) - parseFloat(b.price)
       if (sort === 'price-desc') return parseFloat(b.price) - parseFloat(a.price)
       if (sort === 'rating') return (b.rating ?? 0) - (a.rating ?? 0)
-      if (sort === 'popular') return (b.reviews_count ?? 0) - (a.reviews_count ?? 0)
+      if (sort === 'popular') return (b.order_count ?? 0) - (a.order_count ?? 0)
       if (sort === 'new') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       // Recommended: featured first, then rating, then reviews.
       const fa = a.featured ? 1 : 0, fb = b.featured ? 1 : 0
@@ -283,7 +294,7 @@ function Browse() {
     return [...listings].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 10)
   }, [listings, historyCuisines])
   const topRated = useMemo(() => listings.filter(l => (l.rating ?? 0) >= 4.5).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 10), [listings])
-  const popular = useMemo(() => listings.filter(l => (l.reviews_count ?? 0) > 0).sort((a, b) => (b.reviews_count ?? 0) - (a.reviews_count ?? 0)).slice(0, 10), [listings])
+  const popular = useMemo(() => listings.filter(l => (l.order_count ?? 0) > 0).sort((a, b) => (b.order_count ?? 0) - (a.order_count ?? 0)).slice(0, 10), [listings])
   const fresh = useMemo(() => listings.filter(isNew).slice(0, 10), [listings])
 
   // Reset pagination whenever the active result set changes. The rAF keeps the

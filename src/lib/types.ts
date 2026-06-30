@@ -33,6 +33,7 @@ export interface Listing {
   image_url: string | null
   rating: number | null
   reviews_count: number | null
+  order_count: number | null
   featured: boolean | null
   halal: boolean | null
   vegan: boolean | null

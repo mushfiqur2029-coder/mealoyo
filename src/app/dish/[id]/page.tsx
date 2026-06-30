@@ -198,6 +198,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         description: `Redeemed on order #${order.id.slice(0, 8)}`,
       })
     }
+    // Bump the listing's lifetime order count (powers "Most popular" ranking).
+    // Best-effort: failure here must not block the buyer's confirmation.
+    await supabase.rpc('increment_listing_order_count', { p_listing_id: listing.id })
     router.push(`/buyer/orders/${order.id}`)
   }
 
