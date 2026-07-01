@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
-import { isValidUKPostcode } from '@/lib/pricing'
+import { isValidUKPostcode, formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
 const NAV = [
@@ -50,6 +50,13 @@ export default function SellerProfile() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwOk, setPwOk] = useState(false)
   const [pwError, setPwError] = useState('')
+  // Bank details for manual withdrawal payouts
+  const [bankName, setBankName] = useState('')
+  const [sortCode, setSortCode] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
+  const [bankSaving, setBankSaving] = useState(false)
+  const [bankOk, setBankOk] = useState(false)
+  const [bankError, setBankError] = useState('')
   const router = useRouter()
 
   useEffect(() => {
@@ -65,12 +72,15 @@ export default function SellerProfile() {
       setStatus(p?.status || '')
       // postcode + address aren't part of the get_my_profile RPC's fixed column
       // list, so read them straight from the row.
-      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode, avatar_url').eq('id', user.id).maybeSingle()
+      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode, avatar_url, bank_account_name, bank_sort_code, bank_account_number').eq('id', user.id).maybeSingle()
       setAddr1(row?.address_line1 || '')
       setAddr2(row?.address_line2 || '')
       setCity(row?.city || '')
       setPostcode(row?.postcode || '')
       setAvatarUrl(row?.avatar_url || null)
+      setBankName(row?.bank_account_name || '')
+      setSortCode(row?.bank_sort_code || '')
+      setAccountNumber(row?.bank_account_number || '')
       setOrig({ fullName: p?.full_name || '', addr1: row?.address_line1 || '', addr2: row?.address_line2 || '', city: row?.city || '' })
       setLoading(false)
     }
@@ -134,6 +144,23 @@ export default function SellerProfile() {
     if (updErr) { setPwError(updErr.message); setPwSaving(false); return }
     setPwOk(true); setPwSaving(false)
     setCurPw(''); setNewPw(''); setConfirmPw('')
+  }
+
+  const handleSaveBank = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBankError(''); setBankOk(false)
+    if (!bankName.trim()) { setBankError('Please enter the account holder name'); return }
+    if (!isValidSortCode(sortCode)) { setBankError('Sort code must be 6 digits (e.g. 12-34-56)'); return }
+    if (!isValidAccountNumber(accountNumber)) { setBankError('Account number must be 8 digits'); return }
+    if (!user) return
+    setBankSaving(true)
+    const { error: dbError } = await supabase.from('profiles').update({
+      bank_account_name: bankName.trim(),
+      bank_sort_code: formatSortCode(sortCode),
+      bank_account_number: accountNumber.replace(/\D/g, ''),
+    }).eq('id', user.id)
+    if (dbError) { setBankError(dbError.message); setBankSaving(false); return }
+    setBankOk(true); setBankSaving(false)
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
@@ -295,6 +322,35 @@ export default function SellerProfile() {
             <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" style={inputStyle}/>
           </div>
           <button type="submit" disabled={pwSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:pwSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:pwSaving ? 0.8 : 1, marginTop:4}}>{pwSaving ? 'Saving…' : 'Save password'}</button>
+        </form>
+
+        {/* Bank details for withdrawals */}
+        <form onSubmit={handleSaveBank} className="fade-up" style={{background:'#fff', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column', gap:16, marginBottom:18}}>
+          <div>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#1A1A1A', marginBottom:2}}>Bank details for withdrawals</h3>
+            <p style={{fontSize:12, color:'#1A1A1A', opacity:0.6}}>Where we send your earnings when you request a withdrawal.</p>
+          </div>
+          {bankError && <div style={{background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#C8006A', fontWeight:600}}>{bankError}</div>}
+          {bankOk && <div style={{background:'#E4F6EA', border:'1.5px solid rgba(45,168,78,0.25)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#1A6030', fontWeight:600}}>✅ Bank details saved</div>}
+          <div>
+            <label style={labelStyle}>Account holder name</label>
+            <input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="Name as it appears on your account" style={inputStyle}/>
+          </div>
+          <div style={{display:'flex', gap:14, flexWrap:'wrap'}}>
+            <div style={{flex:'1 1 140px'}}>
+              <label style={labelStyle}>Sort code</label>
+              <input value={sortCode} onChange={e => setSortCode(formatSortCode(e.target.value))} placeholder="12-34-56" inputMode="numeric" style={inputStyle}/>
+            </div>
+            <div style={{flex:'1 1 160px'}}>
+              <label style={labelStyle}>Account number</label>
+              <input value={accountNumber} onChange={e => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" inputMode="numeric" style={inputStyle}/>
+            </div>
+          </div>
+          <div style={{display:'flex', alignItems:'flex-start', gap:8, background:'#F7F0F9', border:'1px solid #E7D6EC', borderRadius:12, padding:'11px 13px'}}>
+            <span style={{fontSize:14, lineHeight:1.4}}>🔒</span>
+            <p style={{fontSize:12, color:'#5A4A57', lineHeight:1.5, margin:0}}>Your bank details are encrypted and only used for manual payouts.</p>
+          </div>
+          <button type="submit" disabled={bankSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:bankSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:bankSaving ? 0.8 : 1, marginTop:4}}>{bankSaving ? 'Saving…' : 'Save bank details'}</button>
         </form>
 
         {/* Danger zone */}

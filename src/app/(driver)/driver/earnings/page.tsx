@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import type { Order, Profile } from '@/lib/types'
+import type { Order, Profile, WithdrawalRequest } from '@/lib/types'
 
 const NAV = [
   { l:'Dashboard', h:'/driver/dashboard' },
@@ -34,11 +34,27 @@ const dark = `
   @media (max-width: 480px) { .earn-grid { grid-template-columns: 1fr !important; } }
 `
 
+const wBadge: Record<string, { bg: string; c: string; l: string }> = {
+  pending: { bg:'rgba(184,115,10,0.18)', c:'#FBBF24', l:'Pending' },
+  approved: { bg:'rgba(59,130,246,0.18)', c:'#93C5FD', l:'Approved' },
+  paid: { bg:'rgba(45,168,78,0.18)', c:'#34D399', l:'Paid' },
+  rejected: { bg:'rgba(192,57,43,0.2)', c:'#FF8A8A', l:'Rejected' },
+}
+
 export default function DriverEarnings() {
   const [orders, setOrders] = useState<Order[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([])
+  const [bankSaved, setBankSaved] = useState(false)
+  const [requesting, setRequesting] = useState(false)
+  const [wError, setWError] = useState('')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+
+  const loadWithdrawals = async () => {
+    const { data } = await supabase.rpc('get_my_withdrawals')
+    setWithdrawals((data as WithdrawalRequest[]) || [])
+  }
 
   useEffect(() => {
     const getData = async () => {
@@ -46,6 +62,8 @@ export default function DriverEarnings() {
       if (!user) { router.push('/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
+      const { data: bank } = await supabase.from('profiles').select('bank_account_name, bank_sort_code, bank_account_number').eq('id', user.id).maybeSingle()
+      setBankSaved(!!(bank?.bank_account_name && bank?.bank_sort_code && bank?.bank_account_number))
       const { data } = await supabase
         .from('orders')
         .select('*, listings(name)')
@@ -53,10 +71,19 @@ export default function DriverEarnings() {
         .eq('status', 'delivered')
         .order('created_at', { ascending: false })
       setOrders(data || [])
+      await loadWithdrawals()
       setLoading(false)
     }
     getData()
   }, [router])
+
+  const handleRequestWithdrawal = async (amount: number) => {
+    setWError(''); setRequesting(true)
+    const { error } = await supabase.rpc('request_withdrawal', { p_amount: amount })
+    if (error) { setWError(error.message.replace(/^.*?:\s*/, '')); setRequesting(false); return }
+    await loadWithdrawals()
+    setRequesting(false)
+  }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -104,6 +131,9 @@ export default function DriverEarnings() {
 
   const fee = (o: Order) => parseFloat(o.delivery_fee || '0')
   const totalEarned = orders.reduce((s, o) => s + fee(o), 0)
+  const activeWithdrawn = withdrawals.filter(w => w.status !== 'rejected').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
+  const available = Math.max(0, totalEarned - activeWithdrawn)
+  const canWithdraw = available >= 0.01 && bankSaved && !requesting
   const now = new Date()
   const thisMonthOrders = orders.filter(o => { const d = new Date(o.created_at); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() })
   const thisMonthEarned = thisMonthOrders.reduce((s, o) => s + fee(o), 0)
@@ -165,21 +195,35 @@ export default function DriverEarnings() {
           <div className="fade-up" style={{position:'sticky', top:84, display:'flex', flexDirection:'column', gap:16}}>
             <div style={{background:'rgba(255,255,255,0.05)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', padding:'22px'}}>
               <div style={{fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.45)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>Available to withdraw</div>
-              <div style={{fontFamily:'Georgia,serif', fontSize:34, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1, marginBottom:18}}>£{totalEarned.toFixed(2)}</div>
-              <button onClick={() => alert('Instant payouts are coming soon. For now your earnings settle to your account weekly — no action needed.')} className="prim" style={{width:'100%', height:46, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:12, transition:'background 0.14s'}}>Withdraw to bank</button>
-              <div style={{display:'flex', alignItems:'flex-start', gap:8, padding:'12px 14px', background:'rgba(255,255,255,0.03)', borderRadius:12, border:'1px solid rgba(255,255,255,0.06)'}}>
-                <span style={{fontSize:14, flexShrink:0}}>🔒</span>
-                <p style={{fontSize:12, color:'rgba(255,255,255,0.5)', lineHeight:1.55}}>Instant payouts are coming soon. For now earnings settle to your account weekly.</p>
-              </div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:34, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1, marginBottom:18}}>£{available.toFixed(2)}</div>
+              {wError && <div style={{background:'rgba(200,0,106,0.12)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:10, padding:'10px 12px', marginBottom:12, fontSize:12.5, color:'#FF8AC4', fontWeight:600}}>{wError}</div>}
+              <button onClick={() => handleRequestWithdrawal(available)} disabled={!canWithdraw} className="prim" style={{width:'100%', height:46, background:canWithdraw ? '#C8006A' : 'rgba(255,255,255,0.1)', color:canWithdraw ? '#fff' : 'rgba(255,255,255,0.4)', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:canWithdraw ? 'pointer' : 'not-allowed', marginBottom:12, transition:'background 0.14s'}}>{requesting ? 'Requesting…' : 'Request withdrawal'}</button>
+              {!bankSaved && <p style={{fontSize:12, color:'rgba(255,255,255,0.55)', lineHeight:1.55, marginBottom:0}}>Add your bank details in <Link href="/driver/profile" style={{color:'#FF8AC4', fontWeight:600}}>your profile</Link> to request a withdrawal.</p>}
+              {bankSaved && available < 0.01 && <p style={{fontSize:12, color:'rgba(255,255,255,0.45)', marginBottom:0}}>No funds available to withdraw right now.</p>}
+              {bankSaved && available >= 0.01 && (
+                <div style={{display:'flex', alignItems:'flex-start', gap:8, padding:'12px 14px', background:'rgba(255,255,255,0.03)', borderRadius:12, border:'1px solid rgba(255,255,255,0.06)'}}>
+                  <span style={{fontSize:14, flexShrink:0}}>🔒</span>
+                  <p style={{fontSize:12, color:'rgba(255,255,255,0.5)', lineHeight:1.55}}>Payouts are sent to your bank manually within 1–3 working days of approval.</p>
+                </div>
+              )}
             </div>
             <div style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.07)', padding:'18px 20px'}}>
-              <div style={{fontSize:13, fontWeight:700, color:'#fff', marginBottom:10}}>Payout schedule</div>
-              {[['Frequency','Weekly'], ['Next payout','Monday'], ['Method','Bank transfer']].map(([k, v], i) => (
-                <div key={i} style={{display:'flex', justifyContent:'space-between', padding:'7px 0', borderTop:i ? '1px solid rgba(255,255,255,0.05)' : 'none'}}>
-                  <span style={{fontSize:13, color:'rgba(255,255,255,0.5)'}}>{k}</span>
-                  <span style={{fontSize:13, color:'#fff', fontWeight:600}}>{v}</span>
-                </div>
-              ))}
+              <div style={{fontSize:13, fontWeight:700, color:'#fff', marginBottom:10}}>Withdrawal requests</div>
+              {withdrawals.length === 0 ? (
+                <p style={{fontSize:12.5, color:'rgba(255,255,255,0.45)', lineHeight:1.5}}>No withdrawals yet.</p>
+              ) : withdrawals.map(w => {
+                const badge = wBadge[w.status] || wBadge.pending
+                return (
+                  <div key={w.id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'10px 0', borderTop:'1px solid rgba(255,255,255,0.05)'}}>
+                    <div>
+                      <div style={{fontSize:14, fontWeight:700, color:'#fff'}}>£{parseFloat(w.amount || '0').toFixed(2)}</div>
+                      <div style={{fontSize:11, color:'rgba(255,255,255,0.45)'}}>{new Date(w.requested_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                      {w.status === 'rejected' && w.admin_note && <div style={{fontSize:11, color:'#FF8A8A', marginTop:2}}>{w.admin_note}</div>}
+                    </div>
+                    <span style={{background:badge.bg, color:badge.c, fontSize:10.5, fontWeight:800, padding:'3px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.03em', flexShrink:0}}>{badge.l}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

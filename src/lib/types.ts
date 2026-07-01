@@ -20,6 +20,10 @@ export interface Profile {
   role: string | null
   status: string
   created_at: string
+  // Bank details for manual withdrawal payouts (sellers & drivers)
+  bank_account_name?: string | null
+  bank_sort_code?: string | null
+  bank_account_number?: string | null
 }
 
 export interface Listing {
@@ -65,9 +69,27 @@ export interface Order {
   delivery_address: string | null
   collection_code: string | null
   notes: string | null
+  payment_status?: string | null
+  stripe_payment_id?: string | null
+  stripe_session_id?: string | null
   created_at: string
   listings?: Pick<Listing, 'name' | 'cuisine'> | null
   profiles?: Pick<Profile, 'full_name'> | null
+}
+
+export interface WithdrawalRequest {
+  id: string
+  user_id: string
+  amount: string
+  status: 'pending' | 'approved' | 'paid' | 'rejected'
+  bank_account_name: string | null
+  bank_sort_code: string | null
+  bank_account_number: string | null
+  admin_note: string | null
+  requested_at: string
+  paid_at: string | null
+  // Joined for the admin view (requester's name)
+  profiles?: Pick<Profile, 'full_name' | 'email'> | null
 }
 
 export interface LoyaltyPoint {

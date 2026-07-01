@@ -25,6 +25,7 @@ const NAV = [
   { l:'Sellers', h:'/admin/sellers' },
   { l:'Drivers', h:'/admin/drivers' },
   { l:'Orders', h:'/admin/orders' },
+  { l:'Withdrawals', h:'/admin/withdrawals' },
   { l:'Settings', h:'/admin/settings' },
 ]
 

@@ -49,6 +49,7 @@ export default function BuyerOrders() {
         .from('orders')
         .select('*, listings(name, cuisine), profiles:seller_id(full_name)')
         .eq('buyer_id', user.id)
+        .neq('status', 'pending_payment') // hide unpaid orders that never completed checkout
         .order('created_at', { ascending: false })
       setOrders(data || [])
       const { data: revs } = await supabase.from('reviews').select('order_id').eq('buyer_id', user.id)

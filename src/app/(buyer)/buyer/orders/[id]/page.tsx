@@ -14,6 +14,7 @@ const cuisineEmoji: Record<string, string> = {
 
 const statusSteps = ['pending', 'accepted', 'cooking', 'ready', 'picked_up', 'delivered']
 const statusLabels: Record<string, string> = {
+  pending_payment: 'Order placed',
   pending: 'Order placed',
   accepted: 'Cook accepted',
   cooking: 'Being cooked',
@@ -30,10 +31,11 @@ const statusShort: Record<string, string> = {
   delivered: 'Delivered',
 }
 const statusIcons: Record<string, string> = {
-  pending: '🕐', accepted: '✅', cooking: '👩‍🍳', ready: '📦', picked_up: '🚴', delivered: '🏠',
+  pending_payment: '🕐', pending: '🕐', accepted: '✅', cooking: '👩‍🍳', ready: '📦', picked_up: '🚴', delivered: '🏠',
 }
 // Simple, friendly estimated delivery / progress message per status.
 const etaMessages: Record<string, string> = {
+  pending_payment: 'Confirming your payment…',
   pending: 'Waiting for cook to accept',
   accepted: 'Cook accepted — preparing your food',
   cooking: 'Being cooked fresh for you — ready in ~45 mins',
@@ -55,7 +57,16 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const [reviewed, setReviewed] = useState(false)
   const [justReviewed, setJustReviewed] = useState(false)
   const [submittingReview, setSubmittingReview] = useState(false)
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
   const router = useRouter()
+
+  // Celebrate a fresh Stripe payment when Checkout redirects back with
+  // ?payment=success. Read from the URL directly to avoid a Suspense boundary.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('payment') === 'success') {
+      setPaymentSuccess(true)
+    }
+  }, [])
 
   useEffect(() => {
     const getData = async () => {
@@ -142,6 +153,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes pulseDot { 0% { box-shadow: 0 0 0 0 rgba(200,0,106,0.45); } 70% { box-shadow: 0 0 0 10px rgba(200,0,106,0); } 100% { box-shadow: 0 0 0 0 rgba(200,0,106,0); } }
       @keyframes pulseRing { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.5); } 70% { box-shadow: 0 0 0 9px rgba(255,255,255,0); } 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); } }
+      @keyframes checkPop { 0% { transform: scale(0); opacity: 0; } 55% { transform: scale(1.18); } 100% { transform: scale(1); opacity: 1; } }
+      @keyframes checkRing { 0% { box-shadow: 0 0 0 0 rgba(45,168,78,0.45); } 70% { box-shadow: 0 0 0 14px rgba(45,168,78,0); } 100% { box-shadow: 0 0 0 0 rgba(45,168,78,0); } }
       * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
       html { scroll-behavior: smooth; }
       ::-webkit-scrollbar { width: 0; height: 0; }
@@ -237,7 +250,10 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     </div>
   )
 
-  const currentStep = statusSteps.indexOf(order.status)
+  // A brand-new paid order may still read 'pending_payment' for the few seconds
+  // until the Stripe webpage → webhook flips it to 'pending'; show it as placed.
+  const displayStatus = order.status === 'pending_payment' ? 'pending' : order.status
+  const currentStep = statusSteps.indexOf(displayStatus)
   const delivered = order.status === 'delivered'
   const emoji = cuisineEmoji[listing?.cuisine || 'Other'] || '🍽️'
   const deliveryFee = parseFloat(order.delivery_fee)
@@ -252,6 +268,19 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       {nav}
 
       <div style={{maxWidth:1040, margin:'0 auto', padding:'28px 20px 48px'}}>
+
+        {/* ── PAYMENT SUCCESS BANNER ── */}
+        {paymentSuccess && (
+          <div className="fade-up" style={{display:'flex', alignItems:'center', gap:14, background:'#EAF7EE', border:'1px solid #A8DDB8', borderRadius:16, padding:'16px 18px', marginBottom:16}}>
+            <div style={{width:44, height:44, borderRadius:'50%', background:'#2DA84E', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, animation:'checkPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both, checkRing 1.6s ease-out 0.3s 2'}}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#157A33', lineHeight:1.2}}>Payment confirmed!</div>
+              <div style={{fontSize:13.5, color:'#2A6B3E', marginTop:2}}>Your order has been placed.</div>
+            </div>
+          </div>
+        )}
 
         {/* ── STATUS HERO BANNER ── */}
         <div className="fade-up" style={{background:delivered ? 'linear-gradient(135deg,#2DA84E 0%,#157A33 100%)' : 'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', borderRadius:20, padding:'30px 28px', marginBottom:20, color:'#fff', position:'relative', overflow:'hidden', boxShadow:delivered ? '0 12px 36px rgba(45,168,78,0.28)' : '0 12px 36px rgba(200,0,106,0.28)'}}>

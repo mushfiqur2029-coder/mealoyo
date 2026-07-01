@@ -42,12 +42,23 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [ordering, setOrdering] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
+  const [cancelled, setCancelled] = useState(false)
   const [error, setError] = useState('')
   const [isSaved, setIsSaved] = useState(false)
   const [savedRowId, setSavedRowId] = useState<string | null>(null)
   const [pointsBalance, setPointsBalance] = useState(0)
   const [applyPoints, setApplyPoints] = useState(false)
   const router = useRouter()
+
+  // Buyer bounced back from a cancelled Stripe Checkout — restore the form and
+  // let them know their unpaid order is still saved. Read from the URL directly
+  // to avoid needing a useSearchParams Suspense boundary.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('cancelled') === 'true') {
+      setCancelled(true)
+    }
+  }, [])
 
   useEffect(() => {
     const getData = async () => {
@@ -174,7 +185,11 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         service_fee: svcFee,
         platform_commission: commission,
         seller_payout: sellerPayout,
-        status: 'pending',
+        // Created unpaid — a Stripe webhook flips this to 'pending' once the
+        // buyer completes payment. The loyalty redemption and order-count bump
+        // are also deferred to the webhook so they only fire on real payment.
+        status: 'pending_payment',
+        payment_status: 'unpaid',
         delivery_type: deliveryType,
         delivery_address: deliveryType === 'delivery' ? address : null,
         notes: notes || null,
@@ -187,21 +202,35 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       setOrdering(false)
       return
     }
-    // Record the redemption in the loyalty ledger. Best-effort: if the table
-    // isn't there yet (SQL not run) the order still succeeds.
-    if (pointsToRedeem > 0) {
-      await supabase.from('loyalty_points').insert({
-        buyer_id: user.id,
-        order_id: order.id,
-        points: pointsToRedeem,
-        type: 'redeemed',
-        description: `Redeemed on order #${order.id.slice(0, 8)}`,
+
+    // Hand off to Stripe Checkout. On success the buyer returns to the order
+    // confirmation page; on cancel they come back here with ?cancelled=true.
+    setRedirecting(true)
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          listingId: listing.id,
+          listingName: listing.name,
+          amount: subtotal,
+          deliveryFee,
+          serviceFee: svcFee,
+          discount: discountPounds,
+          buyerEmail: user.email,
+          buyerId: user.id,
+          pointsToRedeem,
+        }),
       })
+      const data = await res.json()
+      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start payment')
+      window.location.href = data.url
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start payment. Please try again.')
+      setOrdering(false)
+      setRedirecting(false)
     }
-    // Bump the listing's lifetime order count (powers "Most popular" ranking).
-    // Best-effort: failure here must not block the buyer's confirmation.
-    await supabase.rpc('increment_listing_order_count', { p_listing_id: listing.id })
-    router.push(`/buyer/orders/${order.id}`)
   }
 
   const pageStyles = (
@@ -459,11 +488,17 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         </div>
       </div>
 
+      {cancelled && (
+        <div style={{background:'#FFF4E5', border:'1px solid #F0C77E', borderRadius:12, padding:'12px 14px', marginBottom:12, fontSize:13, color:'#7A4E00', lineHeight:1.5}}>
+          Payment cancelled — no charge was made. Your order is still saved, so you can try again whenever you&apos;re ready.
+        </div>
+      )}
+
       {/* CTA */}
       {user ? (
         <button onClick={handleOrder} disabled={ordering || !canOrder} className="order-btn"
           style={{width:'100%', height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:(ordering || !canOrder) ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', opacity:(ordering || !canOrder) ? 0.55 : 1}}>
-          {ordering ? 'Placing order...' : !canOrder ? 'Enter a deliverable postcode' : `Order for £${grandTotal.toFixed(2)} →`}
+          {redirecting ? 'Redirecting to payment...' : ordering ? 'Placing order...' : !canOrder ? 'Enter a deliverable postcode' : `Order for £${grandTotal.toFixed(2)} →`}
         </button>
       ) : (
         <div>
@@ -603,7 +638,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         </div>
         {user ? (
           <button onClick={handleOrder} disabled={ordering || !canOrder} className="order-btn" style={{flex:1, height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:(ordering || !canOrder) ? 'not-allowed' : 'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.3)', opacity:(ordering || !canOrder) ? 0.55 : 1}}>
-            {ordering ? 'Placing...' : !canOrder ? 'Enter postcode' : 'Order now →'}
+            {redirecting ? 'Redirecting...' : ordering ? 'Placing...' : !canOrder ? 'Enter postcode' : 'Order now →'}
           </button>
         ) : (
           <Link href="/login" className="order-btn" style={{flex:1, height:50, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', color:'#fff', borderRadius:12, fontSize:15, fontWeight:700, boxShadow:'0 6px 18px rgba(200,0,106,0.3)'}}>

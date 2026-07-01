@@ -59,6 +59,21 @@ export function isValidUKPostcode(pc: string): boolean {
   return UK_POSTCODE_RE.test(pc.trim())
 }
 
+// ── UK bank details (for manual withdrawal payouts) ──
+// Format free-typed digits into a UK sort code XX-XX-XX as the user types.
+export function formatSortCode(v: string): string {
+  const digits = v.replace(/\D/g, '').slice(0, 6)
+  return digits.replace(/(\d{2})(?=\d)/g, '$1-')
+}
+// A valid UK sort code is exactly 6 digits (shown as XX-XX-XX).
+export function isValidSortCode(v: string): boolean {
+  return /^\d{6}$/.test(v.replace(/\D/g, ''))
+}
+// A valid UK account number is exactly 8 digits.
+export function isValidAccountNumber(v: string): boolean {
+  return /^\d{8}$/.test(v.replace(/\D/g, ''))
+}
+
 // postcodes.io lookup → { latitude, longitude } | null (not found / invalid).
 export async function lookupPostcode(pc: string): Promise<{ latitude: number; longitude: number } | null> {
   try {

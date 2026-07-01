@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
+import { formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
 const NAV = [
@@ -64,6 +65,13 @@ export default function DriverProfile() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwOk, setPwOk] = useState(false)
   const [pwError, setPwError] = useState('')
+  // Bank details for manual withdrawal payouts
+  const [bankName, setBankName] = useState('')
+  const [sortCode, setSortCode] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
+  const [bankSaving, setBankSaving] = useState(false)
+  const [bankOk, setBankOk] = useState(false)
+  const [bankError, setBankError] = useState('')
   const router = useRouter()
 
   useEffect(() => {
@@ -78,12 +86,15 @@ export default function DriverProfile() {
       setEmail(p?.email || user.email || '')
       setStatus(p?.status || '')
       // Address columns aren't part of the get_my_profile RPC, so read directly.
-      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode, avatar_url').eq('id', user.id).maybeSingle()
+      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode, avatar_url, bank_account_name, bank_sort_code, bank_account_number').eq('id', user.id).maybeSingle()
       setAddr1(row?.address_line1 || '')
       setAddr2(row?.address_line2 || '')
       setCity(row?.city || '')
       setPostcode(row?.postcode || '')
       setAvatarUrl(row?.avatar_url || null)
+      setBankName(row?.bank_account_name || '')
+      setSortCode(row?.bank_sort_code || '')
+      setAccountNumber(row?.bank_account_number || '')
       setOrig({ fullName: p?.full_name || '', addr1: row?.address_line1 || '', addr2: row?.address_line2 || '', city: row?.city || '' })
       setLoading(false)
     }
@@ -136,6 +147,23 @@ export default function DriverProfile() {
     if (updErr) { setPwError(updErr.message); setPwSaving(false); return }
     setPwOk(true); setPwSaving(false)
     setCurPw(''); setNewPw(''); setConfirmPw('')
+  }
+
+  const handleSaveBank = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setBankError(''); setBankOk(false)
+    if (!bankName.trim()) { setBankError('Please enter the account holder name'); return }
+    if (!isValidSortCode(sortCode)) { setBankError('Sort code must be 6 digits (e.g. 12-34-56)'); return }
+    if (!isValidAccountNumber(accountNumber)) { setBankError('Account number must be 8 digits'); return }
+    if (!user) return
+    setBankSaving(true)
+    const { error: dbError } = await supabase.from('profiles').update({
+      bank_account_name: bankName.trim(),
+      bank_sort_code: formatSortCode(sortCode),
+      bank_account_number: accountNumber.replace(/\D/g, ''),
+    }).eq('id', user.id)
+    if (dbError) { setBankError(dbError.message); setBankSaving(false); return }
+    setBankOk(true); setBankSaving(false)
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
@@ -272,6 +300,35 @@ export default function DriverProfile() {
             <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" style={inputStyle}/>
           </div>
           <button type="submit" disabled={pwSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:pwSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:pwSaving ? 0.8 : 1, marginTop:4}}>{pwSaving ? 'Saving…' : 'Save password'}</button>
+        </form>
+
+        {/* Bank details for withdrawals */}
+        <form onSubmit={handleSaveBank} className="fade-up" style={{...cardStyle, gap:16}}>
+          <div>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', marginBottom:2}}>Bank details for withdrawals</h3>
+            <p style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>Where we send your earnings when you request a withdrawal.</p>
+          </div>
+          {bankError && <div style={{background:'rgba(200,0,106,0.12)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#FF8AC4', fontWeight:600}}>{bankError}</div>}
+          {bankOk && <div style={{background:'rgba(45,168,78,0.12)', border:'1px solid rgba(45,168,78,0.35)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#34D399', fontWeight:600}}>✅ Bank details saved</div>}
+          <div>
+            <label style={labelStyle}>Account holder name</label>
+            <input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="Name as it appears on your account" style={inputStyle}/>
+          </div>
+          <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+            <div>
+              <label style={labelStyle}>Sort code</label>
+              <input value={sortCode} onChange={e => setSortCode(formatSortCode(e.target.value))} placeholder="12-34-56" inputMode="numeric" style={inputStyle}/>
+            </div>
+            <div>
+              <label style={labelStyle}>Account number</label>
+              <input value={accountNumber} onChange={e => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" inputMode="numeric" style={inputStyle}/>
+            </div>
+          </div>
+          <div style={{display:'flex', alignItems:'flex-start', gap:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:'11px 13px'}}>
+            <span style={{fontSize:14, lineHeight:1.4}}>🔒</span>
+            <p style={{fontSize:12, color:'rgba(255,255,255,0.6)', lineHeight:1.5, margin:0}}>Your bank details are encrypted and only used for manual payouts.</p>
+          </div>
+          <button type="submit" disabled={bankSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:bankSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:bankSaving ? 0.8 : 1, marginTop:4}}>{bankSaving ? 'Saving…' : 'Save bank details'}</button>
         </form>
 
         {/* Danger zone */}

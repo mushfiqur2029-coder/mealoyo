@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import type { Order, Profile } from '@/lib/types'
+import type { Order, Profile, WithdrawalRequest } from '@/lib/types'
 
 const NAV = [
   { l:'Dashboard', h:'/seller/dashboard' },
@@ -30,11 +30,27 @@ const css = `
   @media (max-width: 768px) { .nav-links { display: none !important; } .earn-grid { grid-template-columns: 1fr 1fr !important; } .body-grid { grid-template-columns: 1fr !important; } .nav-name { display: none !important; } }
 `
 
+const wBadge: Record<string, { bg: string; c: string; l: string }> = {
+  pending: { bg:'#FFF4E0', c:'#B8730A', l:'Pending' },
+  approved: { bg:'#E5F0FF', c:'#1E5FBF', l:'Approved' },
+  paid: { bg:'#E4F6EA', c:'#1A6030', l:'Paid' },
+  rejected: { bg:'#FDE8E8', c:'#C0392B', l:'Rejected' },
+}
+
 export default function SellerEarnings() {
   const [orders, setOrders] = useState<Order[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([])
+  const [bankSaved, setBankSaved] = useState(false)
+  const [requesting, setRequesting] = useState(false)
+  const [wError, setWError] = useState('')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+
+  const loadWithdrawals = async () => {
+    const { data } = await supabase.rpc('get_my_withdrawals')
+    setWithdrawals((data as WithdrawalRequest[]) || [])
+  }
 
   useEffect(() => {
     const getData = async () => {
@@ -42,6 +58,10 @@ export default function SellerEarnings() {
       if (!user) { router.push('/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
+      // Bank details aren't part of get_my_profile — read them directly to know
+      // whether a withdrawal can be requested.
+      const { data: bank } = await supabase.from('profiles').select('bank_account_name, bank_sort_code, bank_account_number').eq('id', user.id).maybeSingle()
+      setBankSaved(!!(bank?.bank_account_name && bank?.bank_sort_code && bank?.bank_account_number))
       const { data } = await supabase
         .from('orders')
         .select('*, listings(name)')
@@ -49,10 +69,19 @@ export default function SellerEarnings() {
         .eq('status', 'delivered')
         .order('created_at', { ascending: false })
       setOrders(data || [])
+      await loadWithdrawals()
       setLoading(false)
     }
     getData()
   }, [router])
+
+  const handleRequestWithdrawal = async (amount: number) => {
+    setWError(''); setRequesting(true)
+    const { error } = await supabase.rpc('request_withdrawal', { p_amount: amount })
+    if (error) { setWError(error.message.replace(/^.*?:\s*/, '')); setRequesting(false); return }
+    await loadWithdrawals()
+    setRequesting(false)
+  }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -102,6 +131,10 @@ export default function SellerEarnings() {
 
   const totalEarned = orders.reduce((sum, o) => sum + parseFloat(o.seller_payout || '0'), 0)
   const totalCommission = orders.reduce((sum, o) => sum + parseFloat(o.platform_commission || '0'), 0)
+  // Money already tied up in a pending/approved/paid withdrawal isn't available again.
+  const activeWithdrawn = withdrawals.filter(w => w.status !== 'rejected').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
+  const available = Math.max(0, totalEarned - activeWithdrawn)
+  const canWithdraw = available >= 0.01 && bankSaved && !requesting
 
   const now = new Date()
   const thisMonthOrders = orders.filter(o => {
@@ -165,23 +198,29 @@ export default function SellerEarnings() {
 
           <div className="fade-up" style={{background:'#fff', borderRadius:20, boxShadow:'0 2px 10px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)', padding:'22px'}}>
             <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>Available to withdraw</div>
-            <div style={{fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:14}}>£{totalEarned.toFixed(2)}</div>
-            <button onClick={() => alert('Instant payouts are coming soon. For now your earnings settle to your account on the weekly payout schedule below — no action needed.')} style={{width:'100%', height:46, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:18}}>Withdraw to bank</button>
+            <div style={{fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:14}}>£{available.toFixed(2)}</div>
+            {wError && <div style={{background:'#FFE8F4', border:'1px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'10px 12px', marginBottom:12, fontSize:12.5, color:'#C8006A', fontWeight:600}}>{wError}</div>}
+            <button onClick={() => handleRequestWithdrawal(available)} disabled={!canWithdraw} style={{width:'100%', height:46, background:canWithdraw ? '#C8006A' : '#E7D6E0', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:canWithdraw ? 'pointer' : 'not-allowed', marginBottom:10}}>{requesting ? 'Requesting…' : 'Request withdrawal'}</button>
+            {!bankSaved && <p style={{fontSize:12, color:'rgba(26,26,26,0.6)', lineHeight:1.5, marginBottom:14}}>Add your bank details in <Link href="/seller/profile" style={{color:'#C8006A', fontWeight:600}}>your profile</Link> to request a withdrawal.</p>}
+            {bankSaved && available < 0.01 && <p style={{fontSize:12, color:'rgba(26,26,26,0.5)', marginBottom:14}}>No funds available to withdraw right now.</p>}
+
             <div style={{borderTop:'1px solid #F5F0F3', paddingTop:16}}>
-              <div style={{fontSize:13, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Payout schedule</div>
-              {[
-                { icon:'🗓️', t:'Weekly payouts', s:'Every Monday' },
-                { icon:'⚡', t:'Instant available', s:'1% fee · 30 min' },
-                { icon:'🔒', t:'Secured transfers', s:'Bank-grade encryption' },
-              ].map((r, i) => (
-                <div key={i} style={{display:'flex', alignItems:'center', gap:11, marginBottom:i < 2 ? 12 : 0}}>
-                  <div style={{width:34, height:34, borderRadius:9, background:'#FFF0F8', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, flexShrink:0}}>{r.icon}</div>
-                  <div>
-                    <div style={{fontSize:13, fontWeight:600, color:'#1A1A1A'}}>{r.t}</div>
-                    <div style={{fontSize:11.5, color:'rgba(26,26,26,0.5)'}}>{r.s}</div>
+              <div style={{fontSize:13, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Withdrawal requests</div>
+              {withdrawals.length === 0 ? (
+                <p style={{fontSize:12.5, color:'rgba(26,26,26,0.5)', lineHeight:1.5}}>No withdrawals yet. Payouts are sent to your bank manually within 1–3 working days of approval.</p>
+              ) : withdrawals.map(w => {
+                const badge = wBadge[w.status] || wBadge.pending
+                return (
+                  <div key={w.id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'10px 0', borderBottom:'1px solid #F5F0F3'}}>
+                    <div>
+                      <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A'}}>£{parseFloat(w.amount || '0').toFixed(2)}</div>
+                      <div style={{fontSize:11, color:'rgba(26,26,26,0.5)'}}>{new Date(w.requested_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                      {w.status === 'rejected' && w.admin_note && <div style={{fontSize:11, color:'#C0392B', marginTop:2}}>{w.admin_note}</div>}
+                    </div>
+                    <span style={{background:badge.bg, color:badge.c, fontSize:10.5, fontWeight:800, padding:'3px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.03em', flexShrink:0}}>{badge.l}</span>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>

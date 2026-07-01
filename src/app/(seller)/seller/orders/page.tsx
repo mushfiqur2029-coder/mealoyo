@@ -53,6 +53,7 @@ export default function SellerOrders() {
         .from('orders')
         .select('*, listings(name,cuisine), profiles:buyer_id(full_name)')
         .eq('seller_id', user.id)
+        .neq('status', 'pending_payment') // hide unpaid orders awaiting Stripe payment
         .order('created_at', { ascending: false })
       setOrders(data || [])
       setLoading(false)
@@ -74,7 +75,10 @@ export default function SellerOrders() {
           // listing/buyer joins so the new card renders fully.
           const newId = (payload.new as Order).id
           const { data } = await supabase.from('orders').select(ORDER_SELECT).eq('id', newId).single()
-          if (data) {
+          // Ignore unpaid orders — they only become real once Stripe confirms
+          // payment (which arrives as an UPDATE flipping status out of
+          // pending_payment), handled by the UPDATE subscription below.
+          if (data && data.status !== 'pending_payment') {
             setOrders(prev => prev.some(o => o.id === data.id) ? prev : [data, ...prev])
             setToast('New order received')
           }
@@ -83,9 +87,21 @@ export default function SellerOrders() {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'orders', filter: `seller_id=eq.${sellerId}` },
-        (payload) => {
+        async (payload) => {
           const updated = payload.new as Order
-          setOrders(prev => prev.map(o => o.id === updated.id ? { ...o, ...updated } : o))
+          // Still unpaid — ignore.
+          if (updated.status === 'pending_payment') return
+          // A just-paid order transitions pending_payment → pending via the
+          // Stripe webhook; it was skipped on INSERT, so it won't be in the
+          // list yet. Re-fetch with joins and add it (with a toast) the first
+          // time we see it live.
+          const { data } = await supabase.from('orders').select(ORDER_SELECT).eq('id', updated.id).single()
+          if (!data) return
+          setOrders(prev => {
+            if (prev.some(o => o.id === data.id)) return prev.map(o => o.id === data.id ? { ...o, ...data } : o)
+            queueMicrotask(() => setToast('New order received'))
+            return [data, ...prev]
+          })
         }
       )
       .subscribe()
