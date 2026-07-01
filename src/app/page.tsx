@@ -535,8 +535,6 @@ export default function Home() {
             </div>
           </div>
           <div style={{position:'relative'}}>
-            <div style={{position:'absolute', left:0, top:0, bottom:0, width:44, background:'linear-gradient(to right, #fff, transparent)', zIndex:2, pointerEvents:'none'}}/>
-            <div style={{position:'absolute', right:0, top:0, bottom:0, width:44, background:'linear-gradient(to left, #fff, transparent)', zIndex:2, pointerEvents:'none'}}/>
             <div ref={catRef} className="cuisine-scroll">
               {cats.map(c => (
                 <button key={c.id} onClick={() => setCat(c.id)} aria-pressed={cat === c.id} className={`cuisine-card${cat === c.id ? ' on' : ''}`}>
@@ -611,9 +609,8 @@ export default function Home() {
                 return (
                   <Link key={l.id} href={`/dish/${l.id}`} className="lcard" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'block'}}>
                     <div style={{height:180, display:'flex', alignItems:'center', justifyContent:'center', fontSize:64, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', position:'relative', overflow:'hidden'}}>
-                      {l.image_url
-                        ? <img src={l.image_url} alt={l.name} loading="lazy" style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />
-                        : (cuisineEmoji[l.cuisine] || '🍽️')}
+                      {cuisineEmoji[l.cuisine] || '🍽️'}
+                      {l.image_url && <img src={l.image_url} alt={l.name} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
                       <button className="save-btn" onClick={e => { e.preventDefault(); e.stopPropagation(); toggleSave(l.id) }} style={{position:'absolute', top:12, right:12, width:34, height:34, borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1.5px solid rgba(200,0,106,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.08)', transition:'transform 0.14s'}}>
                         {saved.includes(l.id)?'❤️':'🤍'}
                       </button>

@@ -34,6 +34,13 @@ export default function HeroVideoBg({
 
   return (
     <>
+      {/* Solid brand colour + poster paint instantly (esp. on mobile, where the
+          video takes a beat to buffer) so the hero is never blank/delayed. */}
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: '#C8006A', zIndex: 0, pointerEvents: 'none' }} />
+      {poster && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={poster} alt="" aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, pointerEvents: 'none' }} />
+      )}
       {mounted && !failed && (
         <video
           autoPlay

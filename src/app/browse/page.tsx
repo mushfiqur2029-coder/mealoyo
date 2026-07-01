@@ -77,9 +77,8 @@ function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; o
   return (
     <Link href={`/dish/${l.id}`} className="bcard" style={{background:'#fff', borderRadius:18, overflow:'hidden', boxShadow:'0 2px 14px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column', height:'100%'}}>
       <div style={{position:'relative', aspectRatio:'4 / 3', display:'flex', alignItems:'center', justifyContent:'center', fontSize:52, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', overflow:'hidden'}}>
-        {l.image_url
-          ? <img src={l.image_url} alt={l.name} loading="lazy" style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />
-          : (cuisineEmoji[l.cuisine] || '🍽️')}
+        {cuisineEmoji[l.cuisine] || '🍽️'}
+        {l.image_url && <img src={l.image_url} alt={l.name} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
         <div style={{position:'absolute', top:10, left:10, display:'flex', gap:6, flexWrap:'wrap'}}>
           {l.featured && <span style={{background:'#fff', color:'#C8006A', fontSize:10, fontWeight:800, padding:'3px 9px', borderRadius:100, boxShadow:'0 2px 8px rgba(0,0,0,0.12)'}}>🔥 Featured</span>}
           {isNew(l) && <span style={{background:'#2DA84E', color:'#fff', fontSize:10, fontWeight:800, padding:'3px 9px', borderRadius:100, boxShadow:'0 2px 8px rgba(0,0,0,0.12)'}}>New</span>}

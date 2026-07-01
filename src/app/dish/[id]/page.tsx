@@ -282,7 +282,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const nav = (
     <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:500, height:66}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:66, display:'flex', alignItems:'center', gap:14}}>
-        <Link href="/" className="back-btn" style={{width:38, height:38, border:'1.5px solid #E0E0E0', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:'#1A1A1A', flexShrink:0, transition:'all 0.14s'}}>←</Link>
+        <button onClick={() => { if (typeof window !== 'undefined' && window.history.length > 1) router.back(); else router.push('/browse') }} aria-label="Go back" className="back-btn" style={{width:38, height:38, border:'1.5px solid #E0E0E0', borderRadius:10, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:'#1A1A1A', flexShrink:0, cursor:'pointer', transition:'all 0.14s'}}>←</button>
         <Link href="/" style={{flexShrink:0}}><Logo height={34}/></Link>
         {listing && <span className="crumb-name" style={{fontSize:14, color:'#1A1A1A', fontWeight:500, marginLeft:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>· {listing.name}</span>}
       </div>
@@ -577,12 +577,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
             {/* Hero image area */}
             <div style={{background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', borderRadius:20, height:'clamp(220px,32vw,300px)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'clamp(72px,12vw,108px)', marginBottom:20, position:'relative', overflow:'hidden', boxShadow:'0 4px 24px rgba(200,0,106,0.08)'}}>
-              {listing.image_url
-                ? <img src={listing.image_url} alt={listing.name} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />
-                : <>
-                    <div style={{position:'absolute', inset:0, background:'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.5), transparent 60%)', pointerEvents:'none'}}/>
-                    <span style={{position:'relative', filter:'drop-shadow(0 8px 20px rgba(200,0,106,0.18))'}}>{cuisineEmoji[listing.cuisine] || '🍽️'}</span>
-                  </>}
+              <div style={{position:'absolute', inset:0, background:'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.5), transparent 60%)', pointerEvents:'none'}}/>
+              <span style={{position:'relative', filter:'drop-shadow(0 8px 20px rgba(200,0,106,0.18))'}}>{cuisineEmoji[listing.cuisine] || '🍽️'}</span>
+              {listing.image_url && <img src={listing.image_url} alt={listing.name} onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
               {listing.featured && (
                 <div style={{position:'absolute', top:16, left:16, background:'#C8006A', color:'#fff', fontSize:11, fontWeight:800, padding:'5px 13px', borderRadius:100, boxShadow:'0 4px 12px rgba(200,0,106,0.35)', letterSpacing:'0.02em'}}>🔥 Featured</div>
               )}
