@@ -97,7 +97,7 @@ export default function BecomeASeller() {
 
       {/* HERO */}
       <section style={{ background: 'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', position: 'relative', overflow: 'hidden', minHeight: '78vh', display: 'flex', alignItems: 'center' }}>
-        <HeroVideoBg src="/videos/hero-seller.mp4" poster="/videos/hero-seller-poster.jpg" />
+        <HeroVideoBg src="/videos/hero-seller.mp4" mobileSrc="/videos/hero-seller-mobile.mp4" poster="/videos/hero-seller-poster.jpg" />
         <div className="fade-up" style={{ position: 'relative', zIndex: 1, maxWidth: 820, margin: '0 auto', padding: '88px 20px', textAlign: 'center' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.24)', borderRadius: 100, padding: '6px 16px', marginBottom: 22 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '0.03em' }}>👩‍🍳 For home cooks</span>

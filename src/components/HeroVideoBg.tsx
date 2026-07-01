@@ -15,10 +15,13 @@ import { useEffect, useState } from 'react'
  */
 export default function HeroVideoBg({
   src,
+  mobileSrc,
   poster,
   overlay = 'linear-gradient(135deg, rgba(0,0,0,0.4) 0%, rgba(140,0,70,0.7) 100%)',
 }: {
   src: string
+  /** Optional lighter/smaller encode served to ≤768px viewports to cut mobile data + buffering. */
+  mobileSrc?: string
   poster?: string
   overlay?: string
 }) {
@@ -53,6 +56,9 @@ export default function HeroVideoBg({
           onError={() => setFailed(true)}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, pointerEvents: 'none' }}
         >
+          {/* Mobile viewports get the lighter encode; the browser falls through
+              to the full-quality source on wider screens. */}
+          {mobileSrc && <source media="(max-width: 768px)" src={mobileSrc} type="video/mp4" />}
           <source src={src} type="video/mp4" />
         </video>
       )}

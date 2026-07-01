@@ -408,7 +408,7 @@ export default function Home() {
 
       {/* ── HERO ── */}
       <section style={{background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', minHeight:'90vh', position:'relative', overflow:'hidden', display:'flex', alignItems:'center'}}>
-        <HeroVideoBg src="/videos/hero-buyer.mp4" poster="/videos/hero-buyer-poster.jpg" />
+        <HeroVideoBg src="/videos/hero-buyer.mp4" mobileSrc="/videos/hero-buyer-mobile.mp4" poster="/videos/hero-buyer-poster.jpg" />
         <div style={{position:'absolute', top:'-15%', right:'-5%', width:'55%', height:'130%', background:'radial-gradient(ellipse,rgba(255,255,255,0.06) 0%,transparent 65%)', pointerEvents:'none'}}/>
         <div style={{position:'absolute', bottom:'-10%', left:'5%', width:'30%', height:'50%', background:'radial-gradient(ellipse,rgba(255,232,244,0.06) 0%,transparent 65%)', pointerEvents:'none'}}/>
 
