@@ -159,10 +159,16 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
     if (imageBlob) {
       const path = `${user.id}/${id}/image.jpg`
       const { error: upErr } = await supabase.storage.from('listings').upload(path, imageBlob, { upsert: true, contentType: 'image/jpeg' })
-      if (!upErr) {
-        const { data: pub } = supabase.storage.from('listings').getPublicUrl(path)
-        newImageUrl = `${pub.publicUrl}?v=${Date.now()}`
+      if (upErr) {
+        // Surface upload failures instead of silently saving the row without the
+        // new photo (which looks to the seller like the image just vanished).
+        console.error('[listing] image upload failed:', upErr.message)
+        setError(`The photo could not be uploaded: ${upErr.message}`)
+        setLoading(false)
+        return
       }
+      const { data: pub } = supabase.storage.from('listings').getPublicUrl(path)
+      newImageUrl = `${pub.publicUrl}?v=${Date.now()}`
     }
 
     const { error: dbError } = await supabase.from('listings').update({

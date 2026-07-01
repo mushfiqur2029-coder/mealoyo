@@ -139,10 +139,18 @@ export default function NewListing() {
     if (imageBlob && inserted) {
       const path = `${user.id}/${inserted.id}/image.jpg`
       const { error: upErr } = await supabase.storage.from('listings').upload(path, imageBlob, { upsert: true, contentType: 'image/jpeg' })
-      if (!upErr) {
-        const { data: pub } = supabase.storage.from('listings').getPublicUrl(path)
-        await supabase.from('listings').update({ image_url: pub.publicUrl }).eq('id', inserted.id)
+      if (upErr) {
+        // The listing row already exists, so don't discard it — but never hide a
+        // failed upload (silently swallowing it is how listings ended up with no
+        // image). Send the seller to edit so they can retry without duplicating.
+        console.error('[listing] image upload failed:', upErr.message)
+        setError(`Listing saved, but the photo upload failed: ${upErr.message}. Opening it so you can add the photo again…`)
+        setLoading(false)
+        setTimeout(() => router.push(`/seller/listings/${inserted.id}/edit`), 2800)
+        return
       }
+      const { data: pub } = supabase.storage.from('listings').getPublicUrl(path)
+      await supabase.from('listings').update({ image_url: pub.publicUrl }).eq('id', inserted.id)
     }
     setSaved(true)
     setTimeout(() => router.push('/seller/listings'), 2000)
