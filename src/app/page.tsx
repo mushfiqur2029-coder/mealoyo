@@ -266,19 +266,28 @@ export default function Home() {
         .scroll-arrow:hover { background: #C8006A !important; color: #fff !important; border-color: #C8006A !important; }
         .order-btn, .save-btn, .primary-btn, .nav-cta, .cat-pill, .scroll-arrow { transition: all 0.18s cubic-bezier(0.34,1.2,0.64,1); }
 
-        /* Cuisine icon-card selector (Deliveroo/DoorDash-style) */
-        .cuisine-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 8px 4px; scroll-behavior: smooth; }
-        .cuisine-card { flex-shrink: 0; width: 80px; height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border-radius: 18px; cursor: pointer; border: 1.5px solid rgba(200,0,106,0.12); background: linear-gradient(160deg,#FFFFFF 0%,#FFF4FA 100%); transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
+        /* Cuisine icon-card selector (Deliveroo/DoorDash-style) — desktop 769px+ */
+        .cuisine-scroll { display: flex; flex-wrap: nowrap; gap: 12px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding: 8px 4px; scroll-behavior: smooth; }
+        .cuisine-card { flex-shrink: 0; width: 80px; height: 72px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border-radius: 18px; cursor: pointer; border: 1.5px solid rgba(200,0,106,0.12); background: linear-gradient(160deg,#FFFFFF 0%,#FFF4FA 100%); transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease; -webkit-tap-highlight-color: transparent; }
         .cuisine-card .ce { font-size: 32px; line-height: 1; transition: filter 0.2s ease; }
-        .cuisine-card .cl { font-size: 11px; font-weight: 700; color: #1A1A1A; text-align: center; line-height: 1.12; letter-spacing: -0.02em; padding: 0 3px; transition: color 0.2s ease; }
+        .cuisine-card .cl { font-size: 12px; font-weight: 700; color: #1A1A1A; text-align: center; line-height: 1.12; letter-spacing: -0.02em; padding: 0 3px; transition: color 0.2s ease; }
         .cuisine-card:hover { box-shadow: 0 12px 28px rgba(200,0,106,0.18); border-color: #C8006A; }
         .cuisine-card.on { background: linear-gradient(150deg,#C8006A 0%,#A00055 100%); border-color: #C8006A; transform: scale(1.05); box-shadow: 0 12px 30px rgba(200,0,106,0.34); }
         .cuisine-card.on .cl { color: #fff; }
         .cuisine-card.on .ce { filter: brightness(0) invert(1); }
+        /* Touch press feedback — scales down; overrides .on because it's declared later at equal specificity */
+        .cuisine-card:active { transform: scale(0.95); }
         .count-fade { animation: menuIn 0.3s ease; }
+        /* Tablet 481–768px */
         @media (max-width: 768px) {
-          .cuisine-card { width: 68px; height: 60px; gap: 5px; border-radius: 15px; }
-          .cuisine-card .ce { font-size: 26px; }
+          .cuisine-card { width: 72px; height: 64px; gap: 6px; border-radius: 16px; }
+          .cuisine-card .ce { font-size: 28px; }
+          .cuisine-card .cl { font-size: 11px; }
+        }
+        /* Mobile ≤480px — smaller cards, no scroll arrows, single row */
+        @media (max-width: 480px) {
+          .cuisine-card { width: 64px; height: 56px; gap: 5px; border-radius: 14px; }
+          .cuisine-card .ce { font-size: 24px; }
           .cuisine-card .cl { font-size: 10px; }
           .cuisine-arrows { display: none !important; }
         }
@@ -314,6 +323,7 @@ export default function Home() {
           .cooks-grid { grid-template-columns: 1fr 1fr !important; }
           .search-row { flex-direction: column !important; }
           .search-field { width: 100% !important; }
+          .search-row .primary-btn { width: 100% !important; }
           .hero-stats { gap: 20px !important; }
           .section-header { flex-direction: column !important; align-items: flex-start !important; }
           .cta-btns { flex-direction: column !important; align-items: center !important; }
@@ -321,7 +331,7 @@ export default function Home() {
           .ot-grid { grid-template-columns: 1fr 1fr !important; }
         }
         @media (max-width: 480px) {
-          .listings-grid { grid-template-columns: 1fr !important; }
+          .listings-grid { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
           .hiw-grid { grid-template-columns: 1fr !important; }
           .ot-grid { grid-template-columns: 1fr !important; }
           .footer-grid { grid-template-columns: 1fr !important; }
