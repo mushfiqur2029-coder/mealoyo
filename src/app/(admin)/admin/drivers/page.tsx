@@ -6,6 +6,17 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import type { Profile } from '@/lib/types'
 
+// admin_get_all_orders returns flattened rows (names joined in the RPC).
+type DriverOrder = {
+  id: string
+  listing_name: string | null
+  buyer_name: string | null
+  total_amount: string
+  status: string
+  created_at: string
+  driver_id: string | null
+}
+
 const NAV = [
   { l:'Dashboard', h:'/admin/dashboard' },
   { l:'Sellers', h:'/admin/sellers' },
@@ -40,6 +51,7 @@ const dark = `
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
   .tab:hover { color: #fff !important; }
   .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
+  .view-btn:hover { background: rgba(255,255,255,0.12) !important; color: #fff !important; }
   input::placeholder { color: rgba(255,255,255,0.35); }
   input:focus { border-color: #C8006A !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } }
@@ -50,6 +62,8 @@ export default function AdminDrivers() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [drivers, setDrivers] = useState<Profile[]>([])
   const [deliveryCounts, setDeliveryCounts] = useState<Record<string, number>>({})
+  const [allOrders, setAllOrders] = useState<DriverOrder[]>([])
+  const [viewDriver, setViewDriver] = useState<Profile | null>(null)
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -68,6 +82,7 @@ export default function AdminDrivers() {
       setDrivers((driverRows || []).sort((a: Profile, b: Profile) => (a.full_name || '').localeCompare(b.full_name || '')))
 
       const { data: orders } = await supabase.rpc('admin_get_all_orders')
+      setAllOrders((orders || []) as DriverOrder[])
       const counts: Record<string, number> = {}
       for (const o of orders || []) { if (o.driver_id) counts[o.driver_id] = (counts[o.driver_id] || 0) + 1 }
       setDeliveryCounts(counts)
@@ -187,6 +202,7 @@ export default function AdminDrivers() {
                 </div>
               </div>
               <div style={{display:'flex', gap:8, flexShrink:0}}>
+                <button className="view-btn" onClick={() => setViewDriver(d)} style={{height:34, padding:'0 14px', background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View history</button>
                 {d.status !== 'active' && (
                   <button className="approve" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'active')} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>{d.status === 'pending' ? 'Approve' : 'Reactivate'}</button>
                 )}
@@ -198,6 +214,41 @@ export default function AdminDrivers() {
           ))}
         </div>
       </div>
+
+      {viewDriver && (() => {
+        const dh = allOrders
+          .filter(o => o.driver_id === viewDriver.id)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        const oColor = (s: string) => s === 'delivered' ? '#34D399' : s === 'cancelled' ? '#FF8A8A' : '#FBBF24'
+        const oBg = (s: string) => s === 'delivered' ? 'rgba(52,211,153,0.14)' : s === 'cancelled' ? 'rgba(255,138,138,0.14)' : 'rgba(251,191,36,0.14)'
+        return (
+          <div onClick={() => setViewDriver(null)} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+            <div onClick={e => e.stopPropagation()} style={{background:'#161616', border:'1px solid rgba(255,255,255,0.1)', borderRadius:18, width:'100%', maxWidth:620, maxHeight:'82vh', display:'flex', flexDirection:'column', overflow:'hidden'}}>
+              <div style={{padding:'20px 24px', borderBottom:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12}}>
+                <div style={{minWidth:0}}>
+                  <h2 style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{viewDriver.full_name || 'Driver'}&rsquo;s delivery history</h2>
+                  <p style={{fontSize:12.5, color:'rgba(255,255,255,0.45)', marginTop:2}}>{dh.length} {dh.length === 1 ? 'delivery' : 'deliveries'}</p>
+                </div>
+                <button onClick={() => setViewDriver(null)} style={{width:34, height:34, flexShrink:0, borderRadius:8, border:'1px solid rgba(255,255,255,0.14)', background:'transparent', color:'rgba(255,255,255,0.6)', fontSize:18, cursor:'pointer', lineHeight:1}}>×</button>
+              </div>
+              <div style={{overflowY:'auto', padding:'8px 0'}}>
+                {dh.length === 0 ? (
+                  <div style={{padding:'44px', textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>This driver has no deliveries yet.</div>
+                ) : dh.map(o => (
+                  <div key={o.id} style={{display:'flex', alignItems:'center', gap:14, padding:'12px 24px'}}>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listing_name || 'Order'}</div>
+                      <div style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>#{o.id.slice(0, 8).toUpperCase()} · {o.buyer_name || 'Unknown'} · {new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                    </div>
+                    <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#fff', flexShrink:0}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
+                    <span style={{background:oBg(o.status), color:oColor(o.status), padding:'3px 11px', borderRadius:20, fontSize:11, fontWeight:700, textTransform:'capitalize', flexShrink:0, whiteSpace:'nowrap'}}>{o.status.replace('_', ' ')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

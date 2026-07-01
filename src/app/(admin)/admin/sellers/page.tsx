@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import type { Profile } from '@/lib/types'
+import type { Profile, Listing } from '@/lib/types'
 
 const NAV = [
   { l:'Dashboard', h:'/admin/dashboard' },
@@ -40,6 +40,7 @@ const dark = `
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
   .tab:hover { color: #fff !important; }
   .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
+  .view-btn:hover { background: rgba(255,255,255,0.12) !important; color: #fff !important; }
   input::placeholder { color: rgba(255,255,255,0.35); }
   input:focus { border-color: #C8006A !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } }
@@ -51,6 +52,8 @@ export default function AdminSellers() {
   const [sellers, setSellers] = useState<Profile[]>([])
   const [listingCounts, setListingCounts] = useState<Record<string, number>>({})
   const [orderCounts, setOrderCounts] = useState<Record<string, number>>({})
+  const [allListings, setAllListings] = useState<Listing[]>([])
+  const [viewSeller, setViewSeller] = useState<Profile | null>(null)
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -69,6 +72,7 @@ export default function AdminSellers() {
       setSellers((sellerRows || []).sort((a: Profile, b: Profile) => (a.full_name || '').localeCompare(b.full_name || '')))
 
       const { data: listings } = await supabase.rpc('admin_get_all_listings')
+      setAllListings((listings || []) as Listing[])
       const lCounts: Record<string, number> = {}
       for (const l of listings || []) lCounts[l.seller_id] = (lCounts[l.seller_id] || 0) + 1
       setListingCounts(lCounts)
@@ -199,6 +203,7 @@ export default function AdminSellers() {
                 </div>
               </div>
               <div style={{display:'flex', gap:8, flexShrink:0}}>
+                <button className="view-btn" onClick={() => setViewSeller(s)} style={{height:34, padding:'0 14px', background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View listings</button>
                 {s.status !== 'active' && (
                   <button className="approve" disabled={busyId === s.id} onClick={() => setStatus(s.id, 'active')} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === s.id ? 0.6 : 1}}>{s.status === 'pending' ? 'Approve' : 'Reactivate'}</button>
                 )}
@@ -210,6 +215,42 @@ export default function AdminSellers() {
           ))}
         </div>
       </div>
+
+      {viewSeller && (() => {
+        const sl = allListings.filter(l => l.seller_id === viewSeller.id)
+        const lColor = (s: string) => s === 'live' ? '#34D399' : s === 'pending' ? '#FBBF24' : s === 'suspended' ? '#FF8A8A' : 'rgba(255,255,255,0.5)'
+        const lBg = (s: string) => s === 'live' ? 'rgba(52,211,153,0.14)' : s === 'pending' ? 'rgba(251,191,36,0.14)' : s === 'suspended' ? 'rgba(255,138,138,0.14)' : 'rgba(255,255,255,0.08)'
+        return (
+          <div onClick={() => setViewSeller(null)} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+            <div onClick={e => e.stopPropagation()} style={{background:'#161616', border:'1px solid rgba(255,255,255,0.1)', borderRadius:18, width:'100%', maxWidth:620, maxHeight:'82vh', display:'flex', flexDirection:'column', overflow:'hidden'}}>
+              <div style={{padding:'20px 24px', borderBottom:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12}}>
+                <div style={{minWidth:0}}>
+                  <h2 style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{viewSeller.full_name || 'Seller'}&rsquo;s listings</h2>
+                  <p style={{fontSize:12.5, color:'rgba(255,255,255,0.45)', marginTop:2}}>{sl.length} {sl.length === 1 ? 'listing' : 'listings'} · all statuses</p>
+                </div>
+                <button onClick={() => setViewSeller(null)} style={{width:34, height:34, flexShrink:0, borderRadius:8, border:'1px solid rgba(255,255,255,0.14)', background:'transparent', color:'rgba(255,255,255,0.6)', fontSize:18, cursor:'pointer', lineHeight:1}}>×</button>
+              </div>
+              <div style={{overflowY:'auto', padding:'8px 0'}}>
+                {sl.length === 0 ? (
+                  <div style={{padding:'44px', textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>This seller has no listings yet.</div>
+                ) : sl.map(l => (
+                  <div key={l.id} style={{display:'flex', alignItems:'center', gap:14, padding:'12px 24px'}}>
+                    <div style={{width:52, height:52, borderRadius:12, background:'rgba(255,255,255,0.05)', flexShrink:0, overflow:'hidden'}}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {l.image_url && <img src={l.image_url} alt={l.name} style={{width:'100%', height:'100%', objectFit:'cover'}} />}
+                    </div>
+                    <div style={{flex:1, minWidth:0}}>
+                      <div style={{fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
+                      <div style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>{l.cuisine} · £{parseFloat(l.price || '0').toFixed(2)} · {l.order_count || 0} orders</div>
+                    </div>
+                    <span style={{background:lBg(l.status), color:lColor(l.status), padding:'3px 11px', borderRadius:20, fontSize:11, fontWeight:700, textTransform:'capitalize', flexShrink:0}}>{l.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

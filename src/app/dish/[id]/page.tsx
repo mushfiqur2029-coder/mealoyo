@@ -66,12 +66,20 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       setUser(user)
       const { data: listing } = await supabase
         .from('listings')
-        .select('*, profiles:seller_id(id, full_name, postcode)')
+        .select('*, profiles:seller_id(full_name)')
         .eq('id', id)
         .single()
       if (!listing) { setNotFound(true); setLoading(false); return }
       setListing(listing)
-      setSeller(listing.profiles ?? null)
+      // The seller's postcode powers the distance-based delivery quote, but it's a
+      // profiles column that anon (and possibly other buyers) aren't granted to
+      // read — unlike full_name. Fetch it best-effort: a permission failure returns
+      // null and the quote simply falls back to the flat delivery fee. Previously
+      // it was requested inside the combined query above, so a denial errored the
+      // whole fetch and surfaced to the buyer as "Dish not found".
+      const { data: sellerPc } = await supabase
+        .from('profiles').select('postcode').eq('id', listing.seller_id).maybeSingle()
+      setSeller({ id: listing.seller_id, full_name: listing.profiles?.full_name ?? null, postcode: sellerPc?.postcode ?? null })
       const { count } = await supabase
         .from('orders')
         .select('id', { count: 'exact', head: true })
