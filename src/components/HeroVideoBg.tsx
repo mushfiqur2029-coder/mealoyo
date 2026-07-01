@@ -11,6 +11,8 @@ import { useEffect, useState } from 'react'
  *
  * - Deferred mount (after first paint) so the video never blocks initial paint.
  * - playsInline + muted + autoPlay + loop → autoplays on mobile too.
+ * - matchMedia picks the lighter encode on ≤768px (browser support for `media`
+ *   on <source> is unreliable, so we resolve the URL in JS instead).
  * - onError → unmounts the video so the section's gradient shows through.
  */
 export default function HeroVideoBg({
@@ -27,13 +29,21 @@ export default function HeroVideoBg({
 }) {
   const [mounted, setMounted] = useState(false)
   const [failed, setFailed] = useState(false)
+  // Resolved once the component mounts client-side. Until then it's the full
+  // encode, but the video itself doesn't render until `mounted` is set, so the
+  // mobile decision is always made before any source is requested.
+  const [activeSrc, setActiveSrc] = useState(src)
 
   // Defer the video to after first paint (rAF callback, not a synchronous
-  // setState in the effect body) so it never blocks the initial render.
+  // setState in the effect body) so it never blocks the initial render. In the
+  // same pass, pick the mobile encode when the viewport is ≤768px.
   useEffect(() => {
+    if (mobileSrc && window.matchMedia('(max-width: 768px)').matches) {
+      setActiveSrc(mobileSrc)
+    }
     const id = requestAnimationFrame(() => setMounted(true))
     return () => cancelAnimationFrame(id)
-  }, [])
+  }, [src, mobileSrc])
 
   return (
     <>
@@ -56,10 +66,7 @@ export default function HeroVideoBg({
           onError={() => setFailed(true)}
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', zIndex: 0, pointerEvents: 'none' }}
         >
-          {/* Mobile viewports get the lighter encode; the browser falls through
-              to the full-quality source on wider screens. */}
-          {mobileSrc && <source media="(max-width: 768px)" src={mobileSrc} type="video/mp4" />}
-          <source src={src} type="video/mp4" />
+          <source src={activeSrc} type="video/mp4" />
         </video>
       )}
       {/* dark gradient overlay so white text stays readable over any frame */}
