@@ -348,6 +348,20 @@ function Browse() {
         .save-btn:hover { transform:scale(1.18); }
         .cat-pill { transition:all 0.15s cubic-bezier(0.34,1.2,0.64,1); }
         .cat-pill:hover { border-color:#C8006A; color:#C8006A; }
+        /* Cuisine icon-card selector — matches the homepage */
+        .cuisine-scroll { display:flex; gap:12px; overflow-x:auto; flex:1; padding:6px 2px; scroll-behavior:smooth; }
+        .cuisine-card { flex-shrink:0; width:80px; height:72px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; border-radius:18px; cursor:pointer; border:1.5px solid rgba(200,0,106,0.12); background:linear-gradient(160deg,#FFFFFF 0%,#FFF4FA 100%); transition:transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
+        .cuisine-card .ce { font-size:32px; line-height:1; transition:filter 0.2s ease; }
+        .cuisine-card .cl { font-size:11px; font-weight:700; color:#1A1A1A; text-align:center; line-height:1.12; letter-spacing:-0.02em; padding:0 3px; transition:color 0.2s ease; }
+        .cuisine-card:hover { box-shadow:0 12px 28px rgba(200,0,106,0.18); border-color:#C8006A; }
+        .cuisine-card.on { background:linear-gradient(150deg,#C8006A 0%,#A00055 100%); border-color:#C8006A; transform:scale(1.05); box-shadow:0 12px 30px rgba(200,0,106,0.34); }
+        .cuisine-card.on .cl { color:#fff; }
+        .cuisine-card.on .ce { filter:brightness(0) invert(1); }
+        @media (max-width:768px) {
+          .cuisine-card { width:68px; height:60px; gap:5px; border-radius:15px; }
+          .cuisine-card .ce { font-size:26px; }
+          .cuisine-card .cl { font-size:10px; }
+        }
         .grid-fade { animation:fadeUp 0.35s ease both; }
         .nav-link:hover { color:#C8006A !important; }
         .signout:hover { background:#FFE8F4 !important; color:#C8006A !important; }
@@ -401,11 +415,12 @@ function Browse() {
       {/* ── FILTER BAR (sticky) ── */}
       <div style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:64, zIndex:190}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'12px 20px', display:'flex', alignItems:'center', gap:12}}>
-          {/* Cuisine pills */}
-          <div ref={catRef} style={{display:'flex', gap:8, overflowX:'auto', flex:1, paddingBottom:2}}>
+          {/* Cuisine icon cards */}
+          <div ref={catRef} className="cuisine-scroll">
             {cats.map(c => (
-              <button key={c.id} onClick={() => setCat(c.id)} className="cat-pill" style={{display:'flex', alignItems:'center', gap:7, padding:'8px 15px', background:cat===c.id?'#FFE8F4':'#fff', border:cat===c.id?'2px solid #C8006A':'2px solid #E8E8E8', borderRadius:100, fontSize:13, fontWeight:700, color:cat===c.id?'#C8006A':'#1A1A1A', whiteSpace:'nowrap', flexShrink:0, cursor:'pointer'}}>
-                <span style={{fontSize:15, lineHeight:1}}>{c.emoji}</span>{c.label}
+              <button key={c.id} onClick={() => setCat(c.id)} aria-pressed={cat===c.id} className={`cuisine-card${cat===c.id ? ' on' : ''}`}>
+                <span className="ce">{c.emoji}</span>
+                <span className="cl">{c.id === 'all' ? 'All' : c.label}</span>
               </button>
             ))}
           </div>

@@ -266,6 +266,23 @@ export default function Home() {
         .scroll-arrow:hover { background: #C8006A !important; color: #fff !important; border-color: #C8006A !important; }
         .order-btn, .save-btn, .primary-btn, .nav-cta, .cat-pill, .scroll-arrow { transition: all 0.18s cubic-bezier(0.34,1.2,0.64,1); }
 
+        /* Cuisine icon-card selector (Deliveroo/DoorDash-style) */
+        .cuisine-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 8px 4px; scroll-behavior: smooth; }
+        .cuisine-card { flex-shrink: 0; width: 80px; height: 72px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border-radius: 18px; cursor: pointer; border: 1.5px solid rgba(200,0,106,0.12); background: linear-gradient(160deg,#FFFFFF 0%,#FFF4FA 100%); transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
+        .cuisine-card .ce { font-size: 32px; line-height: 1; transition: filter 0.2s ease; }
+        .cuisine-card .cl { font-size: 11px; font-weight: 700; color: #1A1A1A; text-align: center; line-height: 1.12; letter-spacing: -0.02em; padding: 0 3px; transition: color 0.2s ease; }
+        .cuisine-card:hover { box-shadow: 0 12px 28px rgba(200,0,106,0.18); border-color: #C8006A; }
+        .cuisine-card.on { background: linear-gradient(150deg,#C8006A 0%,#A00055 100%); border-color: #C8006A; transform: scale(1.05); box-shadow: 0 12px 30px rgba(200,0,106,0.34); }
+        .cuisine-card.on .cl { color: #fff; }
+        .cuisine-card.on .ce { filter: brightness(0) invert(1); }
+        .count-fade { animation: menuIn 0.3s ease; }
+        @media (max-width: 768px) {
+          .cuisine-card { width: 68px; height: 60px; gap: 5px; border-radius: 15px; }
+          .cuisine-card .ce { font-size: 26px; }
+          .cuisine-card .cl { font-size: 10px; }
+          .cuisine-arrows { display: none !important; }
+        }
+
         /* Trust-bar marquee */
         .marquee-track { display: flex; width: max-content; animation: marquee 32s linear infinite; }
         .marquee-mask:hover .marquee-track { animation-play-state: paused; }
@@ -489,25 +506,32 @@ export default function Home() {
       </div>
 
       {/* ── CATEGORIES ── */}
-      <section style={{background:'#fff', borderBottom:'1px solid #F0F0F0', padding:'32px 0'}}>
+      <section style={{background:'#fff', borderBottom:'1px solid #F0F0F0', padding:'36px 0'}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
-          <div className="section-header" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:18, gap:12, flexWrap:'wrap'}}>
+          <div className="section-header" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:16, gap:12, flexWrap:'wrap'}}>
             <div>
-              <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5}}>Browse by cuisine</div>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.2vw,30px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.015em'}}>What are you craving?</h2>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,2.4vw,28px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', lineHeight:1.1}}>What are you craving?</h2>
+              {/* Live results counter — re-mounts on cuisine change so it fades in fresh */}
+              <div key={cat} className="count-fade" style={{display:'flex', alignItems:'center', gap:8, marginTop:8}}>
+                <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'#FFE8F4', color:'#C8006A', padding:'3px 11px', borderRadius:100, fontSize:12.5, fontWeight:700}}>
+                  {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
+                </span>
+                {cat !== 'all' && <span style={{fontSize:13, fontWeight:600, color:'#8A8A8A'}}>in {cats.find(c => c.id === cat)?.label}</span>}
+              </div>
             </div>
-            <div style={{display:'flex', gap:8, alignItems:'center'}}>
-              <button className="scroll-arrow" onClick={() => scrollCats(-1)} style={{width:36, height:36, borderRadius:'50%', background:'#fff', border:'1.5px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:16, color:'#1A1A1A', transition:'all 0.14s'}}>‹</button>
-              <button className="scroll-arrow" onClick={() => scrollCats(1)} style={{width:36, height:36, borderRadius:'50%', background:'#fff', border:'1.5px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:16, color:'#1A1A1A', transition:'all 0.14s'}}>›</button>
+            <div className="cuisine-arrows" style={{display:'flex', gap:8, alignItems:'center'}}>
+              <button className="scroll-arrow" aria-label="Scroll cuisines left" onClick={() => scrollCats(-1)} style={{width:38, height:38, borderRadius:'50%', background:'#fff', border:'1.5px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:18, color:'#1A1A1A', transition:'all 0.14s'}}>‹</button>
+              <button className="scroll-arrow" aria-label="Scroll cuisines right" onClick={() => scrollCats(1)} style={{width:38, height:38, borderRadius:'50%', background:'#fff', border:'1.5px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:18, color:'#1A1A1A', transition:'all 0.14s'}}>›</button>
             </div>
           </div>
           <div style={{position:'relative'}}>
-            <div style={{position:'absolute', left:0, top:0, bottom:0, width:40, background:'linear-gradient(to right, #fff, transparent)', zIndex:1, pointerEvents:'none'}}/>
-            <div style={{position:'absolute', right:0, top:0, bottom:0, width:40, background:'linear-gradient(to left, #fff, transparent)', zIndex:1, pointerEvents:'none'}}/>
-            <div ref={catRef} style={{display:'flex', gap:10, overflowX:'auto', paddingBottom:4, paddingTop:4, scrollBehavior:'smooth', msOverflowStyle:'none', scrollbarWidth:'none'}}>
+            <div style={{position:'absolute', left:0, top:0, bottom:0, width:44, background:'linear-gradient(to right, #fff, transparent)', zIndex:2, pointerEvents:'none'}}/>
+            <div style={{position:'absolute', right:0, top:0, bottom:0, width:44, background:'linear-gradient(to left, #fff, transparent)', zIndex:2, pointerEvents:'none'}}/>
+            <div ref={catRef} className="cuisine-scroll">
               {cats.map(c => (
-                <button key={c.id} onClick={() => setCat(c.id)} className="cat-pill" style={{display:'flex', alignItems:'center', gap:8, padding:'10px 20px', background:cat===c.id?'#FFE8F4':'#fff', border:cat===c.id?'2px solid #C8006A':'2px solid #E8E8E8', borderRadius:100, fontSize:14, fontWeight:700, color:cat===c.id?'#C8006A':'#1A1A1A', whiteSpace:'nowrap', flexShrink:0, boxShadow:'0 2px 8px rgba(0,0,0,0.04)', transition:'all 0.14s', cursor:'pointer'}}>
-                  <span style={{fontSize:18, lineHeight:1}}>{c.emoji}</span>{c.label}
+                <button key={c.id} onClick={() => setCat(c.id)} aria-pressed={cat === c.id} className={`cuisine-card${cat === c.id ? ' on' : ''}`}>
+                  <span className="ce">{c.emoji}</span>
+                  <span className="cl">{c.id === 'all' ? 'All' : c.label}</span>
                 </button>
               ))}
             </div>
