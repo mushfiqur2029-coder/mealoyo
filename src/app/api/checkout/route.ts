@@ -4,7 +4,8 @@ import { stripe } from '@/lib/stripe'
 // Stripe needs the Node runtime (not Edge).
 export const runtime = 'nodejs'
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.mealoyo.com'
+const SITE_URL =
+  process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://www.mealoyo.com'
 
 // Turn pounds (may arrive as a number or numeric string) into integer pence.
 function toPence(v: unknown): number {
