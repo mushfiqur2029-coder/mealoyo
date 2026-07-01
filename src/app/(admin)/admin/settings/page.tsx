@@ -10,6 +10,18 @@ const COMMISSION_RATE = 0.12
 
 type RevenueOrder = { status: string; platform_commission: string }
 
+type DeletionRow = {
+  id: string
+  deleted_by: string | null
+  entity_type: string
+  entity_id: string
+  entity_name: string | null
+  metadata: Record<string, unknown> | null
+  deleted_at: string
+}
+
+type RoleProfile = { id: string; full_name: string | null; email: string | null }
+
 const NAV = [
   { l:'Dashboard', h:'/admin/dashboard' },
   { l:'Sellers', h:'/admin/sellers' },
@@ -42,6 +54,8 @@ const dark = `
 export default function AdminSettings() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [stats, setStats] = useState({ sellers: 0, buyers: 0, drivers: 0, orders: 0, revenue: 0 })
+  const [deletions, setDeletions] = useState<DeletionRow[]>([])
+  const [deleterNames, setDeleterNames] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [promoteEmail, setPromoteEmail] = useState('')
   const [promoting, setPromoting] = useState(false)
@@ -74,6 +88,22 @@ export default function AdminSettings() {
         orders: orders?.length || 0,
         revenue,
       })
+
+      // Map profile id → display name so the deletion log can show who deleted.
+      const nameMap: Record<string, string> = {}
+      for (const p of [...(sellers || []), ...(buyers || []), ...(drivers || [])] as RoleProfile[]) {
+        nameMap[p.id] = p.full_name || p.email || 'Unknown'
+      }
+      setDeleterNames(nameMap)
+
+      // Best-effort — no-ops (empty) until the deletion_log SQL has been run.
+      const { data: delRows } = await supabase
+        .from('deletion_log')
+        .select('*')
+        .order('deleted_at', { ascending: false })
+        .limit(50)
+      setDeletions((delRows || []) as DeletionRow[])
+
       setLoading(false)
     }
     getData()
@@ -176,6 +206,34 @@ export default function AdminSettings() {
               <input type="email" value={promoteEmail} onChange={e => setPromoteEmail(e.target.value)} placeholder="user@example.com" required style={{flex:1, height:44, border:'1px solid rgba(255,255,255,0.14)', borderRadius:10, padding:'0 14px', fontSize:13, color:'#fff', background:'rgba(255,255,255,0.05)', outline:'none', transition:'border-color 0.14s'}}/>
               <button type="submit" disabled={promoting} className="promote-btn" style={{height:44, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:promoting ? 'not-allowed' : 'pointer', opacity:promoting ? 0.7 : 1, whiteSpace:'nowrap', transition:'background 0.14s'}}>{promoting ? 'Adding…' : 'Add admin'}</button>
             </form>
+          </div>
+        </div>
+
+        {/* Deletion history / audit log */}
+        <div className="fade-up" style={{marginTop:32}}>
+          <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#fff', marginBottom:6}}>Deletion history</h2>
+          <p style={{fontSize:13, color:'rgba(255,255,255,0.5)', marginBottom:14}}>Recent deletions across the platform — who removed what, and when.</p>
+          <div style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
+            {deletions.length === 0 ? (
+              <div style={{padding:'40px', textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>No deletions recorded yet.</div>
+            ) : deletions.map((d, i) => (
+              <div key={d.id} style={{display:'flex', alignItems:'center', gap:14, padding:'14px 22px', borderBottom:i < deletions.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none'}}>
+                <div style={{width:36, height:36, borderRadius:9, background:'rgba(255,138,138,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0}}>🗑️</div>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                    {d.entity_name || '(unnamed)'}
+                    <span style={{fontSize:10, fontWeight:700, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.04em', marginLeft:8, background:'rgba(255,255,255,0.06)', padding:'2px 8px', borderRadius:20}}>{d.entity_type}</span>
+                  </div>
+                  <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                    by {d.deleted_by ? (deleterNames[d.deleted_by] || `${d.deleted_by.slice(0, 8)}…`) : 'Unknown'}
+                  </div>
+                </div>
+                <div style={{fontSize:12, color:'rgba(255,255,255,0.4)', flexShrink:0, textAlign:'right', whiteSpace:'nowrap'}}>
+                  {new Date(d.deleted_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}
+                  <span style={{opacity:0.7}}> · {new Date(d.deleted_at).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

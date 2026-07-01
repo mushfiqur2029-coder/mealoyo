@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { logDeletion, storagePathFromPublicUrl } from '@/lib/deletionLog'
 import type { Listing, Profile } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -48,7 +49,22 @@ export default function SellerListings() {
 
   const deleteListing = async (id: string) => {
     if (!confirm('Delete this listing? This cannot be undone.')) return
-    await supabase.from('listings').delete().eq('id', id)
+    const listing = listings.find(l => l.id === id)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('listings').delete().eq('id', id)
+    if (error) { alert('Could not delete: ' + error.message); return }
+    // Best-effort audit log + storage cleanup — neither blocks the delete.
+    if (user && listing) {
+      await logDeletion({
+        deletedBy: user.id,
+        entityType: 'listing',
+        entityId: id,
+        entityName: listing.name,
+        metadata: { price: listing.price, cuisine: listing.cuisine, image_url: listing.image_url, status: listing.status, order_count: listing.order_count },
+      })
+      const path = storagePathFromPublicUrl(listing.image_url, 'listings')
+      if (path) await supabase.storage.from('listings').remove([path])
+    }
     setListings(prev => prev.filter(l => l.id !== id))
   }
 
@@ -222,9 +238,12 @@ export default function SellerListings() {
               return (
                 <div key={l.id} className="listing-card fade-up" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column'}}>
 
-                  {/* Gradient emoji header */}
-                  <div style={{height:128, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:58, position:'relative'}}>
-                    {cuisineEmoji[l.cuisine] || '🍽️'}
+                  {/* Photo (falls back to a gradient + cuisine emoji when none) */}
+                  <div style={{height:128, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:58, position:'relative', overflow:'hidden'}}>
+                    {l.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={l.image_url} alt={l.name} loading="lazy" style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />
+                    ) : (cuisineEmoji[l.cuisine] || '🍽️')}
                     <span style={{position:'absolute', top:12, right:12, background:statusBg(l.status), color:statusColor(l.status), padding:'4px 11px', borderRadius:100, fontSize:11, fontWeight:700, textTransform:'capitalize', boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}>{l.status}</span>
                     {l.featured && <span style={{position:'absolute', top:12, left:12, background:'#C8006A', color:'#fff', padding:'4px 11px', borderRadius:100, fontSize:11, fontWeight:700, boxShadow:'0 2px 8px rgba(200,0,106,0.3)'}}>★ Featured</span>}
                   </div>

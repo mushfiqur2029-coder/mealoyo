@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { logDeletion } from '@/lib/deletionLog'
 import type { Profile } from '@/lib/types'
 
 // admin_get_all_orders returns a flattened row (names joined in the RPC).
@@ -78,8 +79,19 @@ export default function AdminOrders() {
   const cancelOrder = async (id: string) => {
     if (!confirm('Cancel this order?')) return
     setBusyId(id)
+    const order = orders.find(o => o.id === id)
     const { error } = await supabase.rpc('admin_update_order_status', { p_id: id, p_status: 'cancelled' })
     if (error) { alert('Could not cancel: ' + error.message); setBusyId(null); return }
+    // Best-effort audit log of this admin action.
+    if (profile && order) {
+      await logDeletion({
+        deletedBy: profile.id,
+        entityType: 'order',
+        entityId: id,
+        entityName: order.listing_name,
+        metadata: { action: 'cancelled', total_amount: order.total_amount, buyer_name: order.buyer_name, seller_name: order.seller_name, previous_status: order.status },
+      })
+    }
     setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'cancelled' } : o))
     setBusyId(null)
   }

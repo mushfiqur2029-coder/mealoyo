@@ -328,7 +328,12 @@ export default function SellerDashboard() {
                 </div>
               ) : liveListings.slice(0, 5).map((l, i) => (
                 <Link key={l.id} href={`/dish/${l.id}`} className="lrow" style={{display:'flex', alignItems:'center', gap:12, padding:'14px 22px', borderBottom:i < Math.min(liveListings.length, 5) - 1 ? '1px solid #F5F0F3' : 'none', transition:'background 0.12s'}}>
-                  <div style={{width:42, height:42, borderRadius:11, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:21, flexShrink:0}}>{cuisineEmoji[l.cuisine] || '🍽️'}</div>
+                  <div style={{width:42, height:42, borderRadius:11, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:21, flexShrink:0, overflow:'hidden'}}>
+                    {l.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={l.image_url} alt={l.name} loading="lazy" style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                    ) : (cuisineEmoji[l.cuisine] || '🍽️')}
+                  </div>
                   <div style={{flex:1, minWidth:0}}>
                     <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
                     <div style={{fontSize:12, color:'#1A1A1A', opacity:0.8, marginTop:1}}>{l.cuisine}</div>

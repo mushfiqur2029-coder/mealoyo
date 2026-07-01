@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import ListingImageUpload from '@/components/ListingImageUpload'
 import { commission, sellerReceives, COMMISSION_RATE } from '@/lib/pricing'
+import { logDeletion, storagePathFromPublicUrl } from '@/lib/deletionLog'
 import type { CSSProperties } from 'react'
 import type { User, Profile } from '@/lib/types'
 
@@ -50,6 +51,7 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageBlob, setImageBlob] = useState<Blob | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [orderCount, setOrderCount] = useState<number | null>(null)
   const router = useRouter()
 
   const sectionRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -98,6 +100,7 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
 
       setStatus(listing.status || 'pending')
       setImageUrl(listing.image_url || null)
+      setOrderCount(listing.order_count ?? null)
       setForm({
         name: listing.name || '',
         description: listing.description || '',
@@ -198,6 +201,16 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
     setDeleting(true)
     const { error: delErr } = await supabase.from('listings').delete().eq('id', id).eq('seller_id', user.id)
     if (delErr) { setError(delErr.message); setDeleting(false); return }
+    // Best-effort audit log + storage cleanup — neither blocks navigation.
+    await logDeletion({
+      deletedBy: user.id,
+      entityType: 'listing',
+      entityId: id,
+      entityName: form.name,
+      metadata: { price: form.price, cuisine: form.cuisine, image_url: imageUrl, status, order_count: orderCount },
+    })
+    const path = storagePathFromPublicUrl(imageUrl, 'listings')
+    if (path) await supabase.storage.from('listings').remove([path])
     router.push('/seller/listings')
   }
 
