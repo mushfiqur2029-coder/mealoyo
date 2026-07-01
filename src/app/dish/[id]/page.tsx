@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
+/* eslint-disable @next/next/no-img-element -- food photos load directly from Supabase Storage; next/image is unoptimized here anyway, and a plain <img> avoids remotePatterns config entirely */
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
@@ -528,7 +528,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
             {/* Hero image area */}
             <div style={{background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', borderRadius:20, height:'clamp(220px,32vw,300px)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'clamp(72px,12vw,108px)', marginBottom:20, position:'relative', overflow:'hidden', boxShadow:'0 4px 24px rgba(200,0,106,0.08)'}}>
               {listing.image_url
-                ? <Image src={listing.image_url} alt={listing.name} fill sizes="(max-width:900px) 100vw, 640px" style={{objectFit:'cover'}} unoptimized priority />
+                ? <img src={listing.image_url} alt={listing.name} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />
                 : <>
                     <div style={{position:'absolute', inset:0, background:'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.5), transparent 60%)', pointerEvents:'none'}}/>
                     <span style={{position:'relative', filter:'drop-shadow(0 8px 20px rgba(200,0,106,0.18))'}}>{cuisineEmoji[listing.cuisine] || '🍽️'}</span>
