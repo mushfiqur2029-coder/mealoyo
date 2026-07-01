@@ -12,3 +12,14 @@ body { font-family: Inter, system-ui, sans-serif; background: #fff; color: #1A1A
 a { text-decoration: none; color: inherit; }
 button { font-family: Inter, system-ui, sans-serif; cursor: pointer; }
 input, select, textarea { font-family: Inter, system-ui, sans-serif; }
+
+/* ── Mobile hardening ──────────────────────────────────────────────
+   Stops stray fixed-width children forcing a horizontal scrollbar, and
+   keeps images/videos inside their containers on small screens. */
+html, body { max-width: 100%; overflow-x: hidden; }
+img, video { max-width: 100%; }
+/* iOS zooms the page when focusing an input whose font is < 16px. Bump the
+   effective size on touch widths only — desktop styling is untouched. */
+@media (max-width: 768px) {
+  input, select, textarea { font-size: 16px; }
+}

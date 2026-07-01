@@ -346,6 +346,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
     </div>
   )
 
+  // When the logged-in user owns this listing we swap the buyer order form for a
+  // seller management panel — a cook shouldn't be ordering their own dish.
+  const isOwner = !!user && user.id === listing.seller_id
   const price = parseFloat(listing.price)
   const totalAmount = price * quantity
   const svcFee = serviceFee(totalAmount)
@@ -521,6 +524,45 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
     </div>
   )
 
+  // ── SELLER VIEW (shown to the cook who owns this dish) ──
+  const statusColor = listing.status === 'live'
+    ? { bg:'#E4F6EA', fg:'#2DA84E', label:'Live' }
+    : listing.status === 'paused'
+    ? { bg:'#FFF4E5', fg:'#B57A00', label:'Paused' }
+    : { bg:'#F0F0F0', fg:'#6A6A6A', label:listing.status || 'Draft' }
+  const sellerPanel = (
+    <div style={{background:'#fff', borderRadius:20, padding:'24px', boxShadow:'0 4px 28px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.1)'}}>
+      <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:6}}>
+        <span style={{fontSize:22}}>👨‍🍳</span>
+        <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A'}}>This is your listing</h2>
+      </div>
+      <p style={{fontSize:13, color:'#1A1A1A', opacity:0.75, lineHeight:1.55, marginBottom:18}}>You&apos;re viewing this dish as the cook. Buyers see the order form here — here&apos;s how it&apos;s doing.</p>
+
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, background:'#F8F0F4', borderRadius:12, padding:'12px 15px', marginBottom:10}}>
+        <span style={{fontSize:12, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.05em'}}>Status</span>
+        <span style={{background:statusColor.bg, color:statusColor.fg, padding:'4px 12px', borderRadius:100, fontSize:12, fontWeight:700}}>{statusColor.label}</span>
+      </div>
+
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:18}}>
+        <div style={{background:'#F8F0F4', borderRadius:12, padding:'13px 15px'}}>
+          <div style={{fontSize:11, color:'#C8006A', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4}}>Price</div>
+          <div style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#1A1A1A'}}>£{price.toFixed(2)}</div>
+        </div>
+        <div style={{background:'#F8F0F4', borderRadius:12, padding:'13px 15px'}}>
+          <div style={{fontSize:11, color:'#C8006A', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4}}>Orders</div>
+          <div style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#1A1A1A'}}>{listing.order_count ?? 0}</div>
+        </div>
+      </div>
+
+      <Link href={`/seller/listings/${listing.id}/edit`} className="order-btn" style={{display:'flex', alignItems:'center', justifyContent:'center', width:'100%', height:52, background:'#C8006A', color:'#fff', borderRadius:12, fontSize:16, fontWeight:700, boxShadow:'0 6px 20px rgba(200,0,106,0.3)', marginBottom:10}}>
+        Edit this listing →
+      </Link>
+      <Link href="/seller/listings" className="back-btn" style={{display:'flex', alignItems:'center', justifyContent:'center', width:'100%', height:48, background:'#fff', color:'#1A1A1A', border:'1.5px solid #E0E0E0', borderRadius:12, fontSize:14, fontWeight:600, transition:'all 0.14s'}}>
+        All my dishes
+      </Link>
+    </div>
+  )
+
   // ── MAIN ──
   return (
     <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -630,9 +672,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
             </div>
           </div>
 
-          {/* ── RIGHT: order panel (sticky desktop / below on mobile) ── */}
+          {/* ── RIGHT: order panel — or seller management panel if you own it ── */}
           <div className="order-panel fade-up" style={{position:'sticky', top:82}}>
-            {orderPanel}
+            {isOwner ? sellerPanel : orderPanel}
           </div>
 
         </div>
@@ -640,18 +682,26 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
       {/* ── MOBILE BOTTOM ACTION BAR ── */}
       <div className="mobile-bar" style={{position:'fixed', bottom:0, left:0, right:0, zIndex:400, background:'rgba(255,255,255,0.98)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderTop:'1px solid rgba(200,0,106,0.12)', boxShadow:'0 -6px 24px rgba(200,0,106,0.1)', padding:'12px 18px', alignItems:'center', gap:14}}>
-        <div style={{flexShrink:0}}>
-          <div style={{fontSize:11, color:'#1A1A1A', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em'}}>Total</div>
-          <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', lineHeight:1}}>£{grandTotal.toFixed(2)}</div>
-        </div>
-        {user ? (
-          <button onClick={handleOrder} disabled={ordering || !canOrder} className="order-btn" style={{flex:1, height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:(ordering || !canOrder) ? 'not-allowed' : 'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.3)', opacity:(ordering || !canOrder) ? 0.55 : 1}}>
-            {redirecting ? 'Redirecting...' : ordering ? 'Placing...' : !canOrder ? 'Enter postcode' : 'Order now →'}
-          </button>
-        ) : (
-          <Link href="/login" className="order-btn" style={{flex:1, height:50, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', color:'#fff', borderRadius:12, fontSize:15, fontWeight:700, boxShadow:'0 6px 18px rgba(200,0,106,0.3)'}}>
-            Sign in to order →
+        {isOwner ? (
+          <Link href={`/seller/listings/${listing.id}/edit`} className="order-btn" style={{flex:1, height:50, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', color:'#fff', borderRadius:12, fontSize:15, fontWeight:700, boxShadow:'0 6px 18px rgba(200,0,106,0.3)'}}>
+            Edit your listing →
           </Link>
+        ) : (
+          <>
+            <div style={{flexShrink:0}}>
+              <div style={{fontSize:11, color:'#1A1A1A', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em'}}>Total</div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', lineHeight:1}}>£{grandTotal.toFixed(2)}</div>
+            </div>
+            {user ? (
+              <button onClick={handleOrder} disabled={ordering || !canOrder} className="order-btn" style={{flex:1, height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:(ordering || !canOrder) ? 'not-allowed' : 'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.3)', opacity:(ordering || !canOrder) ? 0.55 : 1}}>
+                {redirecting ? 'Redirecting...' : ordering ? 'Placing...' : !canOrder ? 'Enter postcode' : 'Order now →'}
+              </button>
+            ) : (
+              <Link href="/login" className="order-btn" style={{flex:1, height:50, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', color:'#fff', borderRadius:12, fontSize:15, fontWeight:700, boxShadow:'0 6px 18px rgba(200,0,106,0.3)'}}>
+                Sign in to order →
+              </Link>
+            )}
+          </>
         )}
       </div>
     </div>

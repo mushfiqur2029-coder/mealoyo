@@ -583,8 +583,8 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
             </div>
           </div>
 
-          {/* Sticky mobile submit bar */}
-          <div className="mobile-bar" style={{position:'fixed', bottom:0, left:0, right:0, zIndex:95, background:'rgba(255,255,255,0.98)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderTop:'1px solid rgba(200,0,106,0.1)', padding:'12px 16px', gap:12, alignItems:'center', boxShadow:'0 -4px 20px rgba(0,0,0,0.06)'}}>
+          {/* Sticky mobile submit bar — sits above the global mobile tab bar */}
+          <div className="mobile-bar" style={{position:'fixed', bottom:'calc(58px + env(safe-area-inset-bottom))', left:0, right:0, zIndex:95, background:'rgba(255,255,255,0.98)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderTop:'1px solid rgba(200,0,106,0.1)', padding:'12px 16px', gap:12, alignItems:'center', boxShadow:'0 -4px 20px rgba(0,0,0,0.06)'}}>
             <div style={{flexShrink:0}}>
               <div style={{fontSize:11, color:'#1A1A1A', opacity:0.7, fontWeight:600}}>Price</div>
               <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#C8006A'}}>£{form.price ? parseFloat(form.price).toFixed(2) : '0.00'}</div>

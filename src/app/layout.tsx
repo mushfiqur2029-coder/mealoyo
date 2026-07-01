@@ -1,6 +1,7 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/components/AuthProvider'
+import MobileTabBar from '@/components/MobileTabBar'
 
 const title = 'meaLoyo — Home cooked food, delivered'
 const description =
@@ -42,11 +43,21 @@ export const metadata: Metadata = {
   },
 }
 
+// Mobile viewport: device-width scaling and a brand theme colour for the
+// browser chrome. `maximumScale`/`userScalable` are left at their accessible
+// defaults so pinch-zoom still works.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#C8006A',
+}
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
         <AuthProvider>{children}</AuthProvider>
+        <MobileTabBar />
       </body>
     </html>
   )
