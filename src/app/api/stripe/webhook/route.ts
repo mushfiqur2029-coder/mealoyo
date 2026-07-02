@@ -47,81 +47,96 @@ export async function POST(request: Request) {
   return NextResponse.json({ received: true })
 }
 
-// Primary handler. Owns the one-time side effects (loyalty redemption + order
-// count) — gated on stripe_session_id being null so it runs exactly once, even
-// if payment_intent.succeeded arrives first or Stripe retries this event.
-async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const orderId = session.metadata?.orderId
-  if (!orderId) {
-    console.warn('[webhook] checkout.session.completed missing orderId metadata')
-    return
-  }
+// A single-item checkout carries `orderId`; a cart checkout carries a
+// comma-joined `orderIds`. Normalise both into a list.
+function orderIdsFromMetadata(md: Stripe.Metadata | null | undefined): string[] {
+  if (!md) return []
+  if (md.orderIds) return md.orderIds.split(',').map((s) => s.trim()).filter(Boolean)
+  if (md.orderId) return [md.orderId]
+  return []
+}
 
-  const { data: order, error } = await supabaseAdmin
-    .from('orders')
-    .select('id, status, stripe_session_id, listing_id')
-    .eq('id', orderId)
+// Bump a listing's lifetime order count (powers "Most popular"). The auth-gated
+// RPC can't run under the service role, so update directly.
+async function bumpOrderCount(listingId: string) {
+  const { data: listing } = await supabaseAdmin
+    .from('listings')
+    .select('order_count')
+    .eq('id', listingId)
     .single()
+  if (listing) {
+    await supabaseAdmin
+      .from('listings')
+      .update({ order_count: (listing.order_count ?? 0) + 1 })
+      .eq('id', listingId)
+  }
+}
 
-  if (error || !order) {
-    console.warn(`[webhook] order ${orderId} not found for checkout.session.completed`)
+// Primary handler. Owns the one-time side effects (loyalty redemption + order
+// count) — gated on stripe_session_id being null so each order is processed
+// exactly once, even if payment_intent.succeeded arrives first or Stripe retries.
+async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
+  const orderIds = orderIdsFromMetadata(session.metadata)
+  if (orderIds.length === 0) {
+    console.warn('[webhook] checkout.session.completed missing orderId/orderIds metadata')
     return
   }
-
-  // Already processed this session → idempotent no-op.
-  if (order.stripe_session_id === session.id) return
 
   const paymentIntentId =
     typeof session.payment_intent === 'string'
       ? session.payment_intent
       : session.payment_intent?.id ?? null
 
-  const { error: updErr } = await supabaseAdmin
-    .from('orders')
-    .update({
-      stripe_session_id: session.id,
-      stripe_payment_id: paymentIntentId,
-      payment_status: 'paid',
-      // Flip out of pending_payment here too, in case the payment_intent event
-      // has not arrived yet.
-      status: order.status === 'pending_payment' ? 'pending' : order.status,
-    })
-    .eq('id', orderId)
-
-  if (updErr) {
-    console.error(`[webhook] failed to update order ${orderId}:`, updErr.message)
-    return
-  }
-
-  // --- One-time side effects (only reached because stripe_session_id was null) ---
   const buyerId = session.metadata?.buyerId
   const pointsToRedeem = parseInt(session.metadata?.pointsToRedeem ?? '0', 10)
 
-  if (buyerId && pointsToRedeem > 0) {
-    const { error: loyErr } = await supabaseAdmin.from('loyalty_points').insert({
-      buyer_id: buyerId,
-      order_id: orderId,
-      points: pointsToRedeem,
-      type: 'redeemed',
-      description: `Redeemed on order #${String(orderId).slice(0, 8)}`,
-    })
-    if (loyErr) console.error('[webhook] loyalty redemption insert failed:', loyErr.message)
-  }
-
-  // Bump the listing's lifetime order count (powers "Most popular"). The
-  // auth-gated RPC can't run under the service role, so update directly.
-  const listingId = order.listing_id ?? session.metadata?.listingId
-  if (listingId) {
-    const { data: listing } = await supabaseAdmin
-      .from('listings')
-      .select('order_count')
-      .eq('id', listingId)
+  for (const orderId of orderIds) {
+    const { data: order, error } = await supabaseAdmin
+      .from('orders')
+      .select('id, status, stripe_session_id, listing_id')
+      .eq('id', orderId)
       .single()
-    if (listing) {
-      await supabaseAdmin
-        .from('listings')
-        .update({ order_count: (listing.order_count ?? 0) + 1 })
-        .eq('id', listingId)
+
+    if (error || !order) {
+      console.warn(`[webhook] order ${orderId} not found for checkout.session.completed`)
+      continue
+    }
+
+    // Already processed this session → idempotent no-op.
+    if (order.stripe_session_id === session.id) continue
+
+    const { error: updErr } = await supabaseAdmin
+      .from('orders')
+      .update({
+        stripe_session_id: session.id,
+        stripe_payment_id: paymentIntentId,
+        payment_status: 'paid',
+        // Flip out of pending_payment here too, in case the payment_intent event
+        // has not arrived yet.
+        status: order.status === 'pending_payment' ? 'pending' : order.status,
+      })
+      .eq('id', orderId)
+
+    if (updErr) {
+      console.error(`[webhook] failed to update order ${orderId}:`, updErr.message)
+      continue
+    }
+
+    // --- One-time side effects (only reached because stripe_session_id was null) ---
+    const listingId = order.listing_id ?? session.metadata?.listingId
+    if (listingId) await bumpOrderCount(listingId)
+
+    // Loyalty redemption only ever applies to single-item checkout (carts carry
+    // no points metadata), so record it once against that order.
+    if (buyerId && pointsToRedeem > 0) {
+      const { error: loyErr } = await supabaseAdmin.from('loyalty_points').insert({
+        buyer_id: buyerId,
+        order_id: orderId,
+        points: pointsToRedeem,
+        type: 'redeemed',
+        description: `Redeemed on order #${String(orderId).slice(0, 8)}`,
+      })
+      if (loyErr) console.error('[webhook] loyalty redemption insert failed:', loyErr.message)
     }
   }
 }
@@ -129,19 +144,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 // Secondary handler: flips the order out of pending_payment. Does NOT run side
 // effects — those belong solely to checkout.session.completed.
 async function handlePaymentIntentSucceeded(pi: Stripe.PaymentIntent) {
-  const orderId = pi.metadata?.orderId
-  if (!orderId) return
+  const orderIds = orderIdsFromMetadata(pi.metadata)
+  if (orderIds.length === 0) return
 
-  const { data: order } = await supabaseAdmin
-    .from('orders')
-    .select('id, status')
-    .eq('id', orderId)
-    .single()
+  for (const orderId of orderIds) {
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('id, status')
+      .eq('id', orderId)
+      .single()
 
-  if (!order || order.status !== 'pending_payment') return
+    if (!order || order.status !== 'pending_payment') continue
 
-  await supabaseAdmin
-    .from('orders')
-    .update({ status: 'pending', payment_status: 'paid', stripe_payment_id: pi.id })
-    .eq('id', orderId)
+    await supabaseAdmin
+      .from('orders')
+      .update({ status: 'pending', payment_status: 'paid', stripe_payment_id: pi.id })
+      .eq('id', orderId)
+  }
 }

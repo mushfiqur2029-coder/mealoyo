@@ -3,8 +3,10 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+/* eslint-disable @next/next/no-img-element -- food photos load directly from Supabase Storage; a plain <img> avoids next/image remotePatterns config */
 import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
+import CartButton from '@/components/CartButton'
 import { pointsToPounds } from '@/lib/loyalty'
 import type { User, Profile, Order, Listing } from '@/lib/types'
 
@@ -23,7 +25,7 @@ const NAV = [
   { l:'Profile', h:'/buyer/profile' },
 ]
 
-type SavedRow = { id: string; listings: Pick<Listing, 'id' | 'name' | 'cuisine' | 'price'> | null }
+type SavedRow = { id: string; listings: Pick<Listing, 'id' | 'name' | 'cuisine' | 'price' | 'image_url'> | null }
 type RecListing = Listing & { profiles?: Pick<Profile, 'full_name'> | null }
 
 export default function BuyerDashboard() {
@@ -65,7 +67,7 @@ export default function BuyerDashboard() {
       setPoints(typeof pointsBalance === 'number' ? pointsBalance : 0)
       const { data: recs } = await supabase.from('listings').select('*, profiles:seller_id(full_name)').eq('status', 'live').order('created_at', { ascending: false }).limit(3)
       setRecommended((recs as unknown as RecListing[]) || [])
-      const { data: savedRows } = await supabase.from('saved_listings').select('id, listings(id,name,cuisine,price)').eq('buyer_id', user.id).order('created_at', { ascending: false }).limit(3)
+      const { data: savedRows } = await supabase.from('saved_listings').select('id, listings(id,name,cuisine,price,image_url)').eq('buyer_id', user.id).order('created_at', { ascending: false }).limit(3)
       setSaved((savedRows as unknown as SavedRow[]) || [])
       setLoading(false)
     }
@@ -125,6 +127,7 @@ export default function BuyerDashboard() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
+          <CartButton />
           <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'B'}/>
           <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
         </div>
@@ -255,7 +258,10 @@ export default function BuyerDashboard() {
                 <div className="rec-grid" style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14}}>
                   {recommended.map(l => (
                     <Link key={l.id} href={`/dish/${l.id}`} className="rec-card" style={{background:'#fff', borderRadius:16, overflow:'hidden', border:'1.5px solid rgba(200,0,106,0.08)', boxShadow:'0 2px 12px rgba(200,0,106,0.06)', display:'flex', flexDirection:'column'}}>
-                      <div style={{height:88, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40}}>{cuisineEmoji[l.cuisine] || '🍽️'}</div>
+                      <div style={{height:88, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, position:'relative', overflow:'hidden'}}>
+                        {cuisineEmoji[l.cuisine] || '🍽️'}
+                        {l.image_url && <img src={l.image_url} alt={l.name} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
+                      </div>
                       <div style={{padding:'12px 14px', display:'flex', flexDirection:'column', flex:1}}>
                         <div style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'#1A1A1A', lineHeight:1.3, marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
                         <div style={{fontSize:12, color:'#1A1A1A', opacity:0.8, marginBottom:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.profiles?.full_name || 'Home cook'}</div>
@@ -319,7 +325,10 @@ export default function BuyerDashboard() {
                 if (!l) return null
                 return (
                   <Link key={s.id} href={`/dish/${l.id}`} className="qa-row" style={{display:'flex', alignItems:'center', gap:12, padding:'13px 22px', borderTop:i === 0 ? 'none' : '1px solid #F5F0F3', transition:'all 0.14s'}}>
-                    <div style={{width:40, height:40, borderRadius:11, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, flexShrink:0}}>{cuisineEmoji[l.cuisine] || '🍽️'}</div>
+                    <div style={{width:40, height:40, borderRadius:11, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, flexShrink:0, position:'relative', overflow:'hidden'}}>
+                      {cuisineEmoji[l.cuisine] || '🍽️'}
+                      {l.image_url && <img src={l.image_url} alt={l.name} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
+                    </div>
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
                       <div style={{fontSize:12, color:'#1A1A1A', opacity:0.8, marginTop:1}}>{l.cuisine}</div>

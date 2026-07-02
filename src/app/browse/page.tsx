@@ -7,6 +7,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
+import CartButton from '@/components/CartButton'
+import AddToCartButton from '@/components/AddToCartButton'
 import type { Listing, Profile } from '@/lib/types'
 
 type BrowseListing = Listing & { profiles?: Pick<Profile, 'full_name'> | null }
@@ -109,6 +111,9 @@ function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; o
           <div style={{fontSize:12, fontWeight:700, color:'#1A1A1A'}}>
             <span style={{color:'#C8006A'}}>★</span> {l.rating ? l.rating.toFixed(1) : '—'} <span style={{fontWeight:500, opacity:0.8}}>({l.reviews_count || 0})</span>
           </div>
+        </div>
+        <div style={{marginTop:10}}>
+          <AddToCartButton l={l} compact />
         </div>
       </div>
     </Link>
@@ -403,7 +408,10 @@ function Browse() {
             <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search dishes, cuisines or cooks" style={{border:'none', outline:'none', background:'transparent', fontSize:13.5, fontWeight:500, color:'#1A1A1A', flex:1, height:34, minWidth:0}} />
           </div>
 
-          <div className="nav-links" style={{display:'flex', alignItems:'center', gap:10, marginLeft:'auto', flexShrink:0}}>
+          <div style={{display:'flex', alignItems:'center', marginLeft:'auto', flexShrink:0}}>
+            <CartButton />
+          </div>
+          <div className="nav-links" style={{display:'flex', alignItems:'center', gap:10, flexShrink:0}}>
             {user ? (
               <>
                 <NavAvatar url={avatarUrl} initial={user.email?.[0]?.toUpperCase() || 'B'} />

@@ -5,7 +5,9 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import { isValidUKPostcode, lookupPostcode, haversineDistance, deliveryFeeForDistance, serviceFee, commission as calcCommission, FLAT_DELIVERY_FEE } from '@/lib/pricing'
+import CartButton from '@/components/CartButton'
+import { useCartStore } from '@/lib/cartStore'
+import { isValidUKPostcode, lookupPostcode, haversineDistance, deliveryFeeForDistance, serviceFee, FLAT_DELIVERY_FEE } from '@/lib/pricing'
 import { pointsToPounds, maxRedeemablePounds, poundsToPoints } from '@/lib/loyalty'
 import type { User, Listing, Profile } from '@/lib/types'
 
@@ -41,15 +43,18 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [ordering, setOrdering] = useState(false)
-  const [redirecting, setRedirecting] = useState(false)
   const [cancelled, setCancelled] = useState(false)
-  const [error, setError] = useState('')
+  const [added, setAdded] = useState(false)
   const [isSaved, setIsSaved] = useState(false)
   const [savedRowId, setSavedRowId] = useState<string | null>(null)
   const [pointsBalance, setPointsBalance] = useState(0)
   const [applyPoints, setApplyPoints] = useState(false)
   const router = useRouter()
+
+  // Cart actions — checkout now runs through the shared cart panel.
+  const addItem = useCartStore((s) => s.addItem)
+  const clearCart = useCartStore((s) => s.clearCart)
+  const openCart = useCartStore((s) => s.openCart)
 
   // Buyer bounced back from a cancelled Stripe Checkout — restore the form and
   // let them know their unpaid order is still saved. Read from the URL directly
@@ -59,6 +64,21 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       setCancelled(true)
     }
   }, [])
+
+  // On a cancelled Checkout, release the unpaid order we created for this dish so
+  // it doesn't linger as pending_payment. Best-effort — RLS scopes it to the
+  // buyer's own rows.
+  useEffect(() => {
+    if (!cancelled || !user) return
+    ;(async () => {
+      await supabase
+        .from('orders')
+        .update({ status: 'cancelled', payment_status: 'cancelled' })
+        .eq('buyer_id', user.id)
+        .eq('listing_id', id)
+        .eq('status', 'pending_payment')
+    })()
+  }, [cancelled, user, id])
 
   useEffect(() => {
     const getData = async () => {
@@ -160,85 +180,39 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
   const clearSavedAddress = () => { setAddress(''); setBuyerPostcode(''); setUsingSaved(false) }
 
-  const handleOrder = async () => {
-    if (!user) { router.push('/login'); return }
+  // Add this dish to the cart (with the chosen quantity + delivery preference)
+  // and slide the cart open. Actual payment happens from the cart panel. Fees
+  // and any loyalty redemption are settled there.
+  const addToCart = () => {
     if (!listing || !seller) return
-    const subtotal = parseFloat(listing.price) * quantity
-    let deliveryFee = 0
-    if (deliveryType === 'delivery') {
-      if (!address.trim()) { setError('Please enter your delivery address'); return }
-      if (quote.status === 'ok' || quote.status === 'flat') deliveryFee = quote.fee
-      else if (quote.status === 'checking') { setError('Checking delivery distance — one moment…'); return }
-      else { setError('Please enter a valid postcode we can deliver to'); return }
+    const item = {
+      listingId: listing.id,
+      listingName: listing.name,
+      sellerId: seller.id,
+      sellerName: seller.full_name || 'Home cook',
+      price: parseFloat(listing.price),
+      quantity,
+      imageUrl: listing.image_url,
+      cuisineEmoji: cuisineEmoji[listing.cuisine] || '🍽️',
+      deliveryOptions: Array.isArray(listing.delivery_options)
+        ? listing.delivery_options.map(String)
+        : typeof listing.delivery_options === 'string'
+        ? listing.delivery_options.split(',').map((s) => s.trim()).filter(Boolean)
+        : [],
+      deliveryPref: deliveryType,
     }
-    setOrdering(true)
-    setError('')
-    const svcFee = serviceFee(subtotal)
-    const commission = calcCommission(subtotal) // 12% of food subtotal
-    const sellerPayout = subtotal - commission // unaffected by loyalty discount (platform-funded)
-    // Loyalty discount only reduces what the buyer pays, not the seller payout.
-    const discountPounds = applyPoints ? maxRedeemablePounds(pointsBalance, subtotal) : 0
-    const pointsToRedeem = poundsToPoints(discountPounds)
-    const total = subtotal + svcFee + deliveryFee - discountPounds
-
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        buyer_id: user.id,
-        seller_id: seller.id,
-        listing_id: listing.id,
-        quantity,
-        total_amount: total,
-        delivery_fee: deliveryFee,
-        service_fee: svcFee,
-        platform_commission: commission,
-        seller_payout: sellerPayout,
-        // Created unpaid — a Stripe webhook flips this to 'pending' once the
-        // buyer completes payment. The loyalty redemption and order-count bump
-        // are also deferred to the webhook so they only fire on real payment.
-        status: 'pending_payment',
-        payment_status: 'unpaid',
-        delivery_type: deliveryType,
-        delivery_address: deliveryType === 'delivery' ? address : null,
-        notes: notes || null,
-      })
-      .select()
-      .single()
-
-    if (orderError) {
-      setError(orderError.message)
-      setOrdering(false)
-      return
+    const res = addItem(item)
+    if (res.needsConfirm) {
+      const ok = window.confirm(
+        `Your cart has items from ${res.existingSellerName}. Start a new cart with this item?`,
+      )
+      if (!ok) return
+      clearCart()
+      addItem(item)
     }
-
-    // Hand off to Stripe Checkout. On success the buyer returns to the order
-    // confirmation page; on cancel they come back here with ?cancelled=true.
-    setRedirecting(true)
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: order.id,
-          listingId: listing.id,
-          listingName: listing.name,
-          amount: subtotal,
-          deliveryFee,
-          serviceFee: svcFee,
-          discount: discountPounds,
-          buyerEmail: user.email,
-          buyerId: user.id,
-          pointsToRedeem,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start payment')
-      window.location.href = data.url
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not start payment. Please try again.')
-      setOrdering(false)
-      setRedirecting(false)
-    }
+    setAdded(true)
+    setTimeout(() => setAdded(false), 1500)
+    openCart()
   }
 
   const pageStyles = (
@@ -282,9 +256,21 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const nav = (
     <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:500, height:66}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:66, display:'flex', alignItems:'center', gap:14}}>
-        <button onClick={() => { if (typeof window !== 'undefined' && window.history.length > 1) router.back(); else router.push('/browse') }} aria-label="Go back" className="back-btn" style={{width:38, height:38, border:'1.5px solid #E0E0E0', borderRadius:10, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:'#1A1A1A', flexShrink:0, cursor:'pointer', transition:'all 0.14s'}}>←</button>
+        <button
+          onClick={() => {
+            // After a cancelled Stripe Checkout, history.back() would bounce the
+            // buyer straight back to Stripe — send them to Browse instead.
+            if (cancelled) { router.push('/browse'); return }
+            if (typeof window !== 'undefined' && window.history.length > 1) router.back()
+            else router.push('/browse')
+          }}
+          aria-label="Go back"
+          className="back-btn"
+          style={{width:38, height:38, border:'1.5px solid #E0E0E0', borderRadius:10, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:'#1A1A1A', flexShrink:0, cursor:'pointer', transition:'all 0.14s'}}
+        >←</button>
         <Link href="/" style={{flexShrink:0}}><Logo height={34}/></Link>
         {listing && <span className="crumb-name" style={{fontSize:14, color:'#1A1A1A', fontWeight:500, marginLeft:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>· {listing.name}</span>}
+        <div style={{marginLeft:'auto', flexShrink:0}}><CartButton /></div>
       </div>
     </nav>
   )
@@ -358,7 +344,6 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const deliveryFee: number | null = deliveryType === 'delivery'
     ? (quote.status === 'ok' || quote.status === 'flat' ? quote.fee : null)
     : 0
-  const canOrder = deliveryType === 'collection' || deliveryFee !== null
   // Loyalty redemption: whole-pound discount, capped by balance and subtotal.
   const redeemablePounds = maxRedeemablePounds(pointsBalance, totalAmount)
   const canRedeem = redeemablePounds >= 1
@@ -383,8 +368,6 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const orderPanel = (
     <div style={{background:'#fff', borderRadius:20, padding:'24px', boxShadow:'0 4px 28px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.1)'}}>
       <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', marginBottom:20}}>Place your order</h2>
-
-      {error && <div style={{background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#C8006A', fontWeight:600}}>{error}</div>}
 
       {/* Quantity */}
       <div style={{marginBottom:18}}>
@@ -506,19 +489,10 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       )}
 
       {/* CTA */}
-      {user ? (
-        <button onClick={handleOrder} disabled={ordering || !canOrder} className="order-btn"
-          style={{width:'100%', height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:(ordering || !canOrder) ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', opacity:(ordering || !canOrder) ? 0.55 : 1}}>
-          {redirecting ? 'Redirecting to payment...' : ordering ? 'Placing order...' : !canOrder ? 'Enter a deliverable postcode' : `Order for £${grandTotal.toFixed(2)} →`}
-        </button>
-      ) : (
-        <div>
-          <Link href="/login" className="order-btn" style={{display:'flex', alignItems:'center', justifyContent:'center', width:'100%', height:52, background:'#C8006A', color:'#fff', borderRadius:12, fontSize:16, fontWeight:700, boxShadow:'0 6px 20px rgba(200,0,106,0.3)', marginBottom:10}}>
-            Sign in to order →
-          </Link>
-          <p style={{textAlign:'center', fontSize:12, color:'#1A1A1A'}}>Don&apos;t have an account? <Link href="/register" style={{color:'#C8006A', fontWeight:600}}>Register free</Link></p>
-        </div>
-      )}
+      <button onClick={addToCart} className="order-btn"
+        style={{width:'100%', height:52, background:added ? '#2DA84E' : '#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:'pointer', boxShadow:added ? '0 6px 20px rgba(45,168,78,0.3)' : '0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.16s'}}>
+        {added ? 'Added to cart ✓' : `Add to cart · £${totalAmount.toFixed(2)}`}
+      </button>
 
       <p style={{textAlign:'center', fontSize:11, color:'#1A1A1A', marginTop:12, lineHeight:1.5}}>🔒 Secured by Stripe · Buyer protection on every order</p>
     </div>
@@ -689,15 +663,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
               <div style={{fontSize:11, color:'#1A1A1A', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em'}}>Total</div>
               <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', lineHeight:1}}>£{grandTotal.toFixed(2)}</div>
             </div>
-            {user ? (
-              <button onClick={handleOrder} disabled={ordering || !canOrder} className="order-btn" style={{flex:1, height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:(ordering || !canOrder) ? 'not-allowed' : 'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.3)', opacity:(ordering || !canOrder) ? 0.55 : 1}}>
-                {redirecting ? 'Redirecting...' : ordering ? 'Placing...' : !canOrder ? 'Enter postcode' : 'Order now →'}
-              </button>
-            ) : (
-              <Link href="/login" className="order-btn" style={{flex:1, height:50, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', color:'#fff', borderRadius:12, fontSize:15, fontWeight:700, boxShadow:'0 6px 18px rgba(200,0,106,0.3)'}}>
-                Sign in to order →
-              </Link>
-            )}
+            <button onClick={addToCart} className="order-btn" style={{flex:1, height:50, background:added ? '#2DA84E' : '#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:added ? '0 6px 18px rgba(45,168,78,0.3)' : '0 6px 18px rgba(200,0,106,0.3)', transition:'background 0.16s'}}>
+              {added ? 'Added ✓' : 'Add to cart →'}
+            </button>
           </>
         )}
       </div>

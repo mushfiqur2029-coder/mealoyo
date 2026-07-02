@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import Logo from '@/components/Logo'
 import HeroVideoBg from '@/components/HeroVideoBg'
+import CartButton from '@/components/CartButton'
+import AddToCartButton from '@/components/AddToCartButton'
 import type { Listing, Review } from '@/lib/types'
 
 function dashboardPath(role: string | null) {
@@ -352,6 +354,7 @@ export default function Home() {
             ))}
           </div>
           <div className="nav-desktop-cta" style={{display:'flex', gap:8, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
+            {role !== 'seller' && role !== 'driver' && role !== 'admin' && <CartButton />}
             {user ? (
               <>
                 <Link href={dashboardPath(role)} className="nav-cta" style={{height:36, padding:'0 16px', display:'flex', alignItems:'center', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', whiteSpace:'nowrap', boxShadow:'0 4px 12px rgba(200,0,106,0.35)', transition:'background 0.12s'}}>My dashboard</Link>
@@ -631,7 +634,7 @@ export default function Home() {
                           <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em'}}>£{parseFloat(l.price).toFixed(2)}</div>
                           <div style={{fontSize:11, color:'#1A1A1A', marginTop:1, fontWeight:600}}><span style={{color:'#C8006A'}}>★</span> {l.rating || '—'} <span style={{fontWeight:400}}>({l.reviews_count || 0} reviews)</span></div>
                         </div>
-                        <span className="order-btn" style={{height:34, padding:'0 16px', background:'#C8006A', color:'#fff', border:'none', borderRadius:9, fontSize:13, fontWeight:700, display:'flex', alignItems:'center', boxShadow:'0 4px 12px rgba(200,0,106,0.3)', transition:'all 0.12s'}}>Order now</span>
+                        <AddToCartButton l={l} />
                       </div>
                     </div>
                   </Link>
