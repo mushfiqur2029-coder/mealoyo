@@ -25,20 +25,20 @@ const dark = `
   a { text-decoration: none; color: inherit; }
   button { font-family: Inter, system-ui, sans-serif; }
   /* Map-inspired grid backdrop over near-black. */
-  .map-bg { background-color: #0A0A0B; background-image:
+  .map-bg { background-color: var(--bg-page); background-image:
     linear-gradient(rgba(200,0,106,0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(200,0,106,0.05) 1px, transparent 1px),
     radial-gradient(circle at 78% 8%, rgba(200,0,106,0.16), transparent 42%);
     background-size: 44px 44px, 44px 44px, 100% 100%; }
-  .skelD { background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
+  .skelD { background: linear-gradient(90deg, var(--bg-card) 0%, var(--border-subtle) 50%, var(--bg-card) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
   .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
-  .nav-link:hover { color: #fff !important; }
+  .nav-link:hover { color: var(--text-primary) !important; }
   .stat-card { transition: transform 0.18s, border-color 0.18s; }
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
   .job:hover { border-color: rgba(200,0,106,0.5) !important; background: rgba(200,0,106,0.07) !important; transform: translateY(-2px); }
   .accept:hover { background: #2DA84E !important; transform: translateY(-1px); }
   .prim:hover { background: #A00055 !important; }
-  .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
+  .signout:hover { background: rgba(200,0,106,0.15) !important; color: var(--text-primary) !important; border-color: rgba(200,0,106,0.4) !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } .two-col { grid-template-columns: 1fr !important; } .col-right { position: static !important; } }
   /* Stats: horizontal scroll strip on mobile, grid on desktop. */
   @media (max-width: 640px) {
@@ -89,8 +89,8 @@ export default function DriverDashboard() {
 
   // Compact toggle used in the nav; the prominent hero pill shares the same state.
   const toggle = (
-    <button onClick={() => setOnline(o => !o)} aria-label="Toggle availability" style={{display:'flex', alignItems:'center', gap:9, height:36, padding:'0 6px 0 12px', borderRadius:100, border:`1px solid ${online ? 'rgba(52,211,153,0.4)' : 'rgba(255,255,255,0.14)'}`, background:online ? 'rgba(52,211,153,0.12)' : 'rgba(255,255,255,0.04)', cursor:'pointer', transition:'all 0.2s'}}>
-      <span style={{fontSize:12, fontWeight:700, color:online ? '#34D399' : 'rgba(255,255,255,0.5)'}}>{online ? 'Online' : 'Offline'}</span>
+    <button onClick={() => setOnline(o => !o)} aria-label="Toggle availability" style={{display:'flex', alignItems:'center', gap:9, height:36, padding:'0 6px 0 12px', borderRadius:100, border:`1px solid ${online ? 'rgba(52,211,153,0.4)' : 'var(--border-subtle)'}`, background:online ? 'rgba(52,211,153,0.12)' : 'var(--bg-card)', cursor:'pointer', transition:'all 0.2s'}}>
+      <span style={{fontSize:12, fontWeight:700, color:online ? '#34D399' : 'var(--text-secondary)'}}>{online ? 'Online' : 'Offline'}</span>
       <span style={{position:'relative', width:38, height:22, borderRadius:100, background:online ? '#2DA84E' : 'rgba(255,255,255,0.18)', transition:'background 0.2s', flexShrink:0}}>
         <span style={{position:'absolute', top:2, left:2, width:18, height:18, borderRadius:'50%', background:'#fff', transform:online ? 'translateX(16px)' : 'translateX(0)', transition:'transform 0.2s cubic-bezier(0.34,1.4,0.64,1)', animation:online ? 'pulseG 2s ease-out infinite' : 'none'}}/>
       </span>
@@ -98,19 +98,19 @@ export default function DriverDashboard() {
   )
 
   const nav = (
-    <nav style={{background:'rgba(10,10,11,0.85)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid rgba(255,255,255,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid var(--border-subtle)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
-        <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={30} white/></Link>
+        <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={30} themed/></Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map((t, i) => {
             const active = t.h === '/driver/dashboard'
-            return <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#fff' : 'rgba(255,255,255,0.5)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+            return <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           {toggle}
           <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || 'D'}/>
-          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.7)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.7)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>
     </nav>
@@ -134,11 +134,11 @@ export default function DriverDashboard() {
   if (profile?.status === 'pending') return (
     <div className="map-bg" style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter,system-ui,sans-serif', padding:24}}>
       <style>{dark}</style>
-      <div className="fade-up" style={{background:'rgba(255,255,255,0.05)', borderRadius:24, padding:'48px 36px', maxWidth:480, width:'100%', textAlign:'center', border:'1px solid rgba(200,0,106,0.25)'}}>
+      <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:24, padding:'48px 36px', maxWidth:480, width:'100%', textAlign:'center', border:'1px solid rgba(200,0,106,0.25)'}}>
         <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,rgba(200,0,106,0.25),rgba(200,0,106,0.08))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, margin:'0 auto 18px'}}>⏳</div>
-        <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#fff', marginBottom:10}}>Awaiting approval</h2>
-        <p style={{fontSize:14, color:'rgba(255,255,255,0.6)', lineHeight:1.7, marginBottom:24}}>Your driver account is under review. We&apos;ll notify you within <strong style={{color:'#C8006A'}}>24–48 hours</strong>.</p>
-        <button onClick={signOut} className="prim" style={{height:46, padding:'0 26px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Sign out</button>
+        <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Awaiting approval</h2>
+        <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.7, marginBottom:24}}>Your driver account is under review. We&apos;ll notify you within <strong style={{color:'#C8006A'}}>24–48 hours</strong>.</p>
+        <button onClick={signOut} className="prim" style={{height:46, padding:'0 26px', background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Sign out</button>
       </div>
     </div>
   )
@@ -157,10 +157,10 @@ export default function DriverDashboard() {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
   const stats = [
-    { icon:'📦', value:String(todayOrders.length), label:'Drops today', color:'#fff' },
-    { icon:'🗓️', value:String(weekOrders.length), label:'This week', color:'#fff' },
-    { icon:'🚴', value:String(orders.length), label:'Total drops', color:'#fff' },
-    { icon:'🟢', value:online ? 'Online' : 'Offline', label:'Status', color:online ? '#34D399' : 'rgba(255,255,255,0.6)' },
+    { icon:'📦', value:String(todayOrders.length), label:'Drops today', color:'var(--text-primary)' },
+    { icon:'🗓️', value:String(weekOrders.length), label:'This week', color:'var(--text-primary)' },
+    { icon:'🚴', value:String(orders.length), label:'Total drops', color:'var(--text-primary)' },
+    { icon:'🟢', value:online ? 'Online' : 'Offline', label:'Status', color:online ? '#34D399' : 'var(--text-secondary)' },
   ]
 
   const heroFigs = [
@@ -177,13 +177,13 @@ export default function DriverDashboard() {
         {/* Greeting + prominent online pill */}
         <div className="fade-up" style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, flexWrap:'wrap', marginBottom:22}}>
           <div>
-            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 🚴</h1>
-            <p style={{fontSize:14, color:'rgba(255,255,255,0.6)'}}>{online ? "You're online — jobs near you will surface below." : "You're offline. Go online to start receiving jobs."}</p>
+            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 🚴</h1>
+            <p style={{fontSize:14, color:'var(--text-secondary)'}}>{online ? "You're online — jobs near you will surface below." : "You're offline. Go online to start receiving jobs."}</p>
           </div>
-          <button onClick={() => setOnline(o => !o)} style={{display:'flex', alignItems:'center', gap:12, height:52, padding:'0 10px 0 20px', borderRadius:100, border:`1.5px solid ${online ? 'rgba(52,211,153,0.5)' : 'rgba(255,255,255,0.16)'}`, background:online ? 'rgba(52,211,153,0.14)' : 'rgba(255,255,255,0.05)', cursor:'pointer', transition:'all 0.2s'}}>
+          <button onClick={() => setOnline(o => !o)} style={{display:'flex', alignItems:'center', gap:12, height:52, padding:'0 10px 0 20px', borderRadius:100, border:`1.5px solid ${online ? 'rgba(52,211,153,0.5)' : 'rgba(255,255,255,0.16)'}`, background:online ? 'rgba(52,211,153,0.14)' : 'var(--bg-card)', cursor:'pointer', transition:'all 0.2s'}}>
             <span style={{display:'flex', flexDirection:'column', alignItems:'flex-start', lineHeight:1.15}}>
-              <span style={{fontSize:9.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'rgba(255,255,255,0.5)'}}>You are</span>
-              <span style={{fontSize:16, fontWeight:800, color:online ? '#34D399' : 'rgba(255,255,255,0.65)'}}>{online ? 'Online' : 'Offline'}</span>
+              <span style={{fontSize:9.5, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--text-secondary)'}}>You are</span>
+              <span style={{fontSize:16, fontWeight:800, color:online ? '#34D399' : 'var(--text-secondary)'}}>{online ? 'Online' : 'Offline'}</span>
             </span>
             <span style={{position:'relative', width:52, height:30, borderRadius:100, background:online ? '#2DA84E' : 'rgba(255,255,255,0.18)', transition:'background 0.2s', flexShrink:0}}>
               <span style={{position:'absolute', top:3, left:3, width:24, height:24, borderRadius:'50%', background:'#fff', transform:online ? 'translateX(22px)' : 'translateX(0)', transition:'transform 0.22s cubic-bezier(0.34,1.4,0.64,1)', animation:online ? 'pulseG 2s ease-out infinite' : 'none'}}/>
@@ -212,10 +212,10 @@ export default function DriverDashboard() {
         {/* Stats strip */}
         <div className="dstats fade-up" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24}}>
           {stats.map((s, i) => (
-            <div key={i} className="stat-card" style={{background:'rgba(255,255,255,0.05)', borderRadius:16, padding:'18px', border:'1px solid rgba(255,255,255,0.08)'}}>
+            <div key={i} className="stat-card" style={{background:'var(--bg-card)', borderRadius:16, padding:'18px', border:'1px solid var(--border-subtle)'}}>
               <div style={{fontSize:19, marginBottom:9}}>{s.icon}</div>
               <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,25px)', fontWeight:700, color:s.color, letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
-              <div style={{fontSize:11, color:'rgba(255,255,255,0.5)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:6}}>{s.label}</div>
+              <div style={{fontSize:11, color:'var(--text-secondary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:6}}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -223,11 +223,11 @@ export default function DriverDashboard() {
         <div className="two-col" style={{display:'grid', gridTemplateColumns:'minmax(0,1.6fr) minmax(0,340px)', gap:20, alignItems:'start'}}>
 
           {/* Available jobs */}
-          <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
-            <div style={{padding:'18px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#fff'}}>Available jobs near you</h2>
+          <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
+            <div style={{padding:'18px 20px', borderBottom:'1px solid var(--bg-secondary)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Available jobs near you</h2>
               {online && (
-                <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:32, padding:'0 14px', background:'rgba(200,0,106,0.16)', color:'#fff', border:'1px solid rgba(200,0,106,0.35)', borderRadius:8, fontSize:12, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.14s'}}>
+                <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:32, padding:'0 14px', background:'rgba(200,0,106,0.16)', color:'var(--text-primary)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:8, fontSize:12, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.14s'}}>
                   <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Refreshing…' : 'Refresh'}
                 </button>
               )}
@@ -235,7 +235,7 @@ export default function DriverDashboard() {
             {!online ? (
               <div style={{padding:'48px 24px', textAlign:'center'}}>
                 <div style={{fontSize:40, marginBottom:12}}>🌙</div>
-                <p style={{fontSize:14, color:'rgba(255,255,255,0.6)', lineHeight:1.6}}>You&apos;re offline. Flip the switch to go online and see jobs.</p>
+                <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6}}>You&apos;re offline. Flip the switch to go online and see jobs.</p>
               </div>
             ) : (
               <div style={{padding:'40px 24px 44px', textAlign:'center'}}>
@@ -245,8 +245,8 @@ export default function DriverDashboard() {
                   <div style={{flex:'0 0 70px', height:2, borderTop:'2px dashed rgba(255,255,255,0.25)'}}/>
                   <div style={{width:44, height:44, borderRadius:12, background:'rgba(52,211,153,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20}}>🏠</div>
                 </div>
-                <h3 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#fff', marginBottom:8}}>No jobs available right now</h3>
-                <p style={{fontSize:14, color:'rgba(255,255,255,0.6)', lineHeight:1.6, maxWidth:360, margin:'0 auto 18px'}}>You&apos;re online and ready. New delivery jobs — with distance, estimated pay and pickup/drop-off — will appear here the moment nearby buyers order.</p>
+                <h3 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No jobs available right now</h3>
+                <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, maxWidth:360, margin:'0 auto 18px'}}>You&apos;re online and ready. New delivery jobs — with distance, estimated pay and pickup/drop-off — will appear here the moment nearby buyers order.</p>
                 <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:44, padding:'0 22px', background:'rgba(52,211,153,0.18)', color:'#34D399', border:'1px solid rgba(52,211,153,0.35)', borderRadius:10, fontSize:14, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'inline-flex', alignItems:'center', gap:8, transition:'all 0.14s'}}>
                   <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Checking…' : 'Check for jobs'}
                 </button>
@@ -256,17 +256,17 @@ export default function DriverDashboard() {
 
           {/* Quick links (sticky) */}
           <div className="col-right fade-up" style={{position:'sticky', top:84, display:'flex', flexDirection:'column', gap:16, minWidth:0}}>
-            <div style={{background:'rgba(255,255,255,0.04)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
+            <div style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
               {[
                 { l:'My earnings', s:'Payouts & balance', i:'💷', h:'/driver/earnings' },
                 { l:'Delivery history', s:'Past drops', i:'🗂️', h:'/driver/history' },
                 { l:'Profile & bank', s:'Details & payout account', i:'⚙️', h:'/driver/profile' },
               ].map((a, i, arr) => (
-                <Link key={i} href={a.h} className="job" style={{display:'flex', alignItems:'center', gap:13, padding:'14px 18px', borderBottom:i < arr.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', transition:'all 0.14s'}}>
+                <Link key={i} href={a.h} className="job" style={{display:'flex', alignItems:'center', gap:13, padding:'14px 18px', borderBottom:i < arr.length - 1 ? '1px solid var(--bg-secondary)' : 'none', transition:'all 0.14s'}}>
                   <div style={{width:38, height:38, borderRadius:10, background:'rgba(200,0,106,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, flexShrink:0}}>{a.i}</div>
                   <div style={{flex:1, minWidth:0}}>
-                    <div style={{fontSize:14, fontWeight:700, color:'#fff'}}>{a.l}</div>
-                    <div style={{fontSize:12, color:'rgba(255,255,255,0.5)', marginTop:1}}>{a.s}</div>
+                    <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)'}}>{a.l}</div>
+                    <div style={{fontSize:12, color:'var(--text-secondary)', marginTop:1}}>{a.s}</div>
                   </div>
                   <span style={{fontSize:16, color:'#C8006A', flexShrink:0}}>→</span>
                 </Link>

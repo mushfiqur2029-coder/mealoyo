@@ -77,20 +77,20 @@ export default function BuyerSaved() {
   )
 
   const nav = (
-    <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={34}/></Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map((t, i) => {
             const active = t.h === '/buyer/saved'
             return (
-              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : '#1A1A1A', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : 'var(--text-primary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
             )
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff'}}>{profile?.full_name?.[0]?.toUpperCase() || 'B'}</div>
-          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
+          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
         </div>
       </div>
     </nav>
@@ -98,7 +98,7 @@ export default function BuyerSaved() {
 
   // ── LOADING SKELETON ──
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
@@ -112,21 +112,21 @@ export default function BuyerSaved() {
   )
 
   return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
 
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{marginBottom:24}}>
-          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:4}}>Saved dishes</h1>
-          <p style={{fontSize:14, color:'#1A1A1A', opacity:0.85}}>{saved.length} {saved.length === 1 ? 'dish' : 'dishes'} saved for later</p>
+          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>Saved dishes</h1>
+          <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>{saved.length} {saved.length === 1 ? 'dish' : 'dishes'} saved for later</p>
         </div>
 
         {saved.length === 0 ? (
-          <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+          <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
             <div style={{fontSize:48, marginBottom:16}}>🤍</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:8}}>No saved dishes yet</h2>
-            <p style={{fontSize:14, color:'#1A1A1A', opacity:0.85, marginBottom:24, lineHeight:1.65}}>Tap the heart on any dish to save it here for later.</p>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No saved dishes yet</h2>
+            <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85, marginBottom:24, lineHeight:1.65}}>Tap the heart on any dish to save it here for later.</p>
             <Link href="/" className="browse-btn" style={{display:'inline-flex', alignItems:'center', height:46, padding:'0 28px', background:'#C8006A', borderRadius:10, fontSize:14, fontWeight:700, color:'#fff', boxShadow:'0 4px 14px rgba(200,0,106,0.3)', transition:'all 0.16s'}}>Browse food →</Link>
           </div>
         ) : (
@@ -135,21 +135,21 @@ export default function BuyerSaved() {
               const l = s.listings
               if (!l) return null
               return (
-                <div key={s.id} className="lcard fade-up" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column'}}>
+                <div key={s.id} className="lcard fade-up" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column'}}>
                   <Link href={`/dish/${l.id}`} style={{display:'block'}}>
-                    <div style={{height:160, display:'flex', alignItems:'center', justifyContent:'center', fontSize:56, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', position:'relative'}}>
+                    <div style={{height:160, display:'flex', alignItems:'center', justifyContent:'center', fontSize:56, background:'linear-gradient(135deg,#FFE8F4 0%,var(--bg-secondary) 100%)', position:'relative'}}>
                       {cuisineEmoji[l.cuisine] || '🍽️'}
                       <button onClick={e => { e.preventDefault(); e.stopPropagation(); unsave(s.id) }} className="unsave-btn" title="Remove from saved" style={{position:'absolute', top:12, right:12, width:36, height:36, borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1.5px solid rgba(200,0,106,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.08)', transition:'transform 0.14s'}}>❤️</button>
-                      {l.featured && <span style={{position:'absolute', top:14, left:14, background:'#fff', color:'#C8006A', fontSize:10, fontWeight:700, padding:'4px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em', boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>★ Featured</span>}
+                      {l.featured && <span style={{position:'absolute', top:14, left:14, background:'var(--bg-card)', color:'#C8006A', fontSize:10, fontWeight:700, padding:'4px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em', boxShadow:'0 2px 8px rgba(0,0,0,0.08)'}}>★ Featured</span>}
                     </div>
                   </Link>
                   <div style={{padding:'15px 16px', display:'flex', flexDirection:'column', flex:1}}>
                     <Link href={`/dish/${l.id}`} style={{display:'block'}}>
-                      <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#1A1A1A', marginBottom:4, lineHeight:1.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
-                      <div style={{fontSize:12.5, color:'#1A1A1A', opacity:0.85, marginBottom:12, fontWeight:500}}>{l.profiles?.full_name || 'Home cook'} <span style={{color:'#C8006A', fontWeight:700}}>· {l.cuisine}</span></div>
+                      <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:4, lineHeight:1.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
+                      <div style={{fontSize:12.5, color:'var(--text-primary)', opacity:0.85, marginBottom:12, fontWeight:500}}>{l.profiles?.full_name || 'Home cook'} <span style={{color:'#C8006A', fontWeight:700}}>· {l.cuisine}</span></div>
                     </Link>
-                    <div style={{marginTop:'auto', display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:12, borderTop:'1px solid #F5F0F3'}}>
-                      <div style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em'}}>£{parseFloat(l.price).toFixed(2)}</div>
+                    <div style={{marginTop:'auto', display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:12, borderTop:'1px solid var(--bg-secondary)'}}>
+                      <div style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em'}}>£{parseFloat(l.price).toFixed(2)}</div>
                       <Link href={`/dish/${l.id}`} className="order-btn" style={{height:34, padding:'0 16px', background:'#C8006A', color:'#fff', borderRadius:9, fontSize:12.5, fontWeight:700, display:'flex', alignItems:'center', boxShadow:'0 4px 12px rgba(200,0,106,0.25)', transition:'background 0.14s'}}>Order now →</Link>
                     </div>
                   </div>

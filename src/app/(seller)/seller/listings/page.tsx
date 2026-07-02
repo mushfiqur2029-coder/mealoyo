@@ -111,25 +111,25 @@ export default function SellerListings() {
   )
 
   const nav = (
-    <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={34}/></Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map((t, i) => {
             const active = t.h === '/seller/listings'
             return (
-              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : '#1A1A1A', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : 'var(--text-primary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
             )
           })}
         </div>
-        <button onClick={signOut} className="nav-link" style={{marginLeft:'auto', height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, background:'#fff', fontSize:13, fontWeight:600, color:'#1A1A1A', cursor:'pointer', flexShrink:0}}>Sign out</button>
+        <button onClick={signOut} className="nav-link" style={{marginLeft:'auto', height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, background:'var(--bg-card)', fontSize:13, fontWeight:600, color:'var(--text-primary)', cursor:'pointer', flexShrink:0}}>Sign out</button>
       </div>
     </nav>
   )
 
   // ── LOADING SKELETON ──
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
@@ -137,7 +137,7 @@ export default function SellerListings() {
         <div className="skel" style={{height:34, width:300, borderRadius:100, marginBottom:24}}/>
         <div className="listings-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))', gap:18}}>
           {Array.from({length:6}).map((_, i) => (
-            <div key={i} style={{background:'#fff', borderRadius:20, overflow:'hidden', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div key={i} style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', border:'1.5px solid rgba(200,0,106,0.07)'}}>
               <div className="skel" style={{height:120}}/>
               <div style={{padding:18}}>
                 <div className="skel" style={{height:16, width:'70%', borderRadius:6, marginBottom:10}}/>
@@ -157,14 +157,14 @@ export default function SellerListings() {
 
   // ── PENDING APPROVAL ──
   if (profile?.status === 'pending') return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
       <div style={{maxWidth:480, margin:'0 auto', padding:'56px 20px'}}>
-        <div className="fade-up" style={{background:'#fff', borderRadius:24, padding:'48px 36px', textAlign:'center', boxShadow:'0 4px 24px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
-          <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, margin:'0 auto 18px'}}>⏳</div>
-          <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Awaiting approval</h2>
-          <p style={{fontSize:14, color:'#1A1A1A', lineHeight:1.7, marginBottom:24}}>Your seller account is being reviewed. You&apos;ll be able to add and manage listings within 24–48 hours.</p>
+        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:24, padding:'48px 36px', textAlign:'center', boxShadow:'0 4px 24px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
+          <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, margin:'0 auto 18px'}}>⏳</div>
+          <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Awaiting approval</h2>
+          <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.7, marginBottom:24}}>Your seller account is being reviewed. You&apos;ll be able to add and manage listings within 24–48 hours.</p>
           <button onClick={signOut} className="add-btn" style={{height:46, padding:'0 24px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer'}}>Sign out</button>
         </div>
       </div>
@@ -172,7 +172,7 @@ export default function SellerListings() {
   )
 
   return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
 
@@ -182,10 +182,10 @@ export default function SellerListings() {
         <div className="fade-up" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:16, flexWrap:'wrap', marginBottom:20}}>
           <div>
             <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>Seller workspace</div>
-            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,32px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:12}}>My listings</h1>
+            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,32px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:12}}>My listings</h1>
             <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
               {[
-                { l:'Total', v:counts.all, c:'#1A1A1A', bg:'#F0E4EC' },
+                { l:'Total', v:counts.all, c:'var(--text-primary)', bg:'var(--border-subtle)' },
                 { l:'Live', v:counts.live, c:'#2DA84E', bg:'#E4F6EA' },
                 { l:'Pending', v:counts.pending, c:'#B8730A', bg:'#FFF4E0' },
               ].map((s, i) => (
@@ -207,9 +207,9 @@ export default function SellerListings() {
             {FILTERS.map(f => {
               const on = filter === f
               return (
-                <button key={f} onClick={() => setFilter(f)} className="filter-pill" style={{flexShrink:0, display:'flex', alignItems:'center', gap:7, height:40, padding:'0 16px', borderRadius:100, border:on ? '2px solid #C8006A' : '1.5px solid #E0E0E0', background:on ? '#FFE8F4' : '#fff', color:on ? '#C8006A' : '#1A1A1A', fontSize:13, fontWeight:700, cursor:'pointer', textTransform:'capitalize'}}>
+                <button key={f} onClick={() => setFilter(f)} className="filter-pill" style={{flexShrink:0, display:'flex', alignItems:'center', gap:7, height:40, padding:'0 16px', borderRadius:100, border:on ? '2px solid #C8006A' : '1.5px solid var(--border-subtle)', background:on ? '#FFE8F4' : 'var(--bg-card)', color:on ? '#C8006A' : 'var(--text-primary)', fontSize:13, fontWeight:700, cursor:'pointer', textTransform:'capitalize'}}>
                   {f}
-                  <span style={{display:'inline-flex', alignItems:'center', justifyContent:'center', minWidth:20, height:20, padding:'0 6px', borderRadius:100, background:on ? '#C8006A' : '#F0E4EC', color:on ? '#fff' : '#1A1A1A', fontSize:11, fontWeight:700}}>{counts[f as keyof typeof counts]}</span>
+                  <span style={{display:'inline-flex', alignItems:'center', justifyContent:'center', minWidth:20, height:20, padding:'0 6px', borderRadius:100, background:on ? '#C8006A' : 'var(--border-subtle)', color:on ? '#fff' : 'var(--text-primary)', fontSize:11, fontWeight:700}}>{counts[f as keyof typeof counts]}</span>
                 </button>
               )
             })}
@@ -218,17 +218,17 @@ export default function SellerListings() {
 
         {/* Empty state */}
         {listings.length === 0 ? (
-          <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'72px 32px', textAlign:'center', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
-            <div style={{width:96, height:96, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:46, margin:'0 auto 22px'}}>🍽️</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>No dishes yet</h2>
-            <p style={{fontSize:14, color:'#1A1A1A', lineHeight:1.65, maxWidth:380, margin:'0 auto 26px'}}>Add your first dish and start earning. Listings go live once our team verifies your account.</p>
+          <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'72px 32px', textAlign:'center', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div style={{width:96, height:96, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:46, margin:'0 auto 22px'}}>🍽️</div>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>No dishes yet</h2>
+            <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.65, maxWidth:380, margin:'0 auto 26px'}}>Add your first dish and start earning. Listings go live once our team verifies your account.</p>
             <Link href="/seller/listings/new" className="add-btn" style={{display:'inline-flex', alignItems:'center', gap:8, height:50, padding:'0 30px', background:'#C8006A', borderRadius:12, fontSize:15, fontWeight:700, color:'#fff', boxShadow:'0 6px 20px rgba(200,0,106,0.3)'}}>Add your first dish →</Link>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'56px 32px', textAlign:'center', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+          <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'56px 32px', textAlign:'center', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
             <div style={{fontSize:40, marginBottom:14}}>🔍</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#1A1A1A', marginBottom:8}}>No {filter} dishes</h2>
-            <p style={{fontSize:14, color:'#1A1A1A'}}>Try a different filter to see more of your listings.</p>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No {filter} dishes</h2>
+            <p style={{fontSize:14, color:'var(--text-primary)'}}>Try a different filter to see more of your listings.</p>
           </div>
         ) : (
           <div className="listings-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))', gap:18}}>
@@ -236,10 +236,10 @@ export default function SellerListings() {
               const allergenCount = l.allergens?.length || 0
               const dietary = [l.halal && '🟢 Halal', l.vegan && '🌿 Vegan', l.vegetarian && '🥦 Veg', l.spicy && '🌶️ Spicy'].filter(Boolean) as string[]
               return (
-                <div key={l.id} className="listing-card fade-up" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column'}}>
+                <div key={l.id} className="listing-card fade-up" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column'}}>
 
                   {/* Photo (falls back to a gradient + cuisine emoji when none) */}
-                  <div style={{height:128, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:58, position:'relative', overflow:'hidden'}}>
+                  <div style={{height:128, background:'linear-gradient(135deg,#FFE8F4 0%,var(--bg-secondary) 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:58, position:'relative', overflow:'hidden'}}>
                     {l.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={l.image_url} alt={l.name} loading="lazy" style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />
@@ -250,20 +250,20 @@ export default function SellerListings() {
 
                   {/* Body */}
                   <div style={{padding:'18px', display:'flex', flexDirection:'column', flex:1}}>
-                    <h3 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', lineHeight:1.25, marginBottom:6}}>{l.name}</h3>
-                    <p className="clamp2" style={{fontSize:13, color:'#1A1A1A', opacity:0.85, lineHeight:1.5, marginBottom:14, minHeight:38}}>{l.description || 'No description provided.'}</p>
+                    <h3 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', lineHeight:1.25, marginBottom:6}}>{l.name}</h3>
+                    <p className="clamp2" style={{fontSize:13, color:'var(--text-primary)', opacity:0.85, lineHeight:1.5, marginBottom:14, minHeight:38}}>{l.description || 'No description provided.'}</p>
 
                     {/* Info row: serves + prep */}
-                    <div style={{display:'flex', gap:14, marginBottom:12, fontSize:12, color:'#1A1A1A', fontWeight:600}}>
+                    <div style={{display:'flex', gap:14, marginBottom:12, fontSize:12, color:'var(--text-primary)', fontWeight:600}}>
                       <span style={{display:'inline-flex', alignItems:'center', gap:5}}>👥 Serves {l.serves || 1}</span>
                       {l.prep_time && <span style={{display:'inline-flex', alignItems:'center', gap:5}}>⏱️ {l.prep_time}</span>}
                     </div>
 
                     {/* Tags row */}
                     <div style={{display:'flex', gap:6, flexWrap:'wrap', marginBottom:14}}>
-                      <span style={{background:'#F8F0F4', color:'#C8006A', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:700}}>{l.cuisine}</span>
+                      <span style={{background:'var(--bg-page)', color:'#C8006A', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:700}}>{l.cuisine}</span>
                       {dietary.slice(0, 2).map((d, i) => (
-                        <span key={i} style={{background:'#F8F0F4', color:'#1A1A1A', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:600}}>{d}</span>
+                        <span key={i} style={{background:'var(--bg-page)', color:'var(--text-primary)', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:600}}>{d}</span>
                       ))}
                       {allergenCount > 0 && (
                         <span style={{background:'#FFF4E0', color:'#B8730A', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:700}}>⚠️ {allergenCount} allergen{allergenCount === 1 ? '' : 's'}</span>
@@ -271,11 +271,11 @@ export default function SellerListings() {
                     </div>
 
                     {/* Footer: price + actions */}
-                    <div style={{marginTop:'auto', paddingTop:14, borderTop:'1px solid #F5F0F3', display:'flex', alignItems:'center', justifyContent:'space-between', gap:10}}>
+                    <div style={{marginTop:'auto', paddingTop:14, borderTop:'1px solid var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:10}}>
                       <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>£{parseFloat(l.price || '0').toFixed(2)}</div>
                       <div style={{display:'flex', gap:8}}>
-                        <Link href={`/seller/listings/${l.id}/edit`} className="edit-btn" style={{height:40, padding:'0 16px', display:'inline-flex', alignItems:'center', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', transition:'all 0.14s'}}>Edit</Link>
-                        <button onClick={() => deleteListing(l.id)} className="del-btn" style={{height:40, padding:'0 16px', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:13, fontWeight:700, color:'#C0392B', background:'#fff', cursor:'pointer', transition:'all 0.14s'}}>Delete</button>
+                        <Link href={`/seller/listings/${l.id}/edit`} className="edit-btn" style={{height:40, padding:'0 16px', display:'inline-flex', alignItems:'center', border:'1.5px solid var(--border-subtle)', borderRadius:10, fontSize:13, fontWeight:700, color:'var(--text-primary)', background:'var(--bg-card)', transition:'all 0.14s'}}>Edit</Link>
+                        <button onClick={() => deleteListing(l.id)} className="del-btn" style={{height:40, padding:'0 16px', border:'1.5px solid var(--border-subtle)', borderRadius:10, fontSize:13, fontWeight:700, color:'#C0392B', background:'var(--bg-card)', cursor:'pointer', transition:'all 0.14s'}}>Delete</button>
                       </div>
                     </div>
                   </div>
