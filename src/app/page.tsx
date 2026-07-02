@@ -265,31 +265,28 @@ export default function Home() {
         .review-card:hover { transform: translateY(-4px) !important; }
         .dmode:hover { border-color: #C8006A !important; background: #FFF5FA !important; }
         .ot-card:hover { border-color: #C8006A !important; transform: translateY(-4px) !important; box-shadow: 0 14px 36px rgba(200,0,106,0.14) !important; }
-        .scroll-arrow:hover { background: #C8006A !important; color: #fff !important; border-color: #C8006A !important; }
+        .scroll-arrow:hover { border-color: #C8006A !important; color: #C8006A !important; }
         .order-btn, .save-btn, .primary-btn, .nav-cta, .cat-pill, .scroll-arrow { transition: all 0.18s cubic-bezier(0.34,1.2,0.64,1); }
 
-        /* Cuisine icon-card selector (Deliveroo/DoorDash-style) — desktop 769px+ */
-        .cuisine-scroll { display: flex; flex-wrap: nowrap; gap: 12px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding: 8px 4px; scroll-behavior: smooth; }
-        .cuisine-card { flex-shrink: 0; width: 80px; height: 72px; min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border-radius: 18px; cursor: pointer; border: 1.5px solid rgba(200,0,106,0.12); background: linear-gradient(160deg,#FFFFFF 0%,#FFF4FA 100%); transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease; -webkit-tap-highlight-color: transparent; }
-        .cuisine-card .ce { font-size: 32px; line-height: 1; transition: filter 0.2s ease; }
-        .cuisine-card .cl { font-size: 12px; font-weight: 700; color: #1A1A1A; text-align: center; line-height: 1.12; letter-spacing: -0.02em; padding: 0 3px; transition: color 0.2s ease; }
-        .cuisine-card:hover { box-shadow: 0 12px 28px rgba(200,0,106,0.18); border-color: #C8006A; }
-        .cuisine-card.on { background: linear-gradient(150deg,#C8006A 0%,#A00055 100%); border-color: #C8006A; transform: scale(1.05); box-shadow: 0 12px 30px rgba(200,0,106,0.34); }
+        /* Cuisine selector — clean, minimal, no decorative shadows anywhere */
+        .cuisine-scroll { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding: 4px 2px; scroll-behavior: smooth; }
+        .cuisine-card { flex-shrink: 0; width: 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 16px; cursor: pointer; border: 1.5px solid #F0E8F4; background: #fff; transition: all 0.15s ease; -webkit-tap-highlight-color: transparent; }
+        .cuisine-card .ce { font-size: 28px; line-height: 1; }
+        .cuisine-card .cl { font-size: 11px; font-weight: 600; color: #1A1A1A; text-align: center; line-height: 1.15; letter-spacing: -0.01em; }
+        .cuisine-card:hover { border-color: rgba(200,0,106,0.3); background: #FFF5FA; }
+        .cuisine-card.on { background: #C8006A; border-color: transparent; }
         .cuisine-card.on .cl { color: #fff; }
-        .cuisine-card.on .ce { filter: brightness(0) invert(1); }
-        /* Touch press feedback — scales down; overrides .on because it's declared later at equal specificity */
-        .cuisine-card:active { transform: scale(0.95); }
+        .cuisine-card.on:hover { background: #C8006A; filter: brightness(1.08); }
         .count-fade { animation: menuIn 0.3s ease; }
         /* Tablet 481–768px */
         @media (max-width: 768px) {
-          .cuisine-card { width: 72px; height: 64px; gap: 6px; border-radius: 16px; }
-          .cuisine-card .ce { font-size: 28px; }
-          .cuisine-card .cl { font-size: 11px; }
+          .cuisine-card { width: 72px; }
+          .cuisine-card .ce { font-size: 26px; }
         }
         /* Mobile ≤480px — smaller cards, no scroll arrows, single row */
         @media (max-width: 480px) {
-          .cuisine-card { width: 64px; height: 56px; gap: 5px; border-radius: 14px; }
-          .cuisine-card .ce { font-size: 24px; }
+          .cuisine-card { width: 64px; padding: 9px 6px; }
+          .cuisine-card .ce { font-size: 23px; }
           .cuisine-card .cl { font-size: 10px; }
           .cuisine-arrows { display: none !important; }
         }
@@ -521,20 +518,11 @@ export default function Home() {
       {/* ── CATEGORIES ── */}
       <section style={{background:'#fff', borderBottom:'1px solid #F0F0F0', padding:'36px 0'}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
-          <div className="section-header" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:16, gap:12, flexWrap:'wrap'}}>
-            <div>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,2.4vw,28px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', lineHeight:1.1}}>What are you craving?</h2>
-              {/* Live results counter — re-mounts on cuisine change so it fades in fresh */}
-              <div key={cat} className="count-fade" style={{display:'flex', alignItems:'center', gap:8, marginTop:8}}>
-                <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'#FFE8F4', color:'#C8006A', padding:'3px 11px', borderRadius:100, fontSize:12.5, fontWeight:700}}>
-                  {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
-                </span>
-                {cat !== 'all' && <span style={{fontSize:13, fontWeight:600, color:'#8A8A8A'}}>in {cats.find(c => c.id === cat)?.label}</span>}
-              </div>
-            </div>
+          <div className="section-header" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, gap:12, flexWrap:'wrap'}}>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', lineHeight:1.1}}>What are you craving?</h2>
             <div className="cuisine-arrows" style={{display:'flex', gap:8, alignItems:'center'}}>
-              <button className="scroll-arrow" aria-label="Scroll cuisines left" onClick={() => scrollCats(-1)} style={{width:38, height:38, borderRadius:'50%', background:'#fff', border:'1.5px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:18, color:'#1A1A1A', transition:'all 0.14s'}}>‹</button>
-              <button className="scroll-arrow" aria-label="Scroll cuisines right" onClick={() => scrollCats(1)} style={{width:38, height:38, borderRadius:'50%', background:'#fff', border:'1.5px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:18, color:'#1A1A1A', transition:'all 0.14s'}}>›</button>
+              <button className="scroll-arrow" aria-label="Scroll cuisines left" onClick={() => scrollCats(-1)} style={{width:32, height:32, borderRadius:'50%', background:'#fff', border:'1.5px solid #E8E8E8', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, color:'#1A1A1A', transition:'all 0.15s ease'}}>‹</button>
+              <button className="scroll-arrow" aria-label="Scroll cuisines right" onClick={() => scrollCats(1)} style={{width:32, height:32, borderRadius:'50%', background:'#fff', border:'1.5px solid #E8E8E8', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, color:'#1A1A1A', transition:'all 0.15s ease'}}>›</button>
             </div>
           </div>
           <div style={{position:'relative'}}>
@@ -558,7 +546,7 @@ export default function Home() {
           )}
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:12}}>
             <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
-              <div style={{fontSize:15, fontWeight:700, color:'#1A1A1A'}}><span style={{color:'#C8006A'}}>{filtered.length}</span> dishes available</div>
+              <div style={{fontSize:15, fontWeight:700, color:'#1A1A1A'}}><span style={{color:'#C8006A'}}>{filtered.length}</span> {filtered.length === 1 ? 'dish' : 'dishes'} available{cat !== 'all' ? ` in ${cats.find(c => c.id === cat)?.label}` : ''}</div>
               {orderType !== 'all' && (
                 <button type="button" onClick={() => setOrderType('all')} style={{display:'inline-flex', alignItems:'center', gap:8, height:30, padding:'0 6px 0 12px', background:'#FFE8F4', border:'1.5px solid #C8006A', borderRadius:100, fontSize:12.5, fontWeight:700, color:'#C8006A', cursor:'pointer'}}>
                   {orderTypeLabel(orderType)}
