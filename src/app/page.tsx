@@ -350,8 +350,10 @@ export default function Home() {
               <Link key={i} href={t.h} style={{height:66, padding:'0 14px', display:'flex', alignItems:'center', fontSize:14, fontWeight:t.a?700:500, color:t.a?'#C8006A':'#1A1A1A', borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent', whiteSpace:'nowrap'}}>{t.l}</Link>
             ))}
           </div>
-          <div className="nav-desktop-cta" style={{display:'flex', gap:8, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
+          {/* Right action row — cart stays visible on mobile; CTAs collapse into the hamburger */}
+          <div style={{display:'flex', gap:8, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
             {role !== 'seller' && role !== 'driver' && role !== 'admin' && <CartButton />}
+            <div className="nav-desktop-cta" style={{display:'flex', gap:8, alignItems:'center'}}>
             {user ? (
               <>
                 <Link href={dashboardPath(role)} className="nav-cta" style={{height:36, padding:'0 16px', display:'flex', alignItems:'center', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', whiteSpace:'nowrap', boxShadow:'0 4px 12px rgba(200,0,106,0.35)', transition:'background 0.12s'}}>My dashboard</Link>
@@ -363,20 +365,21 @@ export default function Home() {
                 <Link href="/register" className="nav-cta" style={{height:36, padding:'0 16px', display:'flex', alignItems:'center', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', whiteSpace:'nowrap', boxShadow:'0 4px 12px rgba(200,0,106,0.35)', transition:'background 0.12s'}}>Get started</Link>
               </>
             )}
-          </div>
+            </div>
 
-          {/* Hamburger — visible under 768px */}
-          <button
-            className="hamburger"
-            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(o => !o)}
-            style={{marginLeft:'auto', width:42, height:42, borderRadius:10, border:'1.5px solid rgba(200,0,106,0.18)', background:'#fff', cursor:'pointer', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:5, flexShrink:0}}
-          >
+            {/* Hamburger — visible under 768px */}
+            <button
+              className="hamburger"
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen(o => !o)}
+              style={{width:42, height:42, borderRadius:10, border:'1.5px solid rgba(200,0,106,0.18)', background:'#fff', cursor:'pointer', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:5, flexShrink:0}}
+            >
             <span style={{display:'block', width:18, height:2, borderRadius:2, background:'#C8006A', transition:'transform 0.25s, opacity 0.2s', transform:menuOpen?'translateY(7px) rotate(45deg)':'none'}}/>
             <span style={{display:'block', width:18, height:2, borderRadius:2, background:'#C8006A', transition:'opacity 0.15s', opacity:menuOpen?0:1}}/>
             <span style={{display:'block', width:18, height:2, borderRadius:2, background:'#C8006A', transition:'transform 0.25s, opacity 0.2s', transform:menuOpen?'translateY(-7px) rotate(-45deg)':'none'}}/>
-          </button>
+            </button>
+          </div>
         </div>
 
         {/* Mobile menu overlay */}

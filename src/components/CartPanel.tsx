@@ -1,6 +1,7 @@
 'use client'
 /* eslint-disable @next/next/no-img-element -- food photos load directly from Supabase Storage; a plain <img> avoids next/image remotePatterns config */
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/lib/cartStore'
@@ -19,6 +20,14 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
   // Mobile swipe-to-dismiss: while dragging we override the panel transform.
   const [dragY, setDragY] = useState(0)
   const startY = useRef<number | null>(null)
+
+  // Render into document.body via a portal. The panel is `position: fixed`, but
+  // the navs that host <CartButton> use `backdrop-filter`, which establishes a
+  // containing block and would otherwise trap the panel inside the ~66px nav
+  // (breaking the mobile bottom-sheet). Portalling to body keeps `fixed`
+  // relative to the viewport. Gated on mount so SSR and first client render match.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   // Lock the page behind the cart while it's open.
   useEffect(() => {
@@ -121,7 +130,9 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
   const panelStyle: React.CSSProperties =
     dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: 'none' } : {}
 
-  return (
+  if (!mounted) return null
+
+  return createPortal(
     <>
       <style>{`
         .cart-backdrop {
@@ -327,6 +338,7 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
           </>
         )}
       </aside>
-    </>
+    </>,
+    document.body,
   )
 }
