@@ -58,6 +58,8 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState<AdminOrder[]>([])
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [range, setRange] = useState<'all' | 'today' | '7d' | '30d'>('all')
+  const [view, setView] = useState<'table' | 'timeline'>('table')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const router = useRouter()
@@ -134,25 +136,84 @@ export default function AdminOrders() {
     </div>
   )
 
-  const grossSales = orders.filter(o => o.status === 'delivered').reduce((s, o) => s + parseFloat(o.total_amount || '0'), 0)
-  const deliveredCount = orders.filter(o => o.status === 'delivered').length
-  const activeCount = orders.filter(o => ACTIVE_STATUSES.includes(o.status)).length
-  const cancelledCount = orders.filter(o => o.status === 'cancelled').length
+  // Date-range scope drives both the revenue summary and the list below.
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0)
+  const rangeCutoff = range === 'today' ? startOfToday.getTime()
+    : range === '7d' ? Date.now() - 7 * 864e5
+    : range === '30d' ? Date.now() - 30 * 864e5
+    : null
+  const dateScoped = rangeCutoff == null ? orders : orders.filter(o => new Date(o.created_at).getTime() >= rangeCutoff)
 
+  const grossSales = dateScoped.filter(o => o.status === 'delivered').reduce((s, o) => s + parseFloat(o.total_amount || '0'), 0)
+  const deliveredCount = dateScoped.filter(o => o.status === 'delivered').length
+  const activeCount = dateScoped.filter(o => ACTIVE_STATUSES.includes(o.status)).length
+  const cancelledCount = dateScoped.filter(o => o.status === 'cancelled').length
+
+  const rangeLabel = range === 'today' ? 'today' : range === '7d' ? 'last 7 days' : range === '30d' ? 'last 30 days' : 'all time'
   const stats = [
-    { value:String(orders.length), label:'Total orders', color:'#fff' },
+    { value:String(dateScoped.length), label:'Total orders', color:'#fff' },
     { value:`£${grossSales.toFixed(2)}`, label:'Gross sales', color:'#34D399' },
     { value:String(activeCount), label:'In progress', color:'#5B9DF0' },
     { value:String(cancelledCount), label:'Cancelled', color:'#FF8A8A' },
   ]
 
-  const filtered = orders
+  const RANGES: { k: typeof range; l: string }[] = [
+    { k: 'all', l: 'All time' },
+    { k: 'today', l: 'Today' },
+    { k: '7d', l: 'Last 7 days' },
+    { k: '30d', l: 'Last 30 days' },
+  ]
+
+  const filtered = dateScoped
     .filter(o => filter === 'all' || o.status === filter)
     .filter(o => {
       const q = search.trim().toLowerCase()
       if (!q) return true
       return o.id.toLowerCase().includes(q) || o.buyer_name?.toLowerCase().includes(q) || o.seller_name?.toLowerCase().includes(q) || o.listing_name?.toLowerCase().includes(q)
     })
+
+  // Row markup shared by the table and timeline views.
+  const renderRow = (o: AdminOrder, showBorder: boolean) => (
+    <div key={o.id} className="orow" style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 120px 92px', alignItems:'center', gap:14, padding:'15px 22px', borderBottom:showBorder ? '1px solid rgba(255,255,255,0.05)' : 'none', transition:'background 0.12s'}}>
+      <div style={{minWidth:0}}>
+        <div style={{fontSize:14, fontWeight:700, color:'#fff', marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listing_name || 'Order'}</div>
+        <div style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>#{o.id.slice(0, 8).toUpperCase()} · {new Date(o.created_at).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}</div>
+      </div>
+      <div className="ocell" style={{minWidth:0}}>
+        <div style={{fontSize:9, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2}}>Buyer</div>
+        <div style={{fontSize:13, color:'#fff', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.buyer_name || 'Unknown'}</div>
+      </div>
+      <div className="ocell" style={{minWidth:0}}>
+        <div style={{fontSize:9, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2}}>Seller</div>
+        <div style={{fontSize:13, color:'#fff', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.seller_name || 'Unknown'}</div>
+      </div>
+      <div style={{textAlign:'right'}}>
+        <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#fff', marginBottom:4}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
+        <span style={{background:statusBg(o.status), color:statusColor(o.status), padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:700, textTransform:'capitalize', whiteSpace:'nowrap'}}>{o.status.replace('_', ' ')}</span>
+      </div>
+      <div style={{textAlign:'right'}}>
+        {o.status !== 'delivered' && o.status !== 'cancelled' && (
+          <button className="cancel-btn" disabled={busyId === o.id} onClick={() => cancelOrder(o.id)} style={{height:34, padding:'0 14px', background:'rgba(192,57,43,0.85)', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === o.id ? 0.6 : 1}}>Cancel</button>
+        )}
+      </div>
+    </div>
+  )
+
+  // Group filtered orders by calendar day for the timeline view.
+  const dayGroups: { key: string; label: string; items: AdminOrder[]; total: number }[] = []
+  if (view === 'timeline') {
+    const yest = new Date(startOfToday); yest.setDate(startOfToday.getDate() - 1)
+    for (const o of filtered) {
+      const d = new Date(o.created_at)
+      const key = d.toDateString()
+      const label = key === startOfToday.toDateString() ? 'Today' : key === yest.toDateString() ? 'Yesterday'
+        : d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === startOfToday.getFullYear() ? undefined : 'numeric' })
+      const last = dayGroups[dayGroups.length - 1]
+      const amt = o.status === 'delivered' ? parseFloat(o.total_amount || '0') : 0
+      if (last && last.key === key) { last.items.push(o); last.total += amt }
+      else dayGroups.push({ key, label, items: [o], total: amt })
+    }
+  }
 
   return (
     <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -161,7 +222,7 @@ export default function AdminOrders() {
         <div className="fade-up" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:14, marginBottom:22}}>
           <div>
             <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>Orders</h1>
-            <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>{orders.length} {orders.length === 1 ? 'order' : 'orders'} platform-wide · {deliveredCount} delivered.</p>
+            <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>{dateScoped.length} {dateScoped.length === 1 ? 'order' : 'orders'} · {rangeLabel} · {deliveredCount} delivered.</p>
           </div>
           <input className="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍  Search order ID, buyer or seller…" style={{height:42, padding:'0 16px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:10, fontSize:13, color:'#fff', background:'rgba(255,255,255,0.05)', width:320, outline:'none', transition:'border-color 0.14s'}}/>
         </div>
@@ -176,6 +237,23 @@ export default function AdminOrders() {
           ))}
         </div>
 
+        {/* Date range + view toggle */}
+        <div className="fade-up" style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:14}}>
+          <div style={{display:'flex', gap:8, overflowX:'auto', paddingBottom:4, flex:1, minWidth:0}}>
+            {RANGES.map(r => {
+              const on = range === r.k
+              return <button key={r.k} onClick={() => setRange(r.k)} className="pill" style={{flexShrink:0, height:36, padding:'0 15px', borderRadius:100, border:on ? '1.5px solid #C8006A' : '1px solid rgba(255,255,255,0.14)', background:on ? 'rgba(200,0,106,0.15)' : 'rgba(255,255,255,0.04)', color:on ? '#fff' : 'rgba(255,255,255,0.55)', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>{r.l}</button>
+            })}
+          </div>
+          {/* View toggle */}
+          <div style={{display:'flex', flexShrink:0, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:10, padding:3, gap:3}}>
+            {(['table', 'timeline'] as const).map(v => {
+              const on = view === v
+              return <button key={v} onClick={() => setView(v)} style={{height:30, padding:'0 14px', borderRadius:8, border:'none', background:on ? '#C8006A' : 'transparent', color:on ? '#fff' : 'rgba(255,255,255,0.6)', fontSize:12.5, fontWeight:700, cursor:'pointer', textTransform:'capitalize', transition:'all 0.14s'}}>{v}</button>
+            })}
+          </div>
+        </div>
+
         {/* Status pills */}
         <div className="fade-up" style={{display:'flex', gap:8, overflowX:'auto', paddingBottom:4, marginBottom:18}}>
           {FILTERS.map(f => {
@@ -184,35 +262,30 @@ export default function AdminOrders() {
           })}
         </div>
 
-        <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
-          {filtered.length === 0 ? (
-            <div style={{padding:'52px', textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>No orders {search.trim() ? 'match your search' : filter !== 'all' ? `in "${filter.replace('_', ' ')}"` : ''}</div>
-          ) : filtered.map((o, i) => (
-            <div key={o.id} className="orow" style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 120px 92px', alignItems:'center', gap:14, padding:'15px 22px', borderBottom:i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', transition:'background 0.12s'}}>
-              <div style={{minWidth:0}}>
-                <div style={{fontSize:14, fontWeight:700, color:'#fff', marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listing_name || 'Order'}</div>
-                <div style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>#{o.id.slice(0, 8).toUpperCase()} · {new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+        {filtered.length === 0 ? (
+          <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', padding:'52px', textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>No orders {search.trim() ? 'match your search' : filter !== 'all' ? `in "${filter.replace('_', ' ')}"` : 'in this range'}</div>
+        ) : view === 'table' ? (
+          <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
+            {filtered.map((o, i) => renderRow(o, i < filtered.length - 1))}
+          </div>
+        ) : (
+          <div className="fade-up">
+            {dayGroups.map(g => (
+              <div key={g.key} style={{marginBottom:22}}>
+                <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:10}}>
+                  <span style={{width:9, height:9, borderRadius:'50%', background:'#C8006A', flexShrink:0, boxShadow:'0 0 0 3px rgba(200,0,106,0.2)'}}/>
+                  <h2 style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#fff'}}>{g.label}</h2>
+                  <span style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>· {g.items.length} {g.items.length === 1 ? 'order' : 'orders'}</span>
+                  <div style={{flex:1, height:1, background:'rgba(255,255,255,0.08)'}}/>
+                  <span style={{fontFamily:'Georgia,serif', fontSize:13, fontWeight:700, color:'#34D399'}}>£{g.total.toFixed(2)}</span>
+                </div>
+                <div style={{background:'rgba(255,255,255,0.03)', borderRadius:16, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden', marginLeft:19}}>
+                  {g.items.map((o, i) => renderRow(o, i < g.items.length - 1))}
+                </div>
               </div>
-              <div className="ocell" style={{minWidth:0}}>
-                <div style={{fontSize:9, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2}}>Buyer</div>
-                <div style={{fontSize:13, color:'#fff', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.buyer_name || 'Unknown'}</div>
-              </div>
-              <div className="ocell" style={{minWidth:0}}>
-                <div style={{fontSize:9, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em', marginBottom:2}}>Seller</div>
-                <div style={{fontSize:13, color:'#fff', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.seller_name || 'Unknown'}</div>
-              </div>
-              <div style={{textAlign:'right'}}>
-                <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#fff', marginBottom:4}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
-                <span style={{background:statusBg(o.status), color:statusColor(o.status), padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:700, textTransform:'capitalize', whiteSpace:'nowrap'}}>{o.status.replace('_', ' ')}</span>
-              </div>
-              <div style={{textAlign:'right'}}>
-                {o.status !== 'delivered' && o.status !== 'cancelled' && (
-                  <button className="cancel-btn" disabled={busyId === o.id} onClick={() => cancelOrder(o.id)} style={{height:34, padding:'0 14px', background:'rgba(192,57,43,0.85)', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === o.id ? 0.6 : 1}}>Cancel</button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

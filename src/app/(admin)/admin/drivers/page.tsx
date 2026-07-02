@@ -66,8 +66,10 @@ export default function AdminDrivers() {
   const [viewDriver, setViewDriver] = useState<Profile | null>(null)
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('all')
+  const [sort, setSort] = useState<'name' | 'newest' | 'orders'>('name')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [bulkBusy, setBulkBusy] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -98,6 +100,19 @@ export default function AdminDrivers() {
     if (error) { alert('Could not update: ' + error.message); setBusyId(null); return }
     setDrivers(prev => prev.map(d => d.id === id ? { ...d, status } : d))
     setBusyId(null)
+  }
+
+  // Approve every pending driver in one action.
+  const approveAllPending = async () => {
+    const ids = drivers.filter(d => d.status === 'pending').map(d => d.id)
+    if (ids.length === 0) return
+    if (!confirm(`Approve all ${ids.length} pending driver${ids.length === 1 ? '' : 's'}?`)) return
+    setBulkBusy(true)
+    const results = await Promise.all(ids.map(id => supabase.rpc('admin_update_profile_status', { p_id: id, p_status: 'active' })))
+    const failed = results.filter(r => r.error).length
+    setDrivers(prev => prev.map(d => ids.includes(d.id) ? { ...d, status: 'active' } : d))
+    setBulkBusy(false)
+    if (failed) alert(`${failed} could not be approved. Refresh and try again.`)
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/admin/login') }
@@ -153,6 +168,17 @@ export default function AdminDrivers() {
   const filtered = drivers
     .filter(d => tab === 'all' || d.status === tab)
     .filter(d => !search.trim() || d.full_name?.toLowerCase().includes(search.toLowerCase()) || d.email?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (sort === 'newest') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      if (sort === 'orders') return (deliveryCounts[b.id] || 0) - (deliveryCounts[a.id] || 0)
+      return (a.full_name || '').localeCompare(b.full_name || '')
+    })
+
+  const SORTS: { k: typeof sort; l: string }[] = [
+    { k: 'name', l: 'Name' },
+    { k: 'newest', l: 'Newest' },
+    { k: 'orders', l: 'Most drops' },
+  ]
 
   return (
     <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -175,10 +201,25 @@ export default function AdminDrivers() {
           ))}
         </div>
 
-        <div className="fade-up" style={{display:'flex', gap:8, overflowX:'auto', paddingBottom:4, marginBottom:18}}>
-          {TABS.map(t => {
-            const on = tab === t.k
-            return <button key={t.k} onClick={() => setTab(t.k)} className="tab" style={{flexShrink:0, height:36, padding:'0 16px', borderRadius:100, border:on ? '1.5px solid #C8006A' : '1px solid rgba(255,255,255,0.14)', background:on ? 'rgba(200,0,106,0.15)' : 'rgba(255,255,255,0.04)', color:on ? '#fff' : 'rgba(255,255,255,0.55)', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>{t.l} <span style={{opacity:0.6, marginLeft:2}}>{tabCount(t.k)}</span></button>
+        {/* Filter tabs + bulk approve */}
+        <div className="fade-up" style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap', marginBottom:14}}>
+          <div style={{display:'flex', gap:8, overflowX:'auto', paddingBottom:4, flex:1, minWidth:0}}>
+            {TABS.map(t => {
+              const on = tab === t.k
+              return <button key={t.k} onClick={() => setTab(t.k)} className="tab" style={{flexShrink:0, height:36, padding:'0 16px', borderRadius:100, border:on ? '1.5px solid #C8006A' : '1px solid rgba(255,255,255,0.14)', background:on ? 'rgba(200,0,106,0.15)' : 'rgba(255,255,255,0.04)', color:on ? '#fff' : 'rgba(255,255,255,0.55)', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>{t.l} <span style={{opacity:0.6, marginLeft:2}}>{tabCount(t.k)}</span></button>
+            })}
+          </div>
+          {pendingCount > 0 && (
+            <button className="approve" onClick={approveAllPending} disabled={bulkBusy} style={{flexShrink:0, height:36, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:100, fontSize:12.5, fontWeight:700, cursor:bulkBusy ? 'wait' : 'pointer', opacity:bulkBusy ? 0.7 : 1, transition:'background 0.12s'}}>{bulkBusy ? 'Approving…' : `✓ Approve all pending (${pendingCount})`}</button>
+          )}
+        </div>
+
+        {/* Sort */}
+        <div className="fade-up" style={{display:'flex', gap:8, alignItems:'center', marginBottom:18, flexWrap:'wrap'}}>
+          <span style={{fontSize:12, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em'}}>Sort</span>
+          {SORTS.map(s => {
+            const on = sort === s.k
+            return <button key={s.k} onClick={() => setSort(s.k)} className="tab" style={{height:32, padding:'0 13px', borderRadius:100, border:on ? '1.5px solid #C8006A' : '1px solid rgba(255,255,255,0.12)', background:on ? 'rgba(200,0,106,0.15)' : 'transparent', color:on ? '#fff' : 'rgba(255,255,255,0.5)', fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>{s.l}</button>
           })}
         </div>
 
