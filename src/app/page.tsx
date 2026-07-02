@@ -237,7 +237,7 @@ export default function Home() {
   }
 
   return (
-    <div style={{minHeight:'100vh', background:'#fff', fontFamily:'Inter,system-ui,sans-serif', overflowX:'hidden'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif', overflowX:'hidden'}}>
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -263,17 +263,17 @@ export default function Home() {
         .footer-link:hover { color: #fff !important; }
         .hiw-card:hover { transform: translateY(-4px) !important; }
         .review-card:hover { transform: translateY(-4px) !important; }
-        .dmode:hover { border-color: #C8006A !important; background: #FFF5FA !important; }
+        .dmode:hover { border-color: #C8006A !important; background: var(--bg-secondary) !important; }
         .ot-card:hover { border-color: #C8006A !important; transform: translateY(-4px) !important; box-shadow: 0 14px 36px rgba(200,0,106,0.14) !important; }
         .scroll-arrow:hover { border-color: #C8006A !important; color: #C8006A !important; }
         .order-btn, .save-btn, .primary-btn, .nav-cta, .cat-pill, .scroll-arrow { transition: all 0.18s cubic-bezier(0.34,1.2,0.64,1); }
 
         /* Cuisine selector — clean, minimal, no decorative shadows anywhere */
         .cuisine-scroll { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding: 4px 2px; scroll-behavior: smooth; }
-        .cuisine-card { flex-shrink: 0; width: 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 16px; cursor: pointer; border: 1.5px solid #F0E8F4; background: #fff; transition: all 0.15s ease; -webkit-tap-highlight-color: transparent; }
+        .cuisine-card { flex-shrink: 0; width: 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border-radius: 16px; cursor: pointer; border: 1.5px solid var(--border-subtle); background: var(--bg-card); transition: all 0.15s ease; -webkit-tap-highlight-color: transparent; }
         .cuisine-card .ce { font-size: 28px; line-height: 1; }
-        .cuisine-card .cl { font-size: 11px; font-weight: 600; color: #1A1A1A; text-align: center; line-height: 1.15; letter-spacing: -0.01em; }
-        .cuisine-card:hover { border-color: rgba(200,0,106,0.3); background: #FFF5FA; }
+        .cuisine-card .cl { font-size: 11px; font-weight: 600; color: var(--text-primary); text-align: center; line-height: 1.15; letter-spacing: -0.01em; }
+        .cuisine-card:hover { border-color: rgba(200,0,106,0.3); background: var(--bg-secondary); }
         .cuisine-card.on { background: #C8006A; border-color: transparent; }
         .cuisine-card.on .cl { color: #fff; }
         .cuisine-card.on:hover { background: #C8006A; filter: brightness(1.08); }
@@ -340,14 +340,14 @@ export default function Home() {
       `}</style>
 
       {/* ── NAV ── */}
-      <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:500, height:66}}>
+      <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:500, height:66}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px', height:66, display:'flex', alignItems:'center'}}>
           <Link href="/" style={{marginRight:28, flexShrink:0}}>
             <Logo height={38}/>
           </Link>
           <div className="nav-links-wrap" style={{display:'flex', gap:0, flex:1}}>
             {[{l:'Explore food',h:'/browse',a:true},{l:'Sell & cater',h:'/become-a-seller',a:false},{l:'Deliver & earn',h:'/become-a-driver',a:false}].map((t,i) => (
-              <Link key={i} href={t.h} style={{height:66, padding:'0 14px', display:'flex', alignItems:'center', fontSize:14, fontWeight:t.a?700:500, color:t.a?'#C8006A':'#1A1A1A', borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent', whiteSpace:'nowrap'}}>{t.l}</Link>
+              <Link key={i} href={t.h} style={{height:66, padding:'0 14px', display:'flex', alignItems:'center', fontSize:14, fontWeight:t.a?700:500, color:t.a?'#C8006A':'var(--text-primary)', borderBottom:t.a?'2.5px solid #C8006A':'2.5px solid transparent', whiteSpace:'nowrap'}}>{t.l}</Link>
             ))}
           </div>
           {/* Right action row — cart stays visible on mobile; CTAs collapse into the hamburger */}
@@ -361,7 +361,7 @@ export default function Home() {
               </>
             ) : (
               <>
-                <Link href="/login" style={{height:36, padding:'0 14px', display:'flex', alignItems:'center', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', whiteSpace:'nowrap'}}>Sign in</Link>
+                <Link href="/login" style={{height:36, padding:'0 14px', display:'flex', alignItems:'center', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', whiteSpace:'nowrap'}}>Sign in</Link>
                 <Link href="/register" className="nav-cta" style={{height:36, padding:'0 16px', display:'flex', alignItems:'center', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', whiteSpace:'nowrap', boxShadow:'0 4px 12px rgba(200,0,106,0.35)', transition:'background 0.12s'}}>Get started</Link>
               </>
             )}
@@ -373,7 +373,7 @@ export default function Home() {
               aria-label={menuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen(o => !o)}
-              style={{width:42, height:42, borderRadius:10, border:'1.5px solid rgba(200,0,106,0.18)', background:'#fff', cursor:'pointer', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:5, flexShrink:0}}
+              style={{width:42, height:42, borderRadius:10, border:'1.5px solid rgba(200,0,106,0.18)', background:'var(--bg-card)', cursor:'pointer', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:5, flexShrink:0}}
             >
             <span style={{display:'block', width:18, height:2, borderRadius:2, background:'#C8006A', transition:'transform 0.25s, opacity 0.2s', transform:menuOpen?'translateY(7px) rotate(45deg)':'none'}}/>
             <span style={{display:'block', width:18, height:2, borderRadius:2, background:'#C8006A', transition:'opacity 0.15s', opacity:menuOpen?0:1}}/>
@@ -386,10 +386,10 @@ export default function Home() {
         {menuOpen && (
           <>
             <div onClick={() => setMenuOpen(false)} style={{position:'fixed', inset:'66px 0 0', background:'rgba(26,26,26,0.35)', backdropFilter:'blur(2px)', zIndex:498}}/>
-            <div style={{position:'fixed', top:66, left:0, right:0, background:'#fff', borderBottom:'1px solid rgba(200,0,106,0.1)', boxShadow:'0 16px 40px rgba(26,26,26,0.12)', zIndex:499, padding:'14px 20px 22px', animation:'menuIn 0.22s ease'}}>
+            <div style={{position:'fixed', top:66, left:0, right:0, background:'var(--bg-card)', borderBottom:'1px solid rgba(200,0,106,0.1)', boxShadow:'0 16px 40px rgba(26,26,26,0.12)', zIndex:499, padding:'14px 20px 22px', animation:'menuIn 0.22s ease'}}>
               <div style={{display:'flex', flexDirection:'column'}}>
                 {[{l:'Explore food',h:'/browse',a:true},{l:'Sell & cater',h:'/become-a-seller',a:false},{l:'Deliver & earn',h:'/become-a-driver',a:false}].map((t,i) => (
-                  <Link key={i} href={t.h} onClick={() => setMenuOpen(false)} style={{padding:'15px 4px', fontSize:16, fontWeight:t.a?700:600, color:t.a?'#C8006A':'#1A1A1A', borderBottom:'1px solid #F3E6EE', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                  <Link key={i} href={t.h} onClick={() => setMenuOpen(false)} style={{padding:'15px 4px', fontSize:16, fontWeight:t.a?700:600, color:t.a?'#C8006A':'var(--text-primary)', borderBottom:'1px solid #F3E6EE', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                     {t.l}<span style={{color:'#C8006A', fontSize:18}}>›</span>
                   </Link>
                 ))}
@@ -399,7 +399,7 @@ export default function Home() {
                   <Link href={dashboardPath(role)} onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', borderRadius:10, fontSize:15, fontWeight:700, color:'#fff', boxShadow:'0 6px 18px rgba(200,0,106,0.35)'}}>My dashboard</Link>
                 ) : (
                   <>
-                    <Link href="/login" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:15, fontWeight:600, color:'#1A1A1A'}}>Sign in</Link>
+                    <Link href="/login" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid var(--border-subtle)', borderRadius:10, fontSize:15, fontWeight:600, color:'var(--text-primary)'}}>Sign in</Link>
                     <Link href="/register" onClick={() => setMenuOpen(false)} style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', borderRadius:10, fontSize:15, fontWeight:700, color:'#fff', boxShadow:'0 6px 18px rgba(200,0,106,0.35)'}}>Get started</Link>
                   </>
                 )}
@@ -434,11 +434,11 @@ export default function Home() {
             </p>
 
             {/* Search */}
-            <div style={{background:'#fff', borderRadius:16, padding:8, boxShadow:'0 8px 48px rgba(0,0,0,0.28)', marginBottom:locationError?8:28}}>
+            <div style={{background:'var(--bg-card)', borderRadius:16, padding:8, boxShadow:'0 8px 48px rgba(0,0,0,0.28)', marginBottom:locationError?8:28}}>
               <div className="search-row" style={{display:'flex', gap:8}}>
-                <div className="search-field" style={{display:'flex', alignItems:'center', gap:8, flex:1, padding:'0 8px 0 14px', background:'#F8F0F4', borderRadius:10, minWidth:0}}>
+                <div className="search-field" style={{display:'flex', alignItems:'center', gap:8, flex:1, padding:'0 8px 0 14px', background:'var(--bg-page)', borderRadius:10, minWidth:0}}>
                   <span style={{fontSize:18, flexShrink:0}}>📍</span>
-                  <input value={postcode} onChange={e => setPostcode(e.target.value.toUpperCase())} placeholder="Enter your postcode to find home cooks near you" style={{border:'none', outline:'none', fontSize:14, fontWeight:500, color:'#1A1A1A', width:'100%', height:44, background:'transparent', minWidth:0}}/>
+                  <input value={postcode} onChange={e => setPostcode(e.target.value.toUpperCase())} placeholder="Enter your postcode to find home cooks near you" style={{border:'none', outline:'none', fontSize:14, fontWeight:500, color:'var(--text-primary)', width:'100%', height:44, background:'transparent', minWidth:0}}/>
                   <button type="button" onClick={detectLocation} disabled={detectingLocation} title="Use my location" style={{width:34, height:34, borderRadius:8, border:'none', background:detectingLocation?'transparent':'#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', cursor:detectingLocation?'default':'pointer', flexShrink:0, fontSize:16}}>
                     {detectingLocation
                       ? <span style={{width:16, height:16, border:'2.5px solid #FFE8F4', borderTop:'2.5px solid #C8006A', borderRadius:'50%', display:'inline-block', animation:'spin 0.8s linear infinite'}}/>
@@ -481,7 +481,7 @@ export default function Home() {
                         {l.image_url
                           ? <img src={l.image_url} alt={l.name} loading="lazy" style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />
                           : (cuisineEmoji[l.cuisine] || '🍽️')}
-                        {l.featured && <div style={{position:'absolute', top:8, left:8, background:'#fff', color:'#C8006A', fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:100}}>🔥 Featured</div>}
+                        {l.featured && <div style={{position:'absolute', top:8, left:8, background:'var(--bg-card)', color:'#C8006A', fontSize:9, fontWeight:800, padding:'2px 8px', borderRadius:100}}>🔥 Featured</div>}
                       </div>
                       <div style={{padding:'10px 12px 12px'}}>
                         <div style={{fontSize:wide?13:12, fontWeight:700, color:'#fff', marginBottom:1}}>{l.name}</div>
@@ -519,13 +519,13 @@ export default function Home() {
       </div>
 
       {/* ── CATEGORIES ── */}
-      <section style={{background:'#fff', borderBottom:'1px solid #F0F0F0', padding:'36px 0'}}>
+      <section style={{background:'var(--bg-card)', borderBottom:'1px solid #F0F0F0', padding:'36px 0'}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
           <div className="section-header" style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, gap:12, flexWrap:'wrap'}}>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', lineHeight:1.1}}>What are you craving?</h2>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', lineHeight:1.1}}>What are you craving?</h2>
             <div className="cuisine-arrows" style={{display:'flex', gap:8, alignItems:'center'}}>
-              <button className="scroll-arrow" aria-label="Scroll cuisines left" onClick={() => scrollCats(-1)} style={{width:32, height:32, borderRadius:'50%', background:'#fff', border:'1.5px solid #E8E8E8', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, color:'#1A1A1A', transition:'all 0.15s ease'}}>‹</button>
-              <button className="scroll-arrow" aria-label="Scroll cuisines right" onClick={() => scrollCats(1)} style={{width:32, height:32, borderRadius:'50%', background:'#fff', border:'1.5px solid #E8E8E8', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, color:'#1A1A1A', transition:'all 0.15s ease'}}>›</button>
+              <button className="scroll-arrow" aria-label="Scroll cuisines left" onClick={() => scrollCats(-1)} style={{width:32, height:32, borderRadius:'50%', background:'var(--bg-card)', border:'1.5px solid var(--border-subtle)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, color:'var(--text-primary)', transition:'all 0.15s ease'}}>‹</button>
+              <button className="scroll-arrow" aria-label="Scroll cuisines right" onClick={() => scrollCats(1)} style={{width:32, height:32, borderRadius:'50%', background:'var(--bg-card)', border:'1.5px solid var(--border-subtle)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontSize:17, color:'var(--text-primary)', transition:'all 0.15s ease'}}>›</button>
             </div>
           </div>
           <div style={{position:'relative'}}>
@@ -542,14 +542,14 @@ export default function Home() {
       </section>
 
       {/* ── LISTINGS ── */}
-      <section id="listings" style={{padding:'52px 0', background:'#F8F0F4', scrollMarginTop:66}}>
+      <section id="listings" style={{padding:'52px 0', background:'var(--bg-page)', scrollMarginTop:66}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
           {postcode.trim() && (
             <div style={{fontSize:13, fontWeight:600, color:'#C8006A', marginBottom:14}}>📍 Showing food near {postcode.trim()}</div>
           )}
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:12}}>
             <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
-              <div style={{fontSize:15, fontWeight:700, color:'#1A1A1A'}}><span style={{color:'#C8006A'}}>{filtered.length}</span> {filtered.length === 1 ? 'dish' : 'dishes'} available{cat !== 'all' ? ` in ${cats.find(c => c.id === cat)?.label}` : ''}</div>
+              <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)'}}><span style={{color:'#C8006A'}}>{filtered.length}</span> {filtered.length === 1 ? 'dish' : 'dishes'} available{cat !== 'all' ? ` in ${cats.find(c => c.id === cat)?.label}` : ''}</div>
               {orderType !== 'all' && (
                 <button type="button" onClick={() => setOrderType('all')} style={{display:'inline-flex', alignItems:'center', gap:8, height:30, padding:'0 6px 0 12px', background:'#FFE8F4', border:'1.5px solid #C8006A', borderRadius:100, fontSize:12.5, fontWeight:700, color:'#C8006A', cursor:'pointer'}}>
                   {orderTypeLabel(orderType)}
@@ -558,11 +558,11 @@ export default function Home() {
               )}
             </div>
             <div style={{display:'flex', gap:8}}>
-              <div style={{display:'flex', alignItems:'center', gap:6, height:38, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, background:'#fff'}}>
+              <div style={{display:'flex', alignItems:'center', gap:6, height:38, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, background:'var(--bg-card)'}}>
                 <span style={{fontSize:14}}>🔍</span>
-                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search dishes..." style={{border:'none', outline:'none', fontSize:13, fontWeight:600, color:'#1A1A1A', background:'transparent', width:160}}/>
+                <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search dishes..." style={{border:'none', outline:'none', fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'transparent', width:160}}/>
               </div>
-              <select value={sort} onChange={e => setSort(e.target.value)} style={{height:38, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', outline:'none'}}>
+              <select value={sort} onChange={e => setSort(e.target.value)} style={{height:38, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer', outline:'none'}}>
                 <option value="rec">Recommended</option>
                 <option value="price-asc">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
@@ -573,7 +573,7 @@ export default function Home() {
           {loadingListings ? (
             <div className="listings-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:18}}>
               {Array.from({length:8}).map((_,i) => (
-                <div key={i} style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.06)'}}>
+                <div key={i} style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.06)'}}>
                   <div className="skel" style={{height:180}}/>
                   <div style={{padding:'15px 16px'}}>
                     <div className="skel" style={{height:15, borderRadius:6, width:'72%', marginBottom:10}}/>
@@ -582,7 +582,7 @@ export default function Home() {
                       <div className="skel" style={{height:18, borderRadius:20, width:54}}/>
                       <div className="skel" style={{height:18, borderRadius:20, width:46}}/>
                     </div>
-                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', paddingTop:11, borderTop:'1px solid #F5F0F3'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', paddingTop:11, borderTop:'1px solid var(--bg-secondary)'}}>
                       <div className="skel" style={{height:20, borderRadius:6, width:60}}/>
                       <div className="skel" style={{height:34, borderRadius:9, width:96}}/>
                     </div>
@@ -591,18 +591,18 @@ export default function Home() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{background:'#fff', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
+            <div style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
               <div style={{fontSize:48, marginBottom:16}}>🍽️</div>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#1A1A1A', marginBottom:6}}>No dishes found</h2>
-              <p style={{fontSize:14, color:'#1A1A1A'}}>Try a different category or search term.</p>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>No dishes found</h2>
+              <p style={{fontSize:14, color:'var(--text-primary)'}}>Try a different category or search term.</p>
             </div>
           ) : (
             <div className="listings-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:18}}>
               {sorted.map(l => {
                 const tags = [l.halal && 'Halal', l.vegan && 'Vegan', l.vegetarian && 'Vegetarian', l.spicy && 'Spicy'].filter(Boolean) as string[]
                 return (
-                  <Link key={l.id} href={`/dish/${l.id}`} className="lcard" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'block'}}>
-                    <div style={{height:180, display:'flex', alignItems:'center', justifyContent:'center', fontSize:64, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', position:'relative', overflow:'hidden'}}>
+                  <Link key={l.id} href={`/dish/${l.id}`} className="lcard" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'block'}}>
+                    <div style={{height:180, display:'flex', alignItems:'center', justifyContent:'center', fontSize:64, background:'linear-gradient(135deg,#FFE8F4 0%,var(--bg-secondary) 100%)', position:'relative', overflow:'hidden'}}>
                       {cuisineEmoji[l.cuisine] || '🍽️'}
                       {l.image_url && <img src={l.image_url} alt={l.name} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
                       <button className="save-btn" onClick={e => { e.preventDefault(); e.stopPropagation(); toggleSave(l.id) }} style={{position:'absolute', top:12, right:12, width:34, height:34, borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1.5px solid rgba(200,0,106,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.08)', transition:'transform 0.14s'}}>
@@ -610,8 +610,8 @@ export default function Home() {
                       </button>
                     </div>
                     <div style={{padding:'15px 16px'}}>
-                      <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#1A1A1A', marginBottom:4, letterSpacing:'-0.01em', lineHeight:1.3}}>{l.name}</div>
-                      <div style={{fontSize:12, color:'#1A1A1A', marginBottom:10, display:'flex', alignItems:'center', gap:5, fontWeight:500}}>
+                      <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'var(--text-primary)', marginBottom:4, letterSpacing:'-0.01em', lineHeight:1.3}}>{l.name}</div>
+                      <div style={{fontSize:12, color:'var(--text-primary)', marginBottom:10, display:'flex', alignItems:'center', gap:5, fontWeight:500}}>
                         <div style={{width:18, height:18, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:700, color:'#fff', flexShrink:0}}>{l.profiles?.full_name?.[0] || 'C'}</div>
                         {l.profiles?.full_name || 'Home cook'} <span style={{color:'#C8006A', fontWeight:600}}>· {l.cuisine}</span>
                       </div>
@@ -620,10 +620,10 @@ export default function Home() {
                           <span key={t} style={{background:t==='Halal'?'#E4F6EA':t==='Vegan'?'#EBF2FD':'#FFE8F4', color:t==='Halal'?'#2DA84E':t==='Vegan'?'#1A6ECC':'#C8006A', padding:'3px 9px', borderRadius:20, fontSize:11, fontWeight:700}}>{t}</span>
                         ))}
                       </div>
-                      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:11, borderTop:'1px solid #F5F0F3'}}>
+                      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:11, borderTop:'1px solid var(--bg-secondary)'}}>
                         <div>
-                          <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em'}}>£{parseFloat(l.price).toFixed(2)}</div>
-                          <div style={{fontSize:11, color:'#1A1A1A', marginTop:1, fontWeight:600}}><span style={{color:'#C8006A'}}>★</span> {l.rating || '—'} <span style={{fontWeight:400}}>({l.reviews_count || 0} reviews)</span></div>
+                          <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em'}}>£{parseFloat(l.price).toFixed(2)}</div>
+                          <div style={{fontSize:11, color:'var(--text-primary)', marginTop:1, fontWeight:600}}><span style={{color:'#C8006A'}}>★</span> {l.rating || '—'} <span style={{fontWeight:400}}>({l.reviews_count || 0} reviews)</span></div>
                         </div>
                         <AddToCartButton l={l} />
                       </div>
@@ -637,12 +637,12 @@ export default function Home() {
       </section>
 
       {/* ── HOW IT WORKS FOR BUYERS ── */}
-      <section style={{padding:'72px 0', background:'#fff'}}>
+      <section style={{padding:'72px 0', background:'var(--bg-card)'}}>
         <div style={{maxWidth:1100, margin:'0 auto', padding:'0 20px'}}>
           <div style={{textAlign:'center', marginBottom:44}}>
             <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>How it works for buyers</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,38px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:12}}>Home cooked food in three steps</h2>
-            <p style={{fontSize:'clamp(14px,1.4vw,16px)', color:'#1A1A1A', maxWidth:440, margin:'0 auto', fontWeight:400, lineHeight:1.65}}>Find a cook near you, order in seconds, and eat well.</p>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,38px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:12}}>Home cooked food in three steps</h2>
+            <p style={{fontSize:'clamp(14px,1.4vw,16px)', color:'var(--text-primary)', maxWidth:440, margin:'0 auto', fontWeight:400, lineHeight:1.65}}>Find a cook near you, order in seconds, and eat well.</p>
           </div>
           <div className="hiw-grid" style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20}}>
             {[
@@ -650,11 +650,11 @@ export default function Home() {
               {n:'02', icon:'🍽️', title:'Choose your dish', desc:'Collection is always free, or get it delivered from £2.49. Pay securely by card or Apple Pay.'},
               {n:'03', icon:'⭐', title:'Track & rate your order', desc:'Follow your order in real time, then rate your cook after it arrives to help the community.'},
             ].map(s => (
-              <div key={s.n} className="hiw-card" style={{position:'relative', background:'linear-gradient(135deg,#FFF0F8 0%,#FFE8F4 100%)', borderRadius:20, padding:'30px 24px', border:'1.5px solid rgba(200,0,106,0.1)', transition:'all 0.2s'}}>
+              <div key={s.n} className="hiw-card" style={{position:'relative', background:'linear-gradient(135deg,var(--bg-secondary) 0%,#FFE8F4 100%)', borderRadius:20, padding:'30px 24px', border:'1.5px solid rgba(200,0,106,0.1)', transition:'all 0.2s'}}>
                 <div style={{fontFamily:'Georgia,serif', fontSize:44, fontWeight:700, color:'rgba(200,0,106,0.13)', lineHeight:1, marginBottom:14}}>{s.n}</div>
-                <div style={{width:52, height:52, borderRadius:14, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, marginBottom:14, boxShadow:'0 4px 14px rgba(200,0,106,0.12)'}}>{s.icon}</div>
-                <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', marginBottom:8, letterSpacing:'-0.01em'}}>{s.title}</div>
-                <div style={{fontSize:13.5, color:'#1A1A1A', lineHeight:1.7, fontWeight:400}}>{s.desc}</div>
+                <div style={{width:52, height:52, borderRadius:14, background:'var(--bg-card)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, marginBottom:14, boxShadow:'0 4px 14px rgba(200,0,106,0.12)'}}>{s.icon}</div>
+                <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:8, letterSpacing:'-0.01em'}}>{s.title}</div>
+                <div style={{fontSize:13.5, color:'var(--text-primary)', lineHeight:1.7, fontWeight:400}}>{s.desc}</div>
               </div>
             ))}
           </div>
@@ -662,20 +662,20 @@ export default function Home() {
       </section>
 
       {/* ── TOP COOKS ── */}
-      <section style={{padding:'72px 0', background:'#F8F0F4'}}>
+      <section style={{padding:'72px 0', background:'var(--bg-page)'}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
           <div className="section-header" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:28, flexWrap:'wrap', gap:12}}>
             <div>
               <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:5}}>Trusted food makers</div>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.2vw,30px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.015em'}}>Top home cooks near you</h2>
-              <p style={{fontSize:13, color:'#1A1A1A', marginTop:4, fontWeight:400}}>Every cook is verified, ID checked and hygiene certified.</p>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.2vw,30px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.015em'}}>Top home cooks near you</h2>
+              <p style={{fontSize:13, color:'var(--text-primary)', marginTop:4, fontWeight:400}}>Every cook is verified, ID checked and hygiene certified.</p>
             </div>
-            <button type="button" onClick={scrollToListings} style={{height:36, padding:'0 16px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', cursor:'pointer', flexShrink:0}}>Browse all →</button>
+            <button type="button" onClick={scrollToListings} style={{height:36, padding:'0 16px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:700, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer', flexShrink:0}}>Browse all →</button>
           </div>
           {loadingListings ? (
             <div className="cooks-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))', gap:14}}>
               {Array.from({length:6}).map((_,i) => (
-                <div key={i} style={{background:'#fff', borderRadius:18, padding:'20px 14px', textAlign:'center', boxShadow:'0 2px 12px rgba(200,0,106,0.05)', border:'1.5px solid rgba(200,0,106,0.06)'}}>
+                <div key={i} style={{background:'var(--bg-card)', borderRadius:18, padding:'20px 14px', textAlign:'center', boxShadow:'0 2px 12px rgba(200,0,106,0.05)', border:'1.5px solid rgba(200,0,106,0.06)'}}>
                   <div className="skel" style={{width:52, height:52, borderRadius:'50%', margin:'0 auto 12px'}}/>
                   <div className="skel" style={{height:13, borderRadius:6, width:'70%', margin:'0 auto 8px'}}/>
                   <div className="skel" style={{height:11, borderRadius:6, width:'45%', margin:'0 auto 14px'}}/>
@@ -684,22 +684,22 @@ export default function Home() {
               ))}
             </div>
           ) : cooks.length === 0 ? (
-            <div style={{background:'#fff', borderRadius:20, padding:'48px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
-              <p style={{fontSize:14, color:'#1A1A1A'}}>No verified cooks live yet — check back soon.</p>
+            <div style={{background:'var(--bg-card)', borderRadius:20, padding:'48px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
+              <p style={{fontSize:14, color:'var(--text-primary)'}}>No verified cooks live yet — check back soon.</p>
             </div>
           ) : (
             <div className="cooks-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))', gap:14}}>
               {cooks.map(c => (
-                <div key={c.id} className="cook-card" style={{background:'#fff', borderRadius:18, padding:'20px 14px', textAlign:'center', boxShadow:'0 2px 12px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)', transition:'all 0.18s', cursor:'pointer'}}>
+                <div key={c.id} className="cook-card" style={{background:'var(--bg-card)', borderRadius:18, padding:'20px 14px', textAlign:'center', boxShadow:'0 2px 12px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)', transition:'all 0.18s', cursor:'pointer'}}>
                   <div style={{width:52, height:52, borderRadius:'50%', background:c.color, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#fff', margin:'0 auto 10px', boxShadow:`0 4px 16px ${c.color}55`}}>
                     {c.init}
                   </div>
-                  <div style={{fontSize:13, fontWeight:700, color:'#1A1A1A', marginBottom:2}}>{c.name}</div>
+                  <div style={{fontSize:13, fontWeight:700, color:'var(--text-primary)', marginBottom:2}}>{c.name}</div>
                   <div style={{fontSize:11, color:'#C8006A', marginBottom:8, fontWeight:600}}>{c.cuisine}</div>
                   <div style={{display:'flex', justifyContent:'center', gap:14, marginBottom:10}}>
-                    <div style={{textAlign:'center'}}><div style={{fontSize:13, fontWeight:700, color:'#1A1A1A'}}>★{c.rat}</div><div style={{fontSize:9, color:'#1A1A1A', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em'}}>Rating</div></div>
+                    <div style={{textAlign:'center'}}><div style={{fontSize:13, fontWeight:700, color:'var(--text-primary)'}}>★{c.rat}</div><div style={{fontSize:9, color:'var(--text-primary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em'}}>Rating</div></div>
                     <div style={{width:1, background:'rgba(200,0,106,0.1)'}}/>
-                    <div style={{textAlign:'center'}}><div style={{fontSize:13, fontWeight:700, color:'#1A1A1A'}}>{c.reviews}</div><div style={{fontSize:9, color:'#1A1A1A', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em'}}>Reviews</div></div>
+                    <div style={{textAlign:'center'}}><div style={{fontSize:13, fontWeight:700, color:'var(--text-primary)'}}>{c.reviews}</div><div style={{fontSize:9, color:'var(--text-primary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em'}}>Reviews</div></div>
                   </div>
                   <span style={{background:'#FFE8F4', color:'#C8006A', padding:'3px 10px', borderRadius:20, fontSize:10, fontWeight:700}}>Verified cook</span>
                 </div>
@@ -710,22 +710,22 @@ export default function Home() {
       </section>
 
       {/* ── ORDER TYPE / OCCASION FILTER ── */}
-      <section style={{padding:'72px 0', background:'#fff'}}>
+      <section style={{padding:'72px 0', background:'var(--bg-card)'}}>
         <div style={{maxWidth:1100, margin:'0 auto', padding:'0 20px'}}>
           <div style={{textAlign:'center', marginBottom:40}}>
             <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>What&apos;s the occasion?</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,38px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:12}}>Find food for any moment</h2>
-            <p style={{fontSize:'clamp(14px,1.4vw,16px)', color:'#1A1A1A', maxWidth:440, margin:'0 auto', fontWeight:400, lineHeight:1.65}}>Tap an option to filter the dishes below.</p>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,38px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:12}}>Find food for any moment</h2>
+            <p style={{fontSize:'clamp(14px,1.4vw,16px)', color:'var(--text-primary)', maxWidth:440, margin:'0 auto', fontWeight:400, lineHeight:1.65}}>Tap an option to filter the dishes below.</p>
           </div>
           <div className="ot-grid" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16}}>
             {orderTypes.map(o => {
               const active = orderType === o.id
               return (
                 <button key={o.id} type="button" onClick={() => selectOrderType(o.id)} className="ot-card"
-                  style={{textAlign:'left', minHeight:160, padding:'24px 20px', background:active?'#FFE8F4':'#fff', border:active?'2px solid #C8006A':'1.5px solid #E8E8E8', borderRadius:18, boxShadow:'0 2px 10px rgba(0,0,0,0.04)', transition:'all 0.18s', cursor:'pointer', display:'flex', flexDirection:'column'}}>
+                  style={{textAlign:'left', minHeight:160, padding:'24px 20px', background:active?'#FFE8F4':'var(--bg-card)', border:active?'2px solid #C8006A':'1.5px solid var(--border-subtle)', borderRadius:18, boxShadow:'0 2px 10px rgba(0,0,0,0.04)', transition:'all 0.18s', cursor:'pointer', display:'flex', flexDirection:'column'}}>
                   <div style={{width:56, height:56, borderRadius:15, background:active?'#C8006A':'#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28, marginBottom:16, transition:'background 0.18s'}}>{o.emoji}</div>
-                  <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:active?'#C8006A':'#1A1A1A', marginBottom:6, letterSpacing:'-0.01em'}}>{o.name}</div>
-                  <div style={{fontSize:12.5, color:'#1A1A1A', lineHeight:1.55, fontWeight:400}}>{o.desc}</div>
+                  <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:active?'#C8006A':'var(--text-primary)', marginBottom:6, letterSpacing:'-0.01em'}}>{o.name}</div>
+                  <div style={{fontSize:12.5, color:'var(--text-primary)', lineHeight:1.55, fontWeight:400}}>{o.desc}</div>
                 </button>
               )
             })}
@@ -734,20 +734,20 @@ export default function Home() {
       </section>
 
       {/* ── REVIEWS ── */}
-      <section style={{padding:'72px 0', background:'#F8F0F4'}}>
+      <section style={{padding:'72px 0', background:'var(--bg-page)'}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
           <div style={{textAlign:'center', marginBottom:36}}>
             <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>Community voices</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.2vw,30px)', fontWeight:700, color:'#1A1A1A'}}>Our community loves it</h2>
-            {reviewCount !== null && reviewCount > 0 && <p style={{fontSize:13, color:'#1A1A1A', marginTop:6, fontWeight:500}}>{reviewCount} verified reviews from real orders</p>}
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.2vw,30px)', fontWeight:700, color:'var(--text-primary)'}}>Our community loves it</h2>
+            {reviewCount !== null && reviewCount > 0 && <p style={{fontSize:13, color:'var(--text-primary)', marginTop:6, fontWeight:500}}>{reviewCount} verified reviews from real orders</p>}
           </div>
           {loadingReviews ? (
             <div style={{display:'flex', justifyContent:'center', padding:'40px 0'}}>
               <div style={{width:36, height:36, border:'4px solid #FFE8F4', borderTop:'4px solid #C8006A', borderRadius:'50%', animation:'spin 0.8s linear infinite'}}/>
             </div>
           ) : reviews.length === 0 ? (
-            <div style={{background:'#fff', borderRadius:20, padding:'48px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
-              <p style={{fontSize:14, color:'#1A1A1A'}}>No reviews yet — be the first to order and leave one.</p>
+            <div style={{background:'var(--bg-card)', borderRadius:20, padding:'48px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
+              <p style={{fontSize:14, color:'var(--text-primary)'}}>No reviews yet — be the first to order and leave one.</p>
             </div>
           ) : (
             <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:18}}>
@@ -756,14 +756,14 @@ export default function Home() {
                 const initials = name.split(' ').map((w:string) => w[0]).slice(0,2).join('').toUpperCase()
                 const dishName = r.orders?.listings?.name
                 return (
-                  <div key={r.id} className="review-card" style={{background:'#fff', borderRadius:18, padding:'22px', boxShadow:'0 2px 12px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.08)', display:'flex', flexDirection:'column', transition:'transform 0.18s'}}>
+                  <div key={r.id} className="review-card" style={{background:'var(--bg-card)', borderRadius:18, padding:'22px', boxShadow:'0 2px 12px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.08)', display:'flex', flexDirection:'column', transition:'transform 0.18s'}}>
                     <div style={{color:'#C8006A', fontSize:14, letterSpacing:'2px', marginBottom:12}}>{'★'.repeat(r.rating)}{'☆'.repeat(5-r.rating)}</div>
-                    <p style={{fontFamily:'Georgia,serif', fontSize:14, fontStyle:'italic', color:'#1A1A1A', lineHeight:1.75, marginBottom:16, flex:1}}>&ldquo;{r.comment}&rdquo;</p>
+                    <p style={{fontFamily:'Georgia,serif', fontSize:14, fontStyle:'italic', color:'var(--text-primary)', lineHeight:1.75, marginBottom:16, flex:1}}>&ldquo;{r.comment}&rdquo;</p>
                     <div style={{display:'flex', alignItems:'center', gap:10}}>
                       <div style={{width:38, height:38, borderRadius:'50%', background:cookColors[i % cookColors.length], display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:13, fontWeight:700, color:'#fff', flexShrink:0}}>{initials}</div>
                       <div>
-                        <div style={{fontSize:13, fontWeight:700, color:'#1A1A1A'}}>{name}</div>
-                        {dishName && <div style={{fontSize:11, color:'#1A1A1A', fontWeight:500}}>{dishName}</div>}
+                        <div style={{fontSize:13, fontWeight:700, color:'var(--text-primary)'}}>{name}</div>
+                        {dishName && <div style={{fontSize:11, color:'var(--text-primary)', fontWeight:500}}>{dishName}</div>}
                       </div>
                     </div>
                   </div>
@@ -784,7 +784,7 @@ export default function Home() {
           <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3.5vw,44px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:10, lineHeight:1.15}}>Hungry? Order home cooked food now.</h2>
           <p style={{fontSize:'clamp(14px,1.4vw,17px)', color:'rgba(255,255,255,0.85)', marginBottom:28, lineHeight:1.65, fontWeight:400}}>{cooks.length > 0 ? `${cooks.length} ` : ''}home cooks across the UK. Authentic food. No restaurant markup.</p>
           <div className="cta-btns" style={{display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap'}}>
-            <button type="button" onClick={() => { if (user) scrollToListings(); else router.push('/register') }} style={{height:52, padding:'0 32px', background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(0,0,0,0.15)', flexShrink:0}}>Order food now</button>
+            <button type="button" onClick={() => { if (user) scrollToListings(); else router.push('/register') }} style={{height:52, padding:'0 32px', background:'var(--bg-card)', color:'#C8006A', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(0,0,0,0.15)', flexShrink:0}}>Order food now</button>
             <Link href="/register" style={{height:52, padding:'0 32px', background:'rgba(255,255,255,0.12)', color:'#fff', border:'2px solid rgba(255,255,255,0.28)', borderRadius:12, fontSize:15, fontWeight:600, display:'flex', alignItems:'center', flexShrink:0}}>Start selling your food</Link>
           </div>
         </div>

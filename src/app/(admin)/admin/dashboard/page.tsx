@@ -49,15 +49,15 @@ const dark = `
   ::-webkit-scrollbar { width: 0; height: 0; } * { scrollbar-width: none; -ms-overflow-style: none; }
   a { text-decoration: none; color: inherit; }
   button { font-family: Inter, system-ui, sans-serif; }
-  .skelD { background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
+  .skelD { background: linear-gradient(90deg, var(--bg-card) 0%, var(--border-subtle) 50%, var(--bg-card) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
   .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
-  .nav-link:hover { color: #fff !important; }
+  .nav-link:hover { color: var(--text-primary) !important; }
   .approve:hover { background: #009836 !important; }
   .reject:hover { background: #991010 !important; }
   .stat-card { transition: transform 0.18s, border-color 0.18s; }
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
   .quick:hover { border-color: rgba(200,0,106,0.5) !important; background: rgba(200,0,106,0.07) !important; transform: translateY(-2px); }
-  .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
+  .signout:hover { background: rgba(200,0,106,0.15) !important; color: var(--text-primary) !important; border-color: rgba(200,0,106,0.4) !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } }
   @media (max-width: 768px) { .admin-grid { grid-template-columns: 1fr 1fr !important; } .quick-grid { grid-template-columns: 1fr 1fr !important; } }
   @media (max-width: 480px) { .admin-grid { grid-template-columns: 1fr 1fr !important; } }
@@ -157,29 +157,29 @@ export default function AdminDashboard() {
   const signOut = async () => { await supabase.auth.signOut(); router.push('/admin/login') }
 
   const nav = (
-    <nav style={{background:'rgba(13,13,13,0.9)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid rgba(255,255,255,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid var(--border-subtle)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/admin/dashboard" style={{display:'flex', alignItems:'center', gap:10, marginRight:28, flexShrink:0}}>
-          <Logo height={26} white/>
+          <Logo height={26} themed/>
           <span style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#C8006A'}}>Admin</span>
         </Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map(t => {
             const active = t.h === '/admin/dashboard'
-            return <Link key={t.h} href={t.h} className="nav-link" style={{height:64, padding:'0 13px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#fff' : 'rgba(255,255,255,0.5)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+            return <Link key={t.h} href={t.h} className="nav-link" style={{height:64, padding:'0 13px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || profile?.email?.[0]?.toUpperCase() || 'A'}/>
-          <span style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>{profile?.full_name || profile?.email}</span>
-          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.6)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+          <span style={{fontSize:12, color:'var(--text-secondary)'}}>{profile?.full_name || profile?.email}</span>
+          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12, fontWeight:600, color:'var(--text-secondary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>
     </nav>
   )
 
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
         <div className="skelD" style={{height:28, width:240, borderRadius:8, marginBottom:8}}/>
@@ -193,10 +193,10 @@ export default function AdminDashboard() {
   const totalPending = sellers.length + drivers.length + listings.length
 
   const overview = [
-    { value:String(stats?.users ?? 0), label:'Total users', icon:'👥', color:'#fff' },
-    { value:String(stats?.orders ?? 0), label:'Total orders', icon:'📦', color:'#fff' },
+    { value:String(stats?.users ?? 0), label:'Total users', icon:'👥', color:'var(--text-primary)' },
+    { value:String(stats?.orders ?? 0), label:'Total orders', icon:'📦', color:'var(--text-primary)' },
     { value:`£${(stats?.revenue ?? 0).toFixed(2)}`, label:'Platform revenue', icon:'💷', color:'#34D399' },
-    { value:String(stats?.listings ?? 0), label:'Total listings', icon:'🍽️', color:'#fff' },
+    { value:String(stats?.listings ?? 0), label:'Total listings', icon:'🍽️', color:'var(--text-primary)' },
   ]
 
   const quickLinks = [
@@ -207,13 +207,13 @@ export default function AdminDashboard() {
   ]
 
   return (
-    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:12, marginBottom:24}}>
           <div>
-            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>Platform overview</h1>
-            <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>meaLoyo admin — full control panel</p>
+            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>Platform overview</h1>
+            <p style={{fontSize:14, color:'var(--text-secondary)'}}>meaLoyo admin — full control panel</p>
           </div>
           {totalPending > 0 && (
             <span style={{display:'inline-flex', alignItems:'center', gap:7, height:34, padding:'0 14px', background:'rgba(232,147,10,0.14)', border:'1px solid rgba(232,147,10,0.35)', borderRadius:100, fontSize:13, fontWeight:700, color:'#FBBF24'}}>⏳ {totalPending} pending approval{totalPending === 1 ? '' : 's'}</span>
@@ -223,10 +223,10 @@ export default function AdminDashboard() {
         {/* Platform stats */}
         <div className="admin-grid fade-up" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24}}>
           {overview.map((s, i) => (
-            <div key={i} className="stat-card" style={{background:'rgba(255,255,255,0.05)', borderRadius:16, padding:'18px', border:'1px solid rgba(255,255,255,0.08)'}}>
+            <div key={i} className="stat-card" style={{background:'var(--bg-card)', borderRadius:16, padding:'18px', border:'1px solid var(--border-subtle)'}}>
               <div style={{fontSize:20, marginBottom:9}}>{s.icon}</div>
               <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,26px)', fontWeight:700, color:s.color, letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
-              <div style={{fontSize:11, color:'rgba(255,255,255,0.45)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:7}}>{s.label}</div>
+              <div style={{fontSize:11, color:'var(--text-secondary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:7}}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -234,18 +234,18 @@ export default function AdminDashboard() {
         {/* Quick links */}
         <div className="quick-grid fade-up" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:28}}>
           {quickLinks.map((a, i) => (
-            <Link key={i} href={a.h} className="quick" style={{display:'flex', alignItems:'center', gap:13, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:14, padding:'16px', transition:'all 0.16s'}}>
+            <Link key={i} href={a.h} className="quick" style={{display:'flex', alignItems:'center', gap:13, background:'var(--bg-card)', border:'1px solid var(--border-subtle)', borderRadius:14, padding:'16px', transition:'all 0.16s'}}>
               <div style={{width:40, height:40, borderRadius:11, background:'rgba(200,0,106,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0}}>{a.i}</div>
               <div style={{flex:1, minWidth:0}}>
-                <div style={{fontSize:14, fontWeight:700, color:'#fff'}}>{a.l}</div>
-                <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', marginTop:1}}>{a.s}</div>
+                <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)'}}>{a.l}</div>
+                <div style={{fontSize:12, color:'var(--text-secondary)', marginTop:1}}>{a.s}</div>
               </div>
               <span style={{fontSize:15, color:'#C8006A', flexShrink:0}}>→</span>
             </Link>
           ))}
         </div>
 
-        <h2 className="fade-up" style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#fff', marginBottom:14}}>Approval queue</h2>
+        <h2 className="fade-up" style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:14}}>Approval queue</h2>
 
         {/* Pending approvals */}
         {[
@@ -253,23 +253,23 @@ export default function AdminDashboard() {
           { title:'Pending driver approvals', items:drivers, badge:'#2DA84E', type:'profile' as const, empty:'No drivers awaiting approval' },
           { title:'Pending listing approvals', items:listings, badge:'#1A6ECC', type:'listing' as const, empty:'No listings awaiting approval' },
         ].map(section => (
-          <div key={section.title} className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden', marginBottom:16}}>
-            <div style={{padding:'16px 22px', borderBottom:'1px solid rgba(255,255,255,0.06)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-              <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', display:'flex', alignItems:'center'}}>
+          <div key={section.title} className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden', marginBottom:16}}>
+            <div style={{padding:'16px 22px', borderBottom:'1px solid var(--bg-secondary)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', display:'flex', alignItems:'center'}}>
                 {section.title}
-                {section.items.length > 0 && <span style={{marginLeft:8, background:section.badge, color:'#fff', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20}}>{section.items.length}</span>}
+                {section.items.length > 0 && <span style={{marginLeft:8, background:section.badge, color:'var(--text-primary)', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20}}>{section.items.length}</span>}
               </h3>
             </div>
             {section.items.length === 0 ? (
-              <div style={{padding:'30px 22px', textAlign:'center', color:'rgba(255,255,255,0.35)', fontSize:14}}>{section.empty}</div>
+              <div style={{padding:'30px 22px', textAlign:'center', color:'var(--text-secondary)', fontSize:14}}>{section.empty}</div>
             ) : section.items.map((item, i) => (
-              <div key={item.id} style={{display:'flex', alignItems:'center', gap:14, padding:'14px 22px', borderBottom:i < section.items.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none'}}>
+              <div key={item.id} style={{display:'flex', alignItems:'center', gap:14, padding:'14px 22px', borderBottom:i < section.items.length - 1 ? '1px solid var(--border-subtle)' : 'none'}}>
                 <div style={{width:40, height:40, borderRadius:'50%', background:'linear-gradient(135deg,#C8006A,#7A0042)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, color:'#fff', flexShrink:0}}>
                   {(item.full_name || item.name || '?')[0]?.toUpperCase()}
                 </div>
                 <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontSize:14, fontWeight:700, color:'#fff', marginBottom:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.full_name || item.name || 'Unknown'}</div>
-                  <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.email || item.cuisine || ''} · applied {timeAgo(item.created_at)}</div>
+                  <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.full_name || item.name || 'Unknown'}</div>
+                  <div style={{fontSize:12, color:'var(--text-secondary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.email || item.cuisine || ''} · applied {timeAgo(item.created_at)}</div>
                 </div>
                 <div style={{display:'flex', gap:8, flexShrink:0}}>
                   <button className="approve" onClick={() => approve(item.id, section.type)} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s'}}>Approve</button>
@@ -281,23 +281,23 @@ export default function AdminDashboard() {
         ))}
 
         {/* Recent activity */}
-        <h2 className="fade-up" style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#fff', margin:'12px 0 14px'}}>Recent activity</h2>
-        <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
+        <h2 className="fade-up" style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', margin:'12px 0 14px'}}>Recent activity</h2>
+        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
           {recentOrders.length === 0 ? (
-            <div style={{padding:'30px 22px', textAlign:'center', color:'rgba(255,255,255,0.35)', fontSize:14}}>No orders yet</div>
+            <div style={{padding:'30px 22px', textAlign:'center', color:'var(--text-secondary)', fontSize:14}}>No orders yet</div>
           ) : recentOrders.map((o, i) => {
             const delivered = o.status === 'delivered'
             const dot = delivered ? '#34D399' : o.status === 'cancelled' ? '#C0392B' : '#E8930A'
             return (
-              <div key={o.id || i} style={{display:'flex', alignItems:'center', gap:14, padding:'13px 22px', borderBottom:i < recentOrders.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none'}}>
+              <div key={o.id || i} style={{display:'flex', alignItems:'center', gap:14, padding:'13px 22px', borderBottom:i < recentOrders.length - 1 ? '1px solid var(--border-subtle)' : 'none'}}>
                 <span style={{width:9, height:9, borderRadius:'50%', background:dot, flexShrink:0, boxShadow:`0 0 0 3px ${dot}22`}}/>
                 <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontSize:13.5, fontWeight:600, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
-                    Order {o.id ? `#${o.id.slice(0, 8)}` : ''} <span style={{color:'rgba(255,255,255,0.45)', fontWeight:500, textTransform:'capitalize'}}>· {o.status}</span>
+                  <div style={{fontSize:13.5, fontWeight:600, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                    Order {o.id ? `#${o.id.slice(0, 8)}` : ''} <span style={{color:'var(--text-secondary)', fontWeight:500, textTransform:'capitalize'}}>· {o.status}</span>
                   </div>
-                  <div style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>{timeAgo(o.created_at)}</div>
+                  <div style={{fontSize:12, color:'var(--text-secondary)'}}>{timeAgo(o.created_at)}</div>
                 </div>
-                {o.total != null && <span style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:delivered ? '#34D399' : '#fff', flexShrink:0}}>£{parseFloat(o.total || '0').toFixed(2)}</span>}
+                {o.total != null && <span style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:delivered ? '#34D399' : 'var(--text-primary)', flexShrink:0}}>£{parseFloat(o.total || '0').toFixed(2)}</span>}
               </div>
             )
           })}

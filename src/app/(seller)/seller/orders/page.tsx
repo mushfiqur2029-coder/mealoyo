@@ -32,6 +32,11 @@ const NAV = [
 
 const FILTERS = ['all', 'pending', 'accepted', 'cooking', 'ready', 'delivered', 'cancelled']
 
+// An order is the seller's concern only once it's paid (or a legacy pre-Stripe
+// order that predates payment tracking). Abandoned/failed/cancelled-before-pay
+// checkouts are filtered out everywhere.
+const paymentOk = (o: Order) => !o.payment_status || o.payment_status === 'paid'
+
 export default function SellerOrders() {
   const [orders, setOrders] = useState<Order[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -54,6 +59,9 @@ export default function SellerOrders() {
         .select('*, listings(name,cuisine), profiles:buyer_id(full_name)')
         .eq('seller_id', user.id)
         .neq('status', 'pending_payment') // hide unpaid orders awaiting Stripe payment
+        // Only paid orders (or legacy pre-Stripe orders with no payment_status)
+        // are real. Abandoned/failed checkouts never become the seller's problem.
+        .or('payment_status.is.null,payment_status.eq.paid')
         .order('created_at', { ascending: false })
       setOrders(data || [])
       setLoading(false)
@@ -78,7 +86,7 @@ export default function SellerOrders() {
           // Ignore unpaid orders — they only become real once Stripe confirms
           // payment (which arrives as an UPDATE flipping status out of
           // pending_payment), handled by the UPDATE subscription below.
-          if (data && data.status !== 'pending_payment') {
+          if (data && data.status !== 'pending_payment' && paymentOk(data)) {
             setOrders(prev => prev.some(o => o.id === data.id) ? prev : [data, ...prev])
             setToast('New order received')
           }
@@ -96,7 +104,9 @@ export default function SellerOrders() {
           // list yet. Re-fetch with joins and add it (with a toast) the first
           // time we see it live.
           const { data } = await supabase.from('orders').select(ORDER_SELECT).eq('id', updated.id).single()
-          if (!data) return
+          // Skip abandoned/failed checkouts that were cancelled without ever
+          // being paid — they must never surface to the seller.
+          if (!data || !paymentOk(data)) return
           setOrders(prev => {
             if (prev.some(o => o.id === data.id)) return prev.map(o => o.id === data.id ? { ...o, ...data } : o)
             queueMicrotask(() => setToast('New order received'))

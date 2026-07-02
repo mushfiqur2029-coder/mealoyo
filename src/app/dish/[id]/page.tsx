@@ -484,7 +484,7 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
       {cancelled && (
         <div style={{background:'#FFF4E5', border:'1px solid #F0C77E', borderRadius:12, padding:'12px 14px', marginBottom:12, fontSize:13, color:'#7A4E00', lineHeight:1.5}}>
-          Payment cancelled — no charge was made. Your order is still saved, so you can try again whenever you&apos;re ready.
+          Payment cancelled — no charge was made and the unpaid order was removed. Add it to your basket again whenever you&apos;re ready.
         </div>
       )}
 

@@ -77,12 +77,12 @@ function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; o
   const orders = ordersBadge(l)
   const isSaved = saved.includes(l.id)
   return (
-    <Link href={`/dish/${l.id}`} className="bcard" style={{background:'#fff', borderRadius:18, overflow:'hidden', boxShadow:'0 2px 14px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column', height:'100%'}}>
-      <div style={{position:'relative', aspectRatio:'4 / 3', display:'flex', alignItems:'center', justifyContent:'center', fontSize:52, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', overflow:'hidden'}}>
+    <Link href={`/dish/${l.id}`} className="bcard" style={{background:'var(--bg-card)', borderRadius:18, overflow:'hidden', boxShadow:'0 2px 14px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column', height:'100%'}}>
+      <div style={{position:'relative', aspectRatio:'4 / 3', display:'flex', alignItems:'center', justifyContent:'center', fontSize:52, background:'linear-gradient(135deg,#FFE8F4 0%,var(--bg-secondary) 100%)', overflow:'hidden'}}>
         {cuisineEmoji[l.cuisine] || '🍽️'}
         {l.image_url && <img src={l.image_url} alt={l.name} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
         <div style={{position:'absolute', top:10, left:10, display:'flex', gap:6, flexWrap:'wrap'}}>
-          {l.featured && <span style={{background:'#fff', color:'#C8006A', fontSize:10, fontWeight:800, padding:'3px 9px', borderRadius:100, boxShadow:'0 2px 8px rgba(0,0,0,0.12)'}}>🔥 Featured</span>}
+          {l.featured && <span style={{background:'var(--bg-card)', color:'#C8006A', fontSize:10, fontWeight:800, padding:'3px 9px', borderRadius:100, boxShadow:'0 2px 8px rgba(0,0,0,0.12)'}}>🔥 Featured</span>}
           {isNew(l) && <span style={{background:'#2DA84E', color:'#fff', fontSize:10, fontWeight:800, padding:'3px 9px', borderRadius:100, boxShadow:'0 2px 8px rgba(0,0,0,0.12)'}}>New</span>}
         </div>
         <button className="save-btn" aria-label={isSaved ? 'Remove from saved' : 'Save dish'} onClick={e => { e.preventDefault(); e.stopPropagation(); onToggleSave(l.id) }} style={{position:'absolute', top:10, right:10, width:34, height:34, borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1.5px solid rgba(200,0,106,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.1)'}}>
@@ -100,15 +100,15 @@ function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; o
         )}
       </div>
       <div style={{padding:'13px 14px', display:'flex', flexDirection:'column', flex:1}}>
-        <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#1A1A1A', lineHeight:1.3, marginBottom:6, letterSpacing:'-0.01em', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{l.name}</div>
-        <div style={{fontSize:12, color:'#1A1A1A', marginBottom:10, display:'flex', alignItems:'center', gap:6, fontWeight:500}}>
+        <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'var(--text-primary)', lineHeight:1.3, marginBottom:6, letterSpacing:'-0.01em', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{l.name}</div>
+        <div style={{fontSize:12, color:'var(--text-primary)', marginBottom:10, display:'flex', alignItems:'center', gap:6, fontWeight:500}}>
           <span style={{width:18, height:18, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:700, color:'#fff', flexShrink:0}}>{l.profiles?.full_name?.[0]?.toUpperCase() || 'C'}</span>
           <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.profiles?.full_name || 'Home cook'}</span>
           <span style={{color:'#C8006A', fontWeight:600, whiteSpace:'nowrap'}}>· {l.cuisine}</span>
         </div>
-        <div style={{marginTop:'auto', display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:11, borderTop:'1px solid #F5F0F3'}}>
-          <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em'}}>£{parseFloat(l.price).toFixed(2)}</div>
-          <div style={{fontSize:12, fontWeight:700, color:'#1A1A1A'}}>
+        <div style={{marginTop:'auto', display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:11, borderTop:'1px solid var(--bg-secondary)'}}>
+          <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em'}}>£{parseFloat(l.price).toFixed(2)}</div>
+          <div style={{fontSize:12, fontWeight:700, color:'var(--text-primary)'}}>
             <span style={{color:'#C8006A'}}>★</span> {l.rating ? l.rating.toFixed(1) : '—'} <span style={{fontWeight:500, opacity:0.8}}>({l.reviews_count || 0})</span>
           </div>
         </div>
@@ -126,7 +126,7 @@ function Rail({ title, kicker, items, saved, onToggleSave }: { title: string; ki
     <section style={{marginBottom:38}}>
       <div style={{marginBottom:14}}>
         <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4}}>{kicker}</div>
-        <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(19px,2.2vw,26px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.015em'}}>{title}</h2>
+        <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(19px,2.2vw,26px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.015em'}}>{title}</h2>
       </div>
       <div className="rail" style={{display:'flex', gap:16, overflowX:'auto', paddingBottom:6, scrollSnapType:'x proximity'}}>
         {items.map(l => (
@@ -153,7 +153,7 @@ function SkeletonRow() {
 
 function BrowsePage() {
   return (
-    <Suspense fallback={<div style={{minHeight:'100vh', background:'#F8F0F4'}} />}>
+    <Suspense fallback={<div style={{minHeight:'100vh', background:'var(--bg-page)'}} />}>
       <Browse />
     </Suspense>
   )
@@ -333,7 +333,7 @@ function Browse() {
   const recName = historyCuisines.length ? 'Recommended for you' : 'Featured dishes'
 
   return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         @keyframes shimmer { 0% { background-position:-480px 0; } 100% { background-position:480px 0; } }
@@ -354,10 +354,10 @@ function Browse() {
         .cat-pill:hover { border-color:#C8006A; color:#C8006A; }
         /* Cuisine selector — clean, minimal, compact for the sticky filter bar */
         .cuisine-scroll { display:flex; flex-wrap:nowrap; gap:8px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; flex:1; padding:4px 2px; scroll-behavior:smooth; }
-        .cuisine-card { flex-shrink:0; width:74px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:8px 8px; border-radius:16px; cursor:pointer; border:1.5px solid #F0E8F4; background:#fff; transition:all 0.15s ease; -webkit-tap-highlight-color:transparent; }
+        .cuisine-card { flex-shrink:0; width:74px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; padding:8px 8px; border-radius:16px; cursor:pointer; border:1.5px solid var(--border-subtle); background:var(--bg-card); transition:all 0.15s ease; -webkit-tap-highlight-color:transparent; }
         .cuisine-card .ce { font-size:25px; line-height:1; }
-        .cuisine-card .cl { font-size:11px; font-weight:600; color:#1A1A1A; text-align:center; line-height:1.15; letter-spacing:-0.01em; }
-        .cuisine-card:hover { border-color:rgba(200,0,106,0.3); background:#FFF5FA; }
+        .cuisine-card .cl { font-size:11px; font-weight:600; color:var(--text-primary); text-align:center; line-height:1.15; letter-spacing:-0.01em; }
+        .cuisine-card:hover { border-color:rgba(200,0,106,0.3); background:var(--bg-secondary); }
         .cuisine-card.on { background:#C8006A; border-color:transparent; }
         .cuisine-card.on .cl { color:#fff; }
         .cuisine-card.on:hover { background:#C8006A; filter:brightness(1.08); }
@@ -377,7 +377,7 @@ function Browse() {
         .signout:hover { background:#FFE8F4 !important; color:#C8006A !important; }
         .chip-x:hover { background:#A00055 !important; }
         .filter-btn:hover { border-color:#C8006A !important; color:#C8006A !important; }
-        .panel { position:fixed; top:0; right:0; bottom:0; width:400px; max-width:92vw; background:#fff; z-index:610; box-shadow:-12px 0 48px rgba(26,26,26,0.18); display:flex; flex-direction:column; animation:slideIn 0.28s cubic-bezier(0.32,0.72,0,1); }
+        .panel { position:fixed; top:0; right:0; bottom:0; width:400px; max-width:92vw; background:var(--bg-card); z-index:610; box-shadow:-12px 0 48px rgba(26,26,26,0.18); display:flex; flex-direction:column; animation:slideIn 0.28s cubic-bezier(0.32,0.72,0,1); }
         .all-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:18px; }
         input[type=range] { accent-color:#C8006A; }
         @media (max-width:768px) {
@@ -392,18 +392,18 @@ function Browse() {
       `}</style>
 
       {/* ── NAV ── */}
-      <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:200, height:64}}>
+      <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:200, height:64}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center', gap:16}}>
           <Link href="/" style={{flexShrink:0}}><Logo height={34} /></Link>
 
           {/* Smart search: postcode + dish/cook */}
-          <div style={{flex:1, display:'flex', alignItems:'center', gap:8, background:'#F8F0F4', borderRadius:12, padding:'5px 6px 5px 12px', maxWidth:620}}>
+          <div style={{flex:1, display:'flex', alignItems:'center', gap:8, background:'var(--bg-page)', borderRadius:12, padding:'5px 6px 5px 12px', maxWidth:620}}>
             <div className="search-postcode" style={{display:'flex', alignItems:'center', gap:6, paddingRight:10, borderRight:'1.5px solid rgba(200,0,106,0.14)'}}>
               <span style={{fontSize:15}}>📍</span>
-              <input value={postcode} onChange={e => setPostcode(e.target.value.toUpperCase())} placeholder="Postcode" style={{border:'none', outline:'none', background:'transparent', fontSize:13.5, fontWeight:600, color:'#1A1A1A', width:88}} />
+              <input value={postcode} onChange={e => setPostcode(e.target.value.toUpperCase())} placeholder="Postcode" style={{border:'none', outline:'none', background:'transparent', fontSize:13.5, fontWeight:600, color:'var(--text-primary)', width:88}} />
             </div>
             <span style={{fontSize:15, paddingLeft:2}}>🔍</span>
-            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search dishes, cuisines or cooks" style={{border:'none', outline:'none', background:'transparent', fontSize:13.5, fontWeight:500, color:'#1A1A1A', flex:1, height:34, minWidth:0}} />
+            <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search dishes, cuisines or cooks" style={{border:'none', outline:'none', background:'transparent', fontSize:13.5, fontWeight:500, color:'var(--text-primary)', flex:1, height:34, minWidth:0}} />
           </div>
 
           <div style={{display:'flex', alignItems:'center', marginLeft:'auto', flexShrink:0}}>
@@ -413,11 +413,11 @@ function Browse() {
             {user ? (
               <>
                 <NavAvatar url={avatarUrl} initial={user.email?.[0]?.toUpperCase() || 'B'} />
-                <Link href="/buyer/dashboard" className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', display:'flex', alignItems:'center', transition:'all 0.12s'}}>Dashboard</Link>
+                <Link href="/buyer/dashboard" className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)', display:'flex', alignItems:'center', transition:'all 0.12s'}}>Dashboard</Link>
               </>
             ) : (
               <>
-                <Link href="/login" className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', display:'flex', alignItems:'center', transition:'all 0.12s'}}>Sign in</Link>
+                <Link href="/login" className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)', display:'flex', alignItems:'center', transition:'all 0.12s'}}>Sign in</Link>
                 <Link href="/register" style={{height:36, padding:'0 16px', background:'#C8006A', borderRadius:8, fontSize:13, fontWeight:700, color:'#fff', display:'flex', alignItems:'center', boxShadow:'0 4px 12px rgba(200,0,106,0.35)'}}>Get started</Link>
               </>
             )}
@@ -426,7 +426,7 @@ function Browse() {
       </nav>
 
       {/* ── FILTER BAR (sticky) ── */}
-      <div style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:64, zIndex:190}}>
+      <div style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:64, zIndex:190}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'12px 20px', display:'flex', alignItems:'center', gap:12}}>
           {/* Cuisine icon cards */}
           <div ref={catRef} className="cuisine-scroll">
@@ -438,11 +438,11 @@ function Browse() {
             ))}
           </div>
           {/* Sort */}
-          <select value={sort} onChange={e => setSort(e.target.value)} style={{height:40, padding:'0 12px', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', cursor:'pointer', outline:'none', flexShrink:0}}>
+          <select value={sort} onChange={e => setSort(e.target.value)} style={{height:40, padding:'0 12px', border:'1.5px solid var(--border-subtle)', borderRadius:10, fontSize:13, fontWeight:700, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer', outline:'none', flexShrink:0}}>
             {SORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
           {/* Filters */}
-          <button onClick={() => setPanelOpen(true)} className="filter-btn" style={{height:40, padding:'0 16px', border:'1.5px solid #E0E0E0', borderRadius:10, fontSize:13, fontWeight:700, color:'#1A1A1A', background:'#fff', cursor:'pointer', display:'flex', alignItems:'center', gap:8, flexShrink:0, transition:'all 0.14s'}}>
+          <button onClick={() => setPanelOpen(true)} className="filter-btn" style={{height:40, padding:'0 16px', border:'1.5px solid var(--border-subtle)', borderRadius:10, fontSize:13, fontWeight:700, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer', display:'flex', alignItems:'center', gap:8, flexShrink:0, transition:'all 0.14s'}}>
             <span style={{fontSize:15}}>⚙️</span>Filters
             {activeFilterCount > 0 && <span style={{minWidth:20, height:20, padding:'0 6px', borderRadius:100, background:'#C8006A', color:'#fff', fontSize:11, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center'}}>{activeFilterCount}</span>}
           </button>
@@ -479,10 +479,10 @@ function Browse() {
             <SkeletonRow />
           </>
         ) : listings.length === 0 ? (
-          <div style={{background:'#fff', borderRadius:20, padding:'72px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.06)'}}>
+          <div style={{background:'var(--bg-card)', borderRadius:20, padding:'72px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.06)'}}>
             <div style={{fontSize:52, marginBottom:16}}>🍳</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:8}}>No live dishes yet</h2>
-            <p style={{fontSize:14, color:'#1A1A1A', opacity:0.85}}>Home cooks are getting set up — check back very soon for fresh meals near you.</p>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No live dishes yet</h2>
+            <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>Home cooks are getting set up — check back very soon for fresh meals near you.</p>
           </div>
         ) : (
           <>
@@ -501,17 +501,17 @@ function Browse() {
               <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, marginBottom:16, flexWrap:'wrap'}}>
                 <div>
                   <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4}}>{hasFilters ? 'Your results' : 'Everything available'}</div>
-                  <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(19px,2.2vw,26px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.015em'}}>
+                  <h2 style={{fontFamily:'Georgia,serif', fontSize:'clamp(19px,2.2vw,26px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.015em'}}>
                     {hasFilters ? <><span style={{color:'#C8006A'}}>{results.length}</span> {results.length === 1 ? 'dish' : 'dishes'} found</> : 'All dishes'}
                   </h2>
                 </div>
               </div>
 
               {results.length === 0 ? (
-                <div style={{background:'#fff', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.06)'}}>
+                <div style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.06)'}}>
                   <div style={{fontSize:48, marginBottom:14}}>🔍</div>
-                  <h3 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#1A1A1A', marginBottom:6}}>Nothing matches those filters</h3>
-                  <p style={{fontSize:14, color:'#1A1A1A', opacity:0.85, marginBottom:18}}>Try widening your price range or clearing a filter.</p>
+                  <h3 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>Nothing matches those filters</h3>
+                  <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85, marginBottom:18}}>Try widening your price range or clearing a filter.</p>
                   <button onClick={clearAll} style={{height:42, padding:'0 22px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13.5, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(200,0,106,0.28)'}}>Clear all filters</button>
                 </div>
               ) : (
@@ -532,9 +532,9 @@ function Browse() {
         <>
           <div onClick={() => setPanelOpen(false)} style={{position:'fixed', inset:0, background:'rgba(26,26,26,0.4)', backdropFilter:'blur(2px)', zIndex:600, animation:'overlayIn 0.2s ease'}} />
           <div className="panel">
-            <div style={{padding:'18px 22px', borderBottom:'1px solid #F0E4EC', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0}}>
-              <h3 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#1A1A1A'}}>Filters</h3>
-              <button onClick={() => setPanelOpen(false)} aria-label="Close filters" style={{width:36, height:36, borderRadius:10, border:'1.5px solid #E8E8E8', background:'#fff', cursor:'pointer', fontSize:16, color:'#1A1A1A'}}>✕</button>
+            <div style={{padding:'18px 22px', borderBottom:'1px solid var(--border-subtle)', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0}}>
+              <h3 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)'}}>Filters</h3>
+              <button onClick={() => setPanelOpen(false)} aria-label="Close filters" style={{width:36, height:36, borderRadius:10, border:'1.5px solid var(--border-subtle)', background:'var(--bg-card)', cursor:'pointer', fontSize:16, color:'var(--text-primary)'}}>✕</button>
             </div>
 
             <div style={{flex:1, overflowY:'auto', padding:'22px'}}>
@@ -558,11 +558,11 @@ function Browse() {
               {/* Price range */}
               <FilterGroup title={`Price range · £${priceLo} – £${priceHi}`}>
                 <div style={{display:'flex', flexDirection:'column', gap:14, paddingTop:4}}>
-                  <label style={{fontSize:12, fontWeight:700, color:'#1A1A1A'}}>
+                  <label style={{fontSize:12, fontWeight:700, color:'var(--text-primary)'}}>
                     Min · £{priceLo}
                     <input type="range" min={priceBounds.min} max={priceBounds.max} value={priceLo} onChange={e => setPriceLo(Math.min(Number(e.target.value), priceHi))} style={{width:'100%', marginTop:6, display:'block'}} />
                   </label>
-                  <label style={{fontSize:12, fontWeight:700, color:'#1A1A1A'}}>
+                  <label style={{fontSize:12, fontWeight:700, color:'var(--text-primary)'}}>
                     Max · £{priceHi}
                     <input type="range" min={priceBounds.min} max={priceBounds.max} value={priceHi} onChange={e => setPriceHi(Math.max(Number(e.target.value), priceLo))} style={{width:'100%', marginTop:6, display:'block'}} />
                   </label>
@@ -571,12 +571,12 @@ function Browse() {
 
               {/* Allergen exclusions */}
               <FilterGroup title="Exclude allergens">
-                <p style={{fontSize:12, color:'#1A1A1A', opacity:0.8, marginBottom:10, lineHeight:1.5}}>Hide dishes that declare any of these.</p>
+                <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.8, marginBottom:10, lineHeight:1.5}}>Hide dishes that declare any of these.</p>
                 <div style={{display:'flex', flexWrap:'wrap', gap:8}}>
                   {ALLERGENS.map(a => {
                     const on = excludeAllergens.includes(a)
                     return (
-                      <button key={a} onClick={() => setExcludeAllergens(prev => on ? prev.filter(x => x !== a) : [...prev, a])} style={{padding:'7px 13px', borderRadius:100, fontSize:12.5, fontWeight:700, cursor:'pointer', border:on?'2px solid #C8006A':'2px solid #E8E8E8', background:on?'#FFE8F4':'#fff', color:on?'#C8006A':'#1A1A1A'}}>
+                      <button key={a} onClick={() => setExcludeAllergens(prev => on ? prev.filter(x => x !== a) : [...prev, a])} style={{padding:'7px 13px', borderRadius:100, fontSize:12.5, fontWeight:700, cursor:'pointer', border:on?'2px solid #C8006A':'2px solid var(--border-subtle)', background:on?'#FFE8F4':'var(--bg-card)', color:on?'#C8006A':'var(--text-primary)'}}>
                         {on ? '✕ ' : ''}{a}
                       </button>
                     )
@@ -585,8 +585,8 @@ function Browse() {
               </FilterGroup>
             </div>
 
-            <div style={{padding:'16px 22px', borderTop:'1px solid #F0E4EC', display:'flex', gap:12, flexShrink:0}}>
-              <button onClick={clearAll} style={{flex:'0 0 auto', height:46, padding:'0 18px', border:'1.5px solid #E0E0E0', borderRadius:11, fontSize:14, fontWeight:700, color:'#1A1A1A', background:'#fff', cursor:'pointer'}}>Clear all</button>
+            <div style={{padding:'16px 22px', borderTop:'1px solid var(--border-subtle)', display:'flex', gap:12, flexShrink:0}}>
+              <button onClick={clearAll} style={{flex:'0 0 auto', height:46, padding:'0 18px', border:'1.5px solid var(--border-subtle)', borderRadius:11, fontSize:14, fontWeight:700, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer'}}>Clear all</button>
               <button onClick={() => setPanelOpen(false)} style={{flex:1, height:46, background:'#C8006A', color:'#fff', border:'none', borderRadius:11, fontSize:14.5, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.3)'}}>
                 Show {results.length} {results.length === 1 ? 'dish' : 'dishes'}
               </button>
@@ -610,7 +610,7 @@ function Chip({ label, onClear }: { label: string; onClear: () => void }) {
 function FilterGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{marginBottom:26}}>
-      <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#1A1A1A', marginBottom:12}}>{title}</div>
+      <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'var(--text-primary)', marginBottom:12}}>{title}</div>
       {children}
     </div>
   )
@@ -618,7 +618,7 @@ function FilterGroup({ title, children }: { title: string; children: React.React
 
 function Toggle({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{padding:'9px 16px', borderRadius:100, fontSize:13, fontWeight:700, cursor:'pointer', border:active?'2px solid #C8006A':'2px solid #E8E8E8', background:active?'#FFE8F4':'#fff', color:active?'#C8006A':'#1A1A1A', transition:'all 0.14s'}}>
+    <button onClick={onClick} style={{padding:'9px 16px', borderRadius:100, fontSize:13, fontWeight:700, cursor:'pointer', border:active?'2px solid #C8006A':'2px solid var(--border-subtle)', background:active?'#FFE8F4':'var(--bg-card)', color:active?'#C8006A':'var(--text-primary)', transition:'all 0.14s'}}>
       {label}
     </button>
   )

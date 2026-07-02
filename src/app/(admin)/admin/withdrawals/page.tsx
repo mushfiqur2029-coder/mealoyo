@@ -30,12 +30,12 @@ const dark = `
   ::-webkit-scrollbar { width: 0; height: 0; } * { scrollbar-width: none; -ms-overflow-style: none; }
   a { text-decoration: none; color: inherit; }
   button { font-family: Inter, system-ui, sans-serif; }
-  .skelD { background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
+  .skelD { background: linear-gradient(90deg, var(--bg-card) 0%, var(--border-subtle) 50%, var(--bg-card) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
   .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
-  .nav-link:hover { color: #fff !important; }
+  .nav-link:hover { color: var(--text-primary) !important; }
   .paid-btn:hover { background: #1A6030 !important; }
   .reject-btn:hover { background: rgba(192,57,43,0.16) !important; }
-  .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
+  .signout:hover { background: rgba(200,0,106,0.15) !important; color: var(--text-primary) !important; border-color: rgba(200,0,106,0.4) !important; }
   input:focus { border-color: #C8006A !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } }
   @media (max-width: 720px) { .wr-row { flex-direction: column !important; align-items: stretch !important; } .wr-actions { justify-content: flex-start !important; } }
@@ -114,28 +114,28 @@ export default function AdminWithdrawals() {
   const signOut = async () => { await supabase.auth.signOut(); router.push('/admin/login') }
 
   const nav = (
-    <nav style={{background:'rgba(13,13,13,0.9)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid rgba(255,255,255,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid var(--border-subtle)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/admin/dashboard" style={{display:'flex', alignItems:'center', gap:10, marginRight:28, flexShrink:0}}>
-          <Logo height={26} white/>
+          <Logo height={26} themed/>
           <span style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#C8006A'}}>Admin</span>
         </Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map(t => {
             const active = t.h === '/admin/withdrawals'
-            return <Link key={t.h} href={t.h} className="nav-link" style={{height:64, padding:'0 13px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#fff' : 'rgba(255,255,255,0.5)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+            return <Link key={t.h} href={t.h} className="nav-link" style={{height:64, padding:'0 13px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
-          <span style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>{profile?.full_name || profile?.email}</span>
-          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.6)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+          <span style={{fontSize:12, color:'var(--text-secondary)'}}>{profile?.full_name || profile?.email}</span>
+          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12, fontWeight:600, color:'var(--text-secondary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
       </div>
       </div>
     </nav>
   )
 
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:1000, margin:'0 auto', padding:'32px 20px'}}>
         <div className="skelD" style={{height:28, width:180, borderRadius:8, marginBottom:8}}/>
@@ -161,21 +161,21 @@ export default function AdminWithdrawals() {
   const renderRow = (w: WithdrawalRequest) => {
     const badge = wBadge[w.status] || wBadge.pending
     return (
-      <div key={w.id} style={{background:'rgba(255,255,255,0.03)', borderRadius:16, border:'1px solid rgba(255,255,255,0.08)', padding:'18px 20px', marginBottom:14}}>
+      <div key={w.id} style={{background:'var(--bg-card)', borderRadius:16, border:'1px solid var(--border-subtle)', padding:'18px 20px', marginBottom:14}}>
         <div className="wr-row" style={{display:'flex', alignItems:'center', gap:16}}>
           <div style={{flex:1, minWidth:0}}>
             <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:6}}>
-              <span style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#fff'}}>£{parseFloat(w.amount || '0').toFixed(2)}</span>
+              <span style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)'}}>£{parseFloat(w.amount || '0').toFixed(2)}</span>
               <span style={{background:badge.bg, color:badge.c, fontSize:10.5, fontWeight:800, padding:'3px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.03em'}}>{badge.l}</span>
             </div>
             <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:2}}>
-              <span style={{fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.85)'}}>{w.profiles?.full_name || w.profiles?.email || 'Unknown user'}</span>
-              <span style={{background:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.6)', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em'}}>{roleLabel(w.profiles?.role)}</span>
+              <span style={{fontSize:13, fontWeight:600, color:'var(--text-primary)'}}>{w.profiles?.full_name || w.profiles?.email || 'Unknown user'}</span>
+              <span style={{background:'var(--border-subtle)', color:'var(--text-secondary)', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em'}}>{roleLabel(w.profiles?.role)}</span>
             </div>
-            <div style={{fontSize:12.5, color:'rgba(255,255,255,0.55)', lineHeight:1.6}}>
+            <div style={{fontSize:12.5, color:'var(--text-secondary)', lineHeight:1.6}}>
               {w.bank_account_name || '—'} · Sort {w.bank_sort_code || '—'} · Acct {w.bank_account_number || '—'}
             </div>
-            <div style={{fontSize:11.5, color:'rgba(255,255,255,0.4)', marginTop:4}}>
+            <div style={{fontSize:11.5, color:'var(--text-secondary)', marginTop:4}}>
               Requested {new Date(w.requested_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}
               {w.approved_at && ` · Approved ${new Date(w.approved_at).toLocaleDateString('en-GB', { day:'numeric', month:'short' })}`}
               {w.paid_at && ` · Paid ${new Date(w.paid_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}`}
@@ -199,9 +199,9 @@ export default function AdminWithdrawals() {
           </div>
         </div>
         {rejectingId === w.id && (
-          <div style={{marginTop:14, paddingTop:14, borderTop:'1px solid rgba(255,255,255,0.07)', display:'flex', gap:8, flexWrap:'wrap'}}>
-            <input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason for rejection (shown to the user)" style={{flex:1, minWidth:220, height:42, border:'1px solid rgba(255,255,255,0.14)', borderRadius:10, padding:'0 14px', fontSize:13, color:'#fff', background:'rgba(255,255,255,0.05)', outline:'none'}}/>
-            <button onClick={() => confirmReject(w.id)} disabled={busyId === w.id} style={{height:42, padding:'0 18px', background:'#C0392B', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:busyId === w.id ? 'not-allowed' : 'pointer', opacity:busyId === w.id ? 0.7 : 1}}>Confirm reject</button>
+          <div style={{marginTop:14, paddingTop:14, borderTop:'1px solid var(--bg-secondary)', display:'flex', gap:8, flexWrap:'wrap'}}>
+            <input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason for rejection (shown to the user)" style={{flex:1, minWidth:220, height:42, border:'1px solid var(--border-subtle)', borderRadius:10, padding:'0 14px', fontSize:13, color:'var(--text-primary)', background:'var(--bg-card)', outline:'none'}}/>
+            <button onClick={() => confirmReject(w.id)} disabled={busyId === w.id} style={{height:42, padding:'0 18px', background:'#C0392B', color:'var(--text-primary)', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:busyId === w.id ? 'not-allowed' : 'pointer', opacity:busyId === w.id ? 0.7 : 1}}>Confirm reject</button>
           </div>
         )}
       </div>
@@ -209,31 +209,31 @@ export default function AdminWithdrawals() {
   }
 
   return (
-    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:1000, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{marginBottom:26}}>
-          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>Withdrawals</h1>
-          <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>Review payout requests and mark them paid once the bank transfer is sent.</p>
+          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>Withdrawals</h1>
+          <p style={{fontSize:14, color:'var(--text-secondary)'}}>Review payout requests and mark them paid once the bank transfer is sent.</p>
         </div>
 
         {error && <div className="fade-up" style={{background:'rgba(255,138,138,0.14)', border:'1px solid rgba(255,138,138,0.3)', borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#FF8A8A', fontWeight:600}}>{error}</div>}
 
         <div className="fade-up">
           <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, marginBottom:14, flexWrap:'wrap'}}>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff'}}>Priority queue {pending.length > 0 && <span style={{color:'#FBBF24'}}>({pending.length})</span>}</h2>
-            {pending.length > 0 && <span style={{fontSize:12.5, color:'rgba(255,255,255,0.55)', fontWeight:600}}>Outstanding: <strong style={{color:'#FBBF24', fontFamily:'Georgia,serif'}}>£{pendingTotal.toFixed(2)}</strong></span>}
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)'}}>Priority queue {pending.length > 0 && <span style={{color:'#FBBF24'}}>({pending.length})</span>}</h2>
+            {pending.length > 0 && <span style={{fontSize:12.5, color:'var(--text-secondary)', fontWeight:600}}>Outstanding: <strong style={{color:'#FBBF24', fontFamily:'Georgia,serif'}}>£{pendingTotal.toFixed(2)}</strong></span>}
           </div>
           {pending.length === 0 ? (
-            <div style={{background:'rgba(255,255,255,0.03)', borderRadius:16, border:'1px solid rgba(255,255,255,0.08)', padding:'40px 20px', textAlign:'center', marginBottom:32}}>
+            <div style={{background:'var(--bg-card)', borderRadius:16, border:'1px solid var(--border-subtle)', padding:'40px 20px', textAlign:'center', marginBottom:32}}>
               <div style={{fontSize:38, marginBottom:10}}>✅</div>
-              <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>No pending withdrawal requests right now.</p>
+              <p style={{fontSize:14, color:'var(--text-secondary)'}}>No pending withdrawal requests right now.</p>
             </div>
           ) : <div style={{marginBottom:32}}>{pending.map(renderRow)}</div>}
 
           {processed.length > 0 && (
             <>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', marginBottom:14}}>History</h2>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:14}}>History</h2>
               {processed.map(renderRow)}
             </>
           )}
@@ -242,19 +242,19 @@ export default function AdminWithdrawals() {
 
       {paidModal && (
         <div onClick={closePaidModal} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(4px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'#161616', borderRadius:20, width:'100%', maxWidth:460, maxHeight:'90vh', overflowY:'auto', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'0 20px 60px rgba(0,0,0,0.6)', padding:'26px 28px 28px'}}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'#161616', borderRadius:20, width:'100%', maxWidth:460, maxHeight:'90vh', overflowY:'auto', border:'1px solid var(--border-subtle)', boxShadow:'0 20px 60px rgba(0,0,0,0.6)', padding:'26px 28px 28px'}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18}}>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:21, fontWeight:700, color:'#fff'}}>Mark as paid</h2>
-              <button onClick={closePaidModal} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid rgba(255,255,255,0.15)', background:'transparent', fontSize:15, color:'rgba(255,255,255,0.7)', cursor:'pointer'}}>✕</button>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:21, fontWeight:700, color:'var(--text-primary)'}}>Mark as paid</h2>
+              <button onClick={closePaidModal} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-secondary)', cursor:'pointer'}}>✕</button>
             </div>
 
-            <div style={{background:'rgba(255,255,255,0.05)', borderRadius:14, padding:'16px 18px', marginBottom:18, border:'1px solid rgba(255,255,255,0.07)'}}>
-              <p style={{fontSize:14, color:'rgba(255,255,255,0.85)', lineHeight:1.6}}>
-                Confirm payment of <strong style={{color:'#34D399'}}>£{parseFloat(paidModal.amount || '0').toFixed(2)}</strong> to <strong style={{color:'#fff'}}>{paidModal.bank_account_name || '—'}</strong> ({paidModal.bank_sort_code || '—'} {paidModal.bank_account_number || '—'}).
+            <div style={{background:'var(--bg-card)', borderRadius:14, padding:'16px 18px', marginBottom:18, border:'1px solid var(--bg-secondary)'}}>
+              <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.6}}>
+                Confirm payment of <strong style={{color:'#34D399'}}>£{parseFloat(paidModal.amount || '0').toFixed(2)}</strong> to <strong style={{color:'var(--text-primary)'}}>{paidModal.bank_account_name || '—'}</strong> ({paidModal.bank_sort_code || '—'} {paidModal.bank_account_number || '—'}).
               </p>
             </div>
 
-            <label style={{display:'block', fontSize:12, fontWeight:700, color:'#fff', marginBottom:8}}>Upload bank transfer receipt <span style={{color:'rgba(255,255,255,0.4)', fontWeight:500}}>(optional)</span></label>
+            <label style={{display:'block', fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>Upload bank transfer receipt <span style={{color:'var(--text-secondary)', fontWeight:500}}>(optional)</span></label>
             <label
               onDragOver={e => { e.preventDefault(); setDragActive(true) }}
               onDragLeave={e => { e.preventDefault(); setDragActive(false) }}
@@ -263,26 +263,26 @@ export default function AdminWithdrawals() {
                 const f = e.dataTransfer.files?.[0]
                 if (f) setReceiptFile(f)
               }}
-              style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, textAlign:'center', cursor:'pointer', padding:'22px 16px', borderRadius:14, border:`1.5px dashed ${dragActive ? '#C8006A' : receiptFile ? 'rgba(52,211,153,0.5)' : 'rgba(255,255,255,0.18)'}`, background:dragActive ? 'rgba(200,0,106,0.08)' : 'rgba(255,255,255,0.03)', transition:'all 0.15s', marginBottom:6}}
+              style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, textAlign:'center', cursor:'pointer', padding:'22px 16px', borderRadius:14, border:`1.5px dashed ${dragActive ? '#C8006A' : receiptFile ? 'rgba(52,211,153,0.5)' : 'var(--border-subtle)'}`, background:dragActive ? 'rgba(200,0,106,0.08)' : 'var(--bg-card)', transition:'all 0.15s', marginBottom:6}}
             >
               <div style={{fontSize:24}}>{receiptFile ? '📎' : '⬆️'}</div>
               {receiptFile ? (
                 <div style={{fontSize:12.5, color:'#34D399', fontWeight:700, wordBreak:'break-all'}}>{receiptFile.name}</div>
               ) : (
                 <>
-                  <div style={{fontSize:13, color:'rgba(255,255,255,0.75)', fontWeight:600}}>Drag & drop receipt here</div>
-                  <div style={{fontSize:11.5, color:'rgba(255,255,255,0.4)'}}>or click to browse · JPG, PNG, WebP or PDF</div>
+                  <div style={{fontSize:13, color:'var(--text-secondary)', fontWeight:600}}>Drag & drop receipt here</div>
+                  <div style={{fontSize:11.5, color:'var(--text-secondary)'}}>or click to browse · JPG, PNG, WebP or PDF</div>
                 </>
               )}
               <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceiptFile(e.target.files?.[0] || null)} style={{display:'none'}}/>
             </label>
             {receiptFile && <button onClick={() => setReceiptFile(null)} style={{fontSize:11.5, color:'#FF8A8A', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0, marginBottom:6}}>Remove</button>}
-            <p style={{fontSize:11.5, color:'rgba(255,255,255,0.45)', lineHeight:1.55, marginTop:8, marginBottom:18}}>The requester will see this receipt and a &ldquo;Payment confirmed&rdquo; message on their earnings page.</p>
+            <p style={{fontSize:11.5, color:'var(--text-secondary)', lineHeight:1.55, marginTop:8, marginBottom:18}}>The requester will see this receipt and a &ldquo;Payment confirmed&rdquo; message on their earnings page.</p>
 
             {error && <div style={{background:'rgba(255,138,138,0.14)', border:'1px solid rgba(255,138,138,0.3)', borderRadius:10, padding:'10px 12px', marginBottom:14, fontSize:12.5, color:'#FF8A8A', fontWeight:600}}>{error}</div>}
 
             <div style={{display:'flex', gap:10}}>
-              <button onClick={closePaidModal} disabled={uploading} style={{flex:'0 0 auto', height:46, padding:'0 20px', background:'transparent', color:'rgba(255,255,255,0.7)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:12, fontSize:14, fontWeight:600, cursor:uploading ? 'not-allowed' : 'pointer'}}>Cancel</button>
+              <button onClick={closePaidModal} disabled={uploading} style={{flex:'0 0 auto', height:46, padding:'0 20px', background:'transparent', color:'var(--text-secondary)', border:'1px solid var(--border-subtle)', borderRadius:12, fontSize:14, fontWeight:600, cursor:uploading ? 'not-allowed' : 'pointer'}}>Cancel</button>
               <button onClick={confirmPaid} disabled={uploading} className="paid-btn" style={{flex:1, height:46, background:'#2DA84E', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:uploading ? 'not-allowed' : 'pointer', opacity:uploading ? 0.7 : 1, transition:'background 0.14s'}}>{uploading ? 'Processing…' : 'Confirm payment'}</button>
             </div>
           </div>

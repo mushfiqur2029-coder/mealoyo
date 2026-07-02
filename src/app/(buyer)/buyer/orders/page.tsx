@@ -45,13 +45,29 @@ export default function BuyerOrders() {
       if (!user) { router.push('/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
-      const { data } = await supabase
+      const { data: all } = await supabase
         .from('orders')
         .select('*, listings(name, cuisine), profiles:seller_id(full_name)')
         .eq('buyer_id', user.id)
-        .neq('status', 'pending_payment') // hide unpaid orders that never completed checkout
         .order('created_at', { ascending: false })
-      setOrders(data || [])
+
+      // Reap abandoned checkouts: an order left in pending_payment for more than
+      // 30 minutes means the buyer never came back from Stripe. Cancel it so it
+      // can't linger as a ghost. Best-effort — RLS scopes it to the buyer.
+      const cutoff = Date.now() - 30 * 60 * 1000
+      const stale = (all || []).filter(o => o.status === 'pending_payment' && new Date(o.created_at).getTime() < cutoff)
+      if (stale.length) {
+        await supabase.from('orders').update({ status: 'cancelled', payment_status: 'failed' }).in('id', stale.map(o => o.id))
+      }
+      const staleIds = new Set(stale.map(o => o.id))
+
+      // Display rule: never show orders still awaiting payment. Stale ones become
+      // cancelled above (and do show, under Cancelled); recent unpaid ones stay
+      // hidden until Stripe confirms.
+      const visible = (all || [])
+        .map(o => staleIds.has(o.id) ? { ...o, status: 'cancelled', payment_status: 'failed' } : o)
+        .filter(o => o.status !== 'pending_payment' && o.payment_status !== 'unpaid')
+      setOrders(visible)
       const { data: revs } = await supabase.from('reviews').select('order_id').eq('buyer_id', user.id)
       setReviewed(new Set((revs || []).map(r => r.order_id)))
       setLoading(false)
@@ -105,20 +121,20 @@ export default function BuyerOrders() {
   )
 
   const nav = (
-    <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid var(--border-subtle)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1000, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={34}/></Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map((t, i) => {
             const active = t.h === '/buyer/orders'
             return (
-              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : '#1A1A1A', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : 'var(--text-primary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
             )
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff'}}>{profile?.full_name?.[0]?.toUpperCase() || 'B'}</div>
-          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
+          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
         </div>
       </div>
     </nav>
@@ -126,7 +142,7 @@ export default function BuyerOrders() {
 
   // ── LOADING SKELETON ──
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
       <div style={{maxWidth:1000, margin:'0 auto', padding:'32px 20px'}}>
@@ -154,7 +170,7 @@ export default function BuyerOrders() {
   const visible = activeFilter.statuses === null ? orders : orders.filter(o => activeFilter.statuses!.includes(o.status))
 
   return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
 
@@ -162,8 +178,8 @@ export default function BuyerOrders() {
 
         {/* Header */}
         <div className="fade-up" style={{marginBottom:22}}>
-          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:4}}>My orders</h1>
-          <p style={{fontSize:14, color:'#1A1A1A', opacity:0.85}}>{orders.length} {orders.length === 1 ? 'order' : 'orders'} placed all time</p>
+          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>My orders</h1>
+          <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>{orders.length} {orders.length === 1 ? 'order' : 'orders'} placed all time</p>
         </div>
 
         {/* Summary stats */}
@@ -177,9 +193,9 @@ export default function BuyerOrders() {
             { icon:'✅', value:String(deliveredCount), label:'Delivered' },
             { icon:'⏳', value:String(inProgressCount), label:'In progress' },
           ].map((s, i) => (
-            <div key={i} className="stat-card" style={{background:'#fff', borderRadius:18, padding:'20px', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div key={i} className="stat-card" style={{background:'var(--bg-card)', borderRadius:18, padding:'20px', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid var(--border-subtle)'}}>
               <div style={{fontSize:20, marginBottom:10}}>{s.icon}</div>
-              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,26px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,26px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
               <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:6}}>{s.label}</div>
             </div>
           ))}
@@ -191,7 +207,7 @@ export default function BuyerOrders() {
             const active = filter === f.key
             const count = countFor(f)
             return (
-              <button key={f.key} onClick={() => setFilter(f.key)} className="pill" style={{flexShrink:0, height:38, padding:'0 16px', borderRadius:100, border:active ? '1.5px solid #C8006A' : '1.5px solid #EAD9E4', background:active ? '#C8006A' : '#fff', color:active ? '#fff' : '#1A1A1A', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:7, transition:'all 0.14s'}}>
+              <button key={f.key} onClick={() => setFilter(f.key)} className="pill" style={{flexShrink:0, height:38, padding:'0 16px', borderRadius:100, border:active ? '1.5px solid #C8006A' : '1.5px solid var(--border-subtle)', background:active ? '#C8006A' : 'var(--bg-card)', color:active ? '#fff' : 'var(--text-primary)', fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:7, transition:'all 0.14s'}}>
                 {f.label}
                 <span style={{background:active ? 'rgba(255,255,255,0.25)' : '#FFE8F4', color:active ? '#fff' : '#C8006A', borderRadius:100, fontSize:11, fontWeight:700, padding:'1px 7px', minWidth:20, textAlign:'center'}}>{count}</span>
               </button>
@@ -201,10 +217,10 @@ export default function BuyerOrders() {
 
         {/* Orders */}
         {visible.length === 0 ? (
-          <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'56px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+          <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'56px 32px', textAlign:'center', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)'}}>
             <div style={{fontSize:46, marginBottom:14}}>{filter === 'all' ? '🛒' : '🍽️'}</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:21, fontWeight:700, color:'#1A1A1A', marginBottom:8}}>{filter === 'all' ? 'No orders yet' : `No ${activeFilter.label.toLowerCase()} orders`}</h2>
-            <p style={{fontSize:14, color:'#1A1A1A', opacity:0.85, marginBottom:filter === 'all' ? 24 : 0, lineHeight:1.6, maxWidth:380, margin:filter === 'all' ? '0 auto 24px' : '0 auto'}}>{filter === 'all' ? 'Browse home cooks near you and place your first order.' : 'You have no orders with this status right now.'}</p>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:21, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>{filter === 'all' ? 'No orders yet' : `No ${activeFilter.label.toLowerCase()} orders`}</h2>
+            <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85, marginBottom:filter === 'all' ? 24 : 0, lineHeight:1.6, maxWidth:380, margin:filter === 'all' ? '0 auto 24px' : '0 auto'}}>{filter === 'all' ? 'Browse home cooks near you and place your first order.' : 'You have no orders with this status right now.'}</p>
             {filter === 'all' && (
               <Link href="/" className="browse-btn" style={{display:'inline-flex', alignItems:'center', height:46, padding:'0 26px', background:'#C8006A', color:'#fff', borderRadius:10, fontSize:14, fontWeight:700, boxShadow:'0 4px 14px rgba(200,0,106,0.3)', transition:'all 0.16s'}}>Browse food →</Link>
             )}
@@ -216,22 +232,22 @@ export default function BuyerOrders() {
               const canRate = o.status === 'delivered' && !reviewed.has(o.id)
               const delivery = deliveryLabel(o.delivery_type)
               return (
-                <Link key={o.id} href={`/buyer/orders/${o.id}`} className="ocard fade-up" style={{display:'flex', alignItems:'stretch', gap:0, background:'#fff', borderRadius:18, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', flexWrap:'wrap'}}>
+                <Link key={o.id} href={`/buyer/orders/${o.id}`} className="ocard fade-up" style={{display:'flex', alignItems:'stretch', gap:0, background:'var(--bg-card)', borderRadius:18, overflow:'hidden', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', flexWrap:'wrap'}}>
                   <div className="ocard-emoji" style={{width:84, alignSelf:'stretch', minHeight:96, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:36, flexShrink:0}}>{cuisineEmoji[o.listings?.cuisine || 'Other'] || '🍽️'}</div>
                   <div style={{flex:1, minWidth:0, padding:'16px 18px', display:'flex', flexDirection:'column', justifyContent:'center', gap:7}}>
                     <div>
-                      <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#1A1A1A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:2}}>{o.listings?.name || 'Order'}</div>
-                      <div style={{fontSize:12.5, color:'#1A1A1A', opacity:0.8}}>👨‍🍳 {cookFirst} · #{o.id.slice(0,8).toUpperCase()} · {new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                      <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:2}}>{o.listings?.name || 'Order'}</div>
+                      <div style={{fontSize:12.5, color:'var(--text-primary)', opacity:0.8}}>👨‍🍳 {cookFirst} · #{o.id.slice(0,8).toUpperCase()} · {new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
                     </div>
                     <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-                      <span style={{background:'#F8F0F4', color:'#1A1A1A', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:100}}>× {o.quantity || 1}</span>
-                      {delivery && <span style={{background:'#F8F0F4', color:'#1A1A1A', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:100}}>{delivery}</span>}
+                      <span style={{background:'var(--bg-secondary)', color:'var(--text-primary)', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:100}}>× {o.quantity || 1}</span>
+                      {delivery && <span style={{background:'var(--bg-secondary)', color:'var(--text-primary)', fontSize:11, fontWeight:700, padding:'3px 10px', borderRadius:100}}>{delivery}</span>}
                     </div>
                   </div>
                   <div className="ocard-right" style={{padding:'16px 18px', display:'flex', flexDirection:'column', alignItems:'flex-end', justifyContent:'center', gap:8, flexShrink:0}}>
                     <div style={{display:'flex', alignItems:'center', gap:10}}>
                       <div style={{textAlign:'right'}}>
-                        <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#1A1A1A', marginBottom:4}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
+                        <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
                         <span style={{background:statusBg(o.status), color:statusColor(o.status), padding:'3px 10px', borderRadius:100, fontSize:11, fontWeight:700, whiteSpace:'nowrap'}}>{statusLabel(o.status)}</span>
                       </div>
                       <span className="ocard-arrow" style={{fontSize:18, color:'#C8006A', flexShrink:0}}>→</span>

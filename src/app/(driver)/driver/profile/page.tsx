@@ -25,19 +25,19 @@ const dark = `
   ::-webkit-scrollbar { width: 0; height: 0; } * { scrollbar-width: none; -ms-overflow-style: none; }
   a { text-decoration: none; color: inherit; }
   button { font-family: Inter, system-ui, sans-serif; }
-  .skelD { background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
+  .skelD { background: linear-gradient(90deg, var(--bg-card) 0%, rgba(255,255,255,0.09) 50%, var(--bg-card) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
   .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
-  .nav-link:hover { color: #fff !important; }
+  .nav-link:hover { color: var(--text-primary) !important; }
   .save-btn:hover { background: #A00055 !important; }
-  .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
+  .signout:hover { background: rgba(200,0,106,0.15) !important; color: var(--text-primary) !important; border-color: rgba(200,0,106,0.4) !important; }
   .signout-danger:hover { background: #C0392B !important; color: #fff !important; }
-  input:focus { border-color: #C8006A !important; outline: none; background: rgba(255,255,255,0.07) !important; }
+  input:focus { border-color: #C8006A !important; outline: none; background: var(--bg-secondary) !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } }
 `
 
-const inputStyle: React.CSSProperties = { height:48, border:'1px solid rgba(255,255,255,0.14)', borderRadius:11, padding:'0 14px', fontSize:14, color:'#fff', background:'rgba(255,255,255,0.04)', width:'100%', transition:'border-color 0.14s' }
-const labelStyle: React.CSSProperties = { fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.5)', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:7 }
-const cardStyle: React.CSSProperties = { background:'rgba(255,255,255,0.03)', borderRadius:18, padding:'24px', border:'1px solid rgba(255,255,255,0.08)', display:'flex', flexDirection:'column', gap:18, marginBottom:18 }
+const inputStyle: React.CSSProperties = { height:48, border:'1px solid var(--border-subtle)', borderRadius:11, padding:'0 14px', fontSize:14, color:'var(--text-primary)', background:'var(--bg-card)', width:'100%', transition:'border-color 0.14s' }
+const labelStyle: React.CSSProperties = { fontSize:11, fontWeight:700, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:7 }
+const cardStyle: React.CSSProperties = { background:'var(--bg-card)', borderRadius:18, padding:'24px', border:'1px solid var(--border-subtle)', display:'flex', flexDirection:'column', gap:18, marginBottom:18 }
 
 const reviewBadge = (
   <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(184,115,10,0.18)', color:'#FBBF24', fontSize:9.5, fontWeight:800, padding:'2px 7px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em', verticalAlign:'middle', marginLeft:8 }}>⏳ Needs re-approval</span>
@@ -173,25 +173,25 @@ export default function DriverProfile() {
   const statusOk = status === 'active'
 
   const nav = (
-    <nav style={{background:'rgba(13,13,13,0.85)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid rgba(255,255,255,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid var(--border-subtle)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
-        <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={30} white/></Link>
+        <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={30} themed/></Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map((t, i) => {
             const active = t.h === '/driver/profile'
-            return <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#fff' : 'rgba(255,255,255,0.5)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+            return <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           <NavAvatar url={avatarUrl} initial={initials[0]}/>
-          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.7)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.7)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>
     </nav>
   )
 
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:600, margin:'0 auto', padding:'32px 20px'}}>
         <div className="skelD" style={{height:30, width:200, borderRadius:8, marginBottom:8}}/>
@@ -202,22 +202,22 @@ export default function DriverProfile() {
   )
 
   return (
-    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
 
       <div style={{maxWidth:600, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{marginBottom:22}}>
-          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,30px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>My profile</h1>
+          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,30px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>My profile</h1>
           <p style={{fontSize:14, color:'rgba(255,255,255,0.55)'}}>Manage your driver account details.</p>
         </div>
 
         {/* Identity card */}
-        <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:22, padding:'28px 24px', border:'1px solid rgba(255,255,255,0.08)', textAlign:'center', marginBottom:18}}>
+        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'28px 24px', border:'1px solid var(--border-subtle)', textAlign:'center', marginBottom:18}}>
           <div style={{marginBottom:14}}>
             {user && <AvatarUpload userId={user.id} initialUrl={avatarUrl} initials={initials} dark onUploaded={setAvatarUrl}/>}
           </div>
-          <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#fff', marginBottom:4}}>{fullName.trim() || 'Your name'}</h2>
-          <p style={{fontSize:13, color:'rgba(255,255,255,0.6)', marginBottom:12}}>{email} · Courier</p>
+          <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>{fullName.trim() || 'Your name'}</h2>
+          <p style={{fontSize:13, color:'var(--text-secondary)', marginBottom:12}}>{email} · Courier</p>
           <span style={{display:'inline-flex', alignItems:'center', gap:6, background:statusOk ? 'rgba(45,168,78,0.15)' : 'rgba(184,115,10,0.18)', color:statusOk ? '#34D399' : '#FBBF24', padding:'5px 12px', borderRadius:100, fontSize:11.5, fontWeight:700, textTransform:'capitalize', letterSpacing:'0.02em'}}>
             <span style={{width:7, height:7, borderRadius:'50%', background:statusOk ? '#34D399' : '#FBBF24'}}/>{status || 'pending'} {statusOk ? 'driver' : 'review'}
           </span>
@@ -235,15 +235,15 @@ export default function DriverProfile() {
         {/* Appearance */}
         <div className="fade-up" style={{...cardStyle, flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap'}}>
           <div>
-            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', marginBottom:2}}>Appearance</h3>
-            <p style={{fontSize:12.5, color:'rgba(255,255,255,0.6)'}}>Choose light, dark, or match your device.</p>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:2}}>Appearance</h3>
+            <p style={{fontSize:12.5, color:'var(--text-secondary)'}}>Choose light, dark, or match your device.</p>
           </div>
           <ThemeToggle/>
         </div>
 
         {/* Details form */}
         <form onSubmit={handleSave} className="fade-up" style={cardStyle}>
-          <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff'}}>Account details</h3>
+          <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)'}}>Account details</h3>
           <div>
             <label style={labelStyle}>Full name{reviewBadge}</label>
             <input value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle}/>
@@ -253,9 +253,9 @@ export default function DriverProfile() {
             <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={inputStyle}/>
           </div>
 
-          <div style={{borderTop:'1px solid rgba(255,255,255,0.08)', paddingTop:18}}>
-            <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'#fff', marginBottom:4}}>Address{reviewBadge}</h4>
-            <p style={{fontSize:12, color:'rgba(255,255,255,0.45)', marginBottom:14}}>Your base location, used for verification and dispatch.</p>
+          <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
+            <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>Address{reviewBadge}</h4>
+            <p style={{fontSize:12, color:'var(--text-secondary)', marginBottom:14}}>Your base location, used for verification and dispatch.</p>
             <div style={{display:'flex', flexDirection:'column', gap:14}}>
               <div>
                 <label style={labelStyle}>Address line 1</label>
@@ -278,22 +278,22 @@ export default function DriverProfile() {
             </div>
           </div>
 
-          <div style={{borderTop:'1px solid rgba(255,255,255,0.08)', paddingTop:18}}>
+          <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
             <label style={{...labelStyle, display:'flex', alignItems:'center', gap:6}}>Email address <span style={{fontSize:12}}>🔒</span></label>
             <div style={{position:'relative'}}>
               <input value={email} disabled style={{...inputStyle, padding:'0 40px 0 14px', opacity:0.6, cursor:'not-allowed'}}/>
               <span style={{position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', fontSize:15, opacity:0.5}}>🔒</span>
             </div>
-            <p style={{fontSize:12, color:'rgba(255,255,255,0.45)', marginTop:6}}>Your email is used to sign in and can&apos;t be changed here.</p>
+            <p style={{fontSize:12, color:'var(--text-secondary)', marginTop:6}}>Your email is used to sign in and can&apos;t be changed here.</p>
           </div>
-          <button type="submit" disabled={saving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:saving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:saving ? 0.8 : 1, marginTop:4}}>{saving ? 'Saving…' : 'Save changes'}</button>
+          <button type="submit" disabled={saving} className="save-btn" style={{height:50, background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:saving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:saving ? 0.8 : 1, marginTop:4}}>{saving ? 'Saving…' : 'Save changes'}</button>
         </form>
 
         {/* Change password */}
         <form onSubmit={handleChangePassword} className="fade-up" style={{...cardStyle, gap:16}}>
           <div>
-            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', marginBottom:2}}>Change password</h3>
-            <p style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>Use at least 6 characters.</p>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:2}}>Change password</h3>
+            <p style={{fontSize:12, color:'var(--text-secondary)'}}>Use at least 6 characters.</p>
           </div>
           {pwError && <div style={{background:'rgba(200,0,106,0.12)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#FF8AC4', fontWeight:600}}>{pwError}</div>}
           {pwOk && <div style={{background:'rgba(45,168,78,0.12)', border:'1px solid rgba(45,168,78,0.35)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#34D399', fontWeight:600}}>✅ Password updated</div>}
@@ -309,14 +309,14 @@ export default function DriverProfile() {
             <label style={labelStyle}>Confirm new password</label>
             <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" style={inputStyle}/>
           </div>
-          <button type="submit" disabled={pwSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:pwSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:pwSaving ? 0.8 : 1, marginTop:4}}>{pwSaving ? 'Saving…' : 'Save password'}</button>
+          <button type="submit" disabled={pwSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:pwSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:pwSaving ? 0.8 : 1, marginTop:4}}>{pwSaving ? 'Saving…' : 'Save password'}</button>
         </form>
 
         {/* Bank details for withdrawals */}
         <form onSubmit={handleSaveBank} className="fade-up" style={{...cardStyle, gap:16}}>
           <div>
-            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', marginBottom:2}}>Bank details for withdrawals</h3>
-            <p style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>Where we send your earnings when you request a withdrawal.</p>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:2}}>Bank details for withdrawals</h3>
+            <p style={{fontSize:12, color:'var(--text-secondary)'}}>Where we send your earnings when you request a withdrawal.</p>
           </div>
           {bankError && <div style={{background:'rgba(200,0,106,0.12)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#FF8AC4', fontWeight:600}}>{bankError}</div>}
           {bankOk && <div style={{background:'rgba(45,168,78,0.12)', border:'1px solid rgba(45,168,78,0.35)', borderRadius:12, padding:'12px 14px', fontSize:13, color:'#34D399', fontWeight:600}}>✅ Bank details saved</div>}
@@ -334,17 +334,17 @@ export default function DriverProfile() {
               <input value={accountNumber} onChange={e => setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" inputMode="numeric" style={inputStyle}/>
             </div>
           </div>
-          <div style={{display:'flex', alignItems:'flex-start', gap:8, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, padding:'11px 13px'}}>
+          <div style={{display:'flex', alignItems:'flex-start', gap:8, background:'var(--bg-card)', border:'1px solid var(--border-subtle)', borderRadius:12, padding:'11px 13px'}}>
             <span style={{fontSize:14, lineHeight:1.4}}>🔒</span>
-            <p style={{fontSize:12, color:'rgba(255,255,255,0.6)', lineHeight:1.5, margin:0}}>Your bank details are encrypted and only used for manual payouts.</p>
+            <p style={{fontSize:12, color:'var(--text-secondary)', lineHeight:1.5, margin:0}}>Your bank details are encrypted and only used for manual payouts.</p>
           </div>
-          <button type="submit" disabled={bankSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:bankSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:bankSaving ? 0.8 : 1, marginTop:4}}>{bankSaving ? 'Saving…' : 'Save bank details'}</button>
+          <button type="submit" disabled={bankSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:bankSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:bankSaving ? 0.8 : 1, marginTop:4}}>{bankSaving ? 'Saving…' : 'Save bank details'}</button>
         </form>
 
         {/* Danger zone */}
-        <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:22, padding:'22px 24px', border:'1px solid rgba(192,57,43,0.3)'}}>
+        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'22px 24px', border:'1px solid rgba(192,57,43,0.3)'}}>
           <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#FF8A8A', marginBottom:4}}>Danger zone</h3>
-          <p style={{fontSize:13, color:'rgba(255,255,255,0.6)', marginBottom:16, lineHeight:1.5}}>Sign out of your driver account on this device.</p>
+          <p style={{fontSize:13, color:'var(--text-secondary)', marginBottom:16, lineHeight:1.5}}>Sign out of your driver account on this device.</p>
           <button onClick={signOut} className="signout-danger" style={{height:46, padding:'0 22px', background:'transparent', color:'#FF8A8A', border:'1.5px solid #C0392B', borderRadius:11, fontSize:14, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>

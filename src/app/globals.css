@@ -5,23 +5,36 @@
   --brand-light: #FFE8F4;
 
   /* Themeable surface tokens — light mode is the default. The brand colour
-     (#C8006A) intentionally stays constant across both modes. */
+     (#C8006A) intentionally stays constant across both modes. Two naming
+     conventions are kept in sync: -primary/-secondary/-card (dashboards) and
+     -page/-nav/-muted/-subtle (the wider app). */
   --bg-primary: #ffffff;
   --bg-secondary: #F8F0F4;
+  --bg-page: #F8F0F4;
   --bg-card: #ffffff;
+  --bg-nav: rgba(255, 255, 255, 0.97);
   --text-primary: #1A1A1A;
   --text-secondary: #444444;
+  --text-muted: #444444;
   --border: rgba(200, 0, 106, 0.08);
+  --border-subtle: rgba(200, 0, 106, 0.08);
   --shadow: rgba(200, 0, 106, 0.06);
+  --shadow-card: rgba(200, 0, 106, 0.06);
 }
 html.dark {
   --bg-primary: #0D0D0D;
   --bg-secondary: #1A1A1A;
-  --bg-card: #222222;
-  --text-primary: #F5F5F5;
-  --text-secondary: #AAAAAA;
+  --bg-page: #0D0D0D;
+  --bg-card: #1A1A1A;
+  --bg-nav: rgba(20, 20, 20, 0.97);
+  --text-primary: #F0F0F0;
+  --text-secondary: #999999;
+  --text-muted: #999999;
   --border: rgba(200, 0, 106, 0.2);
+  --border-subtle: rgba(200, 0, 106, 0.2);
+  --brand-light: rgba(200, 0, 106, 0.15);
   --shadow: rgba(0, 0, 0, 0.3);
+  --shadow-card: rgba(0, 0, 0, 0.3);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
 html { scroll-behavior: smooth; }
@@ -42,3 +55,9 @@ img, video { max-width: 100%; }
 @media (max-width: 768px) {
   input, select, textarea { font-size: 16px; }
 }
+
+/* Theme-aware logo: colour mark in light mode, white mark in dark mode. Used by
+   <Logo themed/> on surfaces (e.g. the admin nav) that flip with the theme. */
+.logo-themed-dark { display: none !important; }
+html.dark .logo-themed-dark { display: block !important; }
+html.dark .logo-themed-light { display: none !important; }

@@ -41,18 +41,18 @@ const dark = `
   ::-webkit-scrollbar { width: 0; height: 0; } * { scrollbar-width: none; -ms-overflow-style: none; }
   a { text-decoration: none; color: inherit; }
   button { font-family: Inter, system-ui, sans-serif; }
-  .skelD { background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
+  .skelD { background: linear-gradient(90deg, var(--bg-card) 0%, var(--border-subtle) 50%, var(--bg-card) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
   .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
-  .nav-link:hover { color: #fff !important; }
+  .nav-link:hover { color: var(--text-primary) !important; }
   .approve:hover { background: #009836 !important; }
   .reject:hover { background: #991010 !important; }
-  .urow:hover { background: rgba(255,255,255,0.03) !important; }
+  .urow:hover { background: var(--bg-card) !important; }
   .stat-card { transition: transform 0.18s, border-color 0.18s; }
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
-  .tab:hover { color: #fff !important; }
-  .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
-  .view-btn:hover { background: rgba(255,255,255,0.12) !important; color: #fff !important; }
-  input::placeholder { color: rgba(255,255,255,0.35); }
+  .tab:hover { color: var(--text-primary) !important; }
+  .signout:hover { background: rgba(200,0,106,0.15) !important; color: var(--text-primary) !important; border-color: rgba(200,0,106,0.4) !important; }
+  .view-btn:hover { background: var(--border-subtle) !important; color: var(--text-primary) !important; }
+  input::placeholder { color: var(--text-secondary); }
   input:focus { border-color: #C8006A !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } }
   @media (max-width: 640px) { .ustats { grid-template-columns: 1fr 1fr 1fr !important; } .ucounts { display: none !important; } .search { width: 100% !important; } }
@@ -121,28 +121,28 @@ export default function AdminDrivers() {
   const statusBg = (s: string) => s === 'active' ? 'rgba(52,211,153,0.14)' : s === 'pending' ? 'rgba(251,191,36,0.14)' : 'rgba(255,138,138,0.14)'
 
   const nav = (
-    <nav style={{background:'rgba(13,13,13,0.9)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid rgba(255,255,255,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid var(--border-subtle)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/admin/dashboard" style={{display:'flex', alignItems:'center', gap:10, marginRight:28, flexShrink:0}}>
-          <Logo height={26} white/>
+          <Logo height={26} themed/>
           <span style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#C8006A'}}>Admin</span>
         </Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map(t => {
             const active = t.h === '/admin/drivers'
-            return <Link key={t.h} href={t.h} className="nav-link" style={{height:64, padding:'0 13px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#fff' : 'rgba(255,255,255,0.5)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+            return <Link key={t.h} href={t.h} className="nav-link" style={{height:64, padding:'0 13px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? 'var(--text-primary)' : 'var(--text-secondary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
-          <span style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>{profile?.full_name || profile?.email}</span>
-          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.6)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+          <span style={{fontSize:12, color:'var(--text-secondary)'}}>{profile?.full_name || profile?.email}</span>
+          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12, fontWeight:600, color:'var(--text-secondary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
       </div>
       </div>
     </nav>
   )
 
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
         <div className="skelD" style={{height:28, width:160, borderRadius:8, marginBottom:8}}/>
@@ -158,7 +158,7 @@ export default function AdminDrivers() {
   const suspendedCount = drivers.filter(d => d.status === 'suspended').length
 
   const stats = [
-    { value:String(drivers.length), label:'Total drivers', color:'#fff' },
+    { value:String(drivers.length), label:'Total drivers', color:'var(--text-primary)' },
     { value:String(activeCount), label:'Active', color:'#34D399' },
     { value:String(pendingCount), label:'Pending', color:'#FBBF24' },
   ]
@@ -181,22 +181,22 @@ export default function AdminDrivers() {
   ]
 
   return (
-    <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:14, marginBottom:22}}>
           <div>
-            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>Drivers</h1>
-            <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>{drivers.length} {drivers.length === 1 ? 'driver' : 'drivers'} registered.</p>
+            <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>Drivers</h1>
+            <p style={{fontSize:14, color:'var(--text-secondary)'}}>{drivers.length} {drivers.length === 1 ? 'driver' : 'drivers'} registered.</p>
           </div>
-          <input className="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍  Search by name or email…" style={{height:42, padding:'0 16px', border:'1px solid rgba(255,255,255,0.14)', borderRadius:10, fontSize:13, color:'#fff', background:'rgba(255,255,255,0.05)', width:300, outline:'none', transition:'border-color 0.14s'}}/>
+          <input className="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍  Search by name or email…" style={{height:42, padding:'0 16px', border:'1px solid var(--border-subtle)', borderRadius:10, fontSize:13, color:'var(--text-primary)', background:'var(--bg-card)', width:300, outline:'none', transition:'border-color 0.14s'}}/>
         </div>
 
         <div className="ustats fade-up" style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:20}}>
           {stats.map((s, i) => (
-            <div key={i} className="stat-card" style={{background:'rgba(255,255,255,0.05)', borderRadius:16, padding:'18px', border:'1px solid rgba(255,255,255,0.08)'}}>
+            <div key={i} className="stat-card" style={{background:'var(--bg-card)', borderRadius:16, padding:'18px', border:'1px solid var(--border-subtle)'}}>
               <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.6vw,28px)', fontWeight:700, color:s.color, letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
-              <div style={{fontSize:11, color:'rgba(255,255,255,0.45)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:7}}>{s.label}</div>
+              <div style={{fontSize:11, color:'var(--text-secondary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:7}}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -206,7 +206,7 @@ export default function AdminDrivers() {
           <div style={{display:'flex', gap:8, overflowX:'auto', paddingBottom:4, flex:1, minWidth:0}}>
             {TABS.map(t => {
               const on = tab === t.k
-              return <button key={t.k} onClick={() => setTab(t.k)} className="tab" style={{flexShrink:0, height:36, padding:'0 16px', borderRadius:100, border:on ? '1.5px solid #C8006A' : '1px solid rgba(255,255,255,0.14)', background:on ? 'rgba(200,0,106,0.15)' : 'rgba(255,255,255,0.04)', color:on ? '#fff' : 'rgba(255,255,255,0.55)', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>{t.l} <span style={{opacity:0.6, marginLeft:2}}>{tabCount(t.k)}</span></button>
+              return <button key={t.k} onClick={() => setTab(t.k)} className="tab" style={{flexShrink:0, height:36, padding:'0 16px', borderRadius:100, border:on ? '1.5px solid #C8006A' : '1px solid var(--border-subtle)', background:on ? 'rgba(200,0,106,0.15)' : 'var(--bg-card)', color:on ? '#C8006A' : 'var(--text-secondary)', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>{t.l} <span style={{opacity:0.6, marginLeft:2}}>{tabCount(t.k)}</span></button>
             })}
           </div>
           {pendingCount > 0 && (
@@ -216,34 +216,34 @@ export default function AdminDrivers() {
 
         {/* Sort */}
         <div className="fade-up" style={{display:'flex', gap:8, alignItems:'center', marginBottom:18, flexWrap:'wrap'}}>
-          <span style={{fontSize:12, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em'}}>Sort</span>
+          <span style={{fontSize:12, color:'var(--text-secondary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em'}}>Sort</span>
           {SORTS.map(s => {
             const on = sort === s.k
-            return <button key={s.k} onClick={() => setSort(s.k)} className="tab" style={{height:32, padding:'0 13px', borderRadius:100, border:on ? '1.5px solid #C8006A' : '1px solid rgba(255,255,255,0.12)', background:on ? 'rgba(200,0,106,0.15)' : 'transparent', color:on ? '#fff' : 'rgba(255,255,255,0.5)', fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>{s.l}</button>
+            return <button key={s.k} onClick={() => setSort(s.k)} className="tab" style={{height:32, padding:'0 13px', borderRadius:100, border:on ? '1.5px solid #C8006A' : '1px solid var(--border-subtle)', background:on ? 'rgba(200,0,106,0.15)' : 'transparent', color:on ? '#C8006A' : 'var(--text-secondary)', fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.14s'}}>{s.l}</button>
           })}
         </div>
 
-        <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
+        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
           {filtered.length === 0 ? (
-            <div style={{padding:'52px', textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>No drivers found</div>
+            <div style={{padding:'52px', textAlign:'center', color:'var(--text-secondary)', fontSize:14}}>No drivers found</div>
           ) : filtered.map((d, i) => (
-            <div key={d.id} className="urow" style={{display:'flex', alignItems:'center', gap:14, padding:'15px 22px', borderBottom:i < filtered.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', transition:'background 0.12s'}}>
-              <div style={{width:40, height:40, borderRadius:'50%', background:'linear-gradient(135deg,#C8006A,#7A0042)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, fontWeight:700, color:'#fff', flexShrink:0}}>{d.full_name?.[0]?.toUpperCase() || '?'}</div>
+            <div key={d.id} className="urow" style={{display:'flex', alignItems:'center', gap:14, padding:'15px 22px', borderBottom:i < filtered.length - 1 ? '1px solid var(--border-subtle)' : 'none', transition:'background 0.12s'}}>
+              <div style={{width:40, height:40, borderRadius:'50%', background:'linear-gradient(135deg,#C8006A,#7A0042)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, fontWeight:700, color:'var(--text-primary)', flexShrink:0}}>{d.full_name?.[0]?.toUpperCase() || '?'}</div>
               <div style={{flex:1, minWidth:0}}>
                 <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:2}}>
-                  <span style={{fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{d.full_name || 'Unknown'}</span>
+                  <span style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{d.full_name || 'Unknown'}</span>
                   <span style={{background:statusBg(d.status), color:statusColor(d.status), padding:'2px 9px', borderRadius:20, fontSize:10, fontWeight:700, textTransform:'capitalize', flexShrink:0}}>{d.status}</span>
                 </div>
-                <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{d.email} · joined {new Date(d.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                <div style={{fontSize:12, color:'var(--text-secondary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{d.email} · joined {new Date(d.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
               </div>
               <div className="ucounts" style={{display:'flex', gap:20, flexShrink:0, marginRight:6}}>
                 <div style={{textAlign:'center'}}>
-                  <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff'}}>{deliveryCounts[d.id] || 0}</div>
-                  <div style={{fontSize:9, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em'}}>Deliveries</div>
+                  <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)'}}>{deliveryCounts[d.id] || 0}</div>
+                  <div style={{fontSize:9, color:'var(--text-secondary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em'}}>Deliveries</div>
                 </div>
               </div>
               <div style={{display:'flex', gap:8, flexShrink:0}}>
-                <button className="view-btn" onClick={() => setViewDriver(d)} style={{height:34, padding:'0 14px', background:'rgba(255,255,255,0.06)', color:'rgba(255,255,255,0.85)', border:'1px solid rgba(255,255,255,0.14)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View history</button>
+                <button className="view-btn" onClick={() => setViewDriver(d)} style={{height:34, padding:'0 14px', background:'var(--bg-secondary)', color:'var(--text-primary)', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View history</button>
                 {d.status !== 'active' && (
                   <button className="approve" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'active')} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>{d.status === 'pending' ? 'Approve' : 'Reactivate'}</button>
                 )}
@@ -264,24 +264,24 @@ export default function AdminDrivers() {
         const oBg = (s: string) => s === 'delivered' ? 'rgba(52,211,153,0.14)' : s === 'cancelled' ? 'rgba(255,138,138,0.14)' : 'rgba(251,191,36,0.14)'
         return (
           <div onClick={() => setViewDriver(null)} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-            <div onClick={e => e.stopPropagation()} style={{background:'#161616', border:'1px solid rgba(255,255,255,0.1)', borderRadius:18, width:'100%', maxWidth:620, maxHeight:'82vh', display:'flex', flexDirection:'column', overflow:'hidden'}}>
-              <div style={{padding:'20px 24px', borderBottom:'1px solid rgba(255,255,255,0.08)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12}}>
+            <div onClick={e => e.stopPropagation()} style={{background:'#161616', border:'1px solid var(--border-subtle)', borderRadius:18, width:'100%', maxWidth:620, maxHeight:'82vh', display:'flex', flexDirection:'column', overflow:'hidden'}}>
+              <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border-subtle)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12}}>
                 <div style={{minWidth:0}}>
-                  <h2 style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{viewDriver.full_name || 'Driver'}&rsquo;s delivery history</h2>
-                  <p style={{fontSize:12.5, color:'rgba(255,255,255,0.45)', marginTop:2}}>{dh.length} {dh.length === 1 ? 'delivery' : 'deliveries'}</p>
+                  <h2 style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{viewDriver.full_name || 'Driver'}&rsquo;s delivery history</h2>
+                  <p style={{fontSize:12.5, color:'var(--text-secondary)', marginTop:2}}>{dh.length} {dh.length === 1 ? 'delivery' : 'deliveries'}</p>
                 </div>
-                <button onClick={() => setViewDriver(null)} style={{width:34, height:34, flexShrink:0, borderRadius:8, border:'1px solid rgba(255,255,255,0.14)', background:'transparent', color:'rgba(255,255,255,0.6)', fontSize:18, cursor:'pointer', lineHeight:1}}>×</button>
+                <button onClick={() => setViewDriver(null)} style={{width:34, height:34, flexShrink:0, borderRadius:8, border:'1px solid var(--border-subtle)', background:'transparent', color:'var(--text-secondary)', fontSize:18, cursor:'pointer', lineHeight:1}}>×</button>
               </div>
               <div style={{overflowY:'auto', padding:'8px 0'}}>
                 {dh.length === 0 ? (
-                  <div style={{padding:'44px', textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>This driver has no deliveries yet.</div>
+                  <div style={{padding:'44px', textAlign:'center', color:'var(--text-secondary)', fontSize:14}}>This driver has no deliveries yet.</div>
                 ) : dh.map(o => (
                   <div key={o.id} style={{display:'flex', alignItems:'center', gap:14, padding:'12px 24px'}}>
                     <div style={{flex:1, minWidth:0}}>
-                      <div style={{fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listing_name || 'Order'}</div>
-                      <div style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>#{o.id.slice(0, 8).toUpperCase()} · {o.buyer_name || 'Unknown'} · {new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                      <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listing_name || 'Order'}</div>
+                      <div style={{fontSize:12, color:'var(--text-secondary)'}}>#{o.id.slice(0, 8).toUpperCase()} · {o.buyer_name || 'Unknown'} · {new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
                     </div>
-                    <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#fff', flexShrink:0}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
+                    <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'var(--text-primary)', flexShrink:0}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
                     <span style={{background:oBg(o.status), color:oColor(o.status), padding:'3px 11px', borderRadius:20, fontSize:11, fontWeight:700, textTransform:'capitalize', flexShrink:0, whiteSpace:'nowrap'}}>{o.status.replace('_', ' ')}</span>
                   </div>
                 ))}

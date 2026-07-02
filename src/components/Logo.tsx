@@ -9,19 +9,32 @@ const RATIO = 2775 / 805
 export default function Logo({
   height = 34,
   white = false,
+  themed = false,
   priority = true,
   style,
 }: {
   height?: number
   white?: boolean
+  /** Renders both marks and lets CSS pick by theme (white in dark, colour in
+   *  light). Use on surfaces that flip with the theme, e.g. the admin nav. */
+  themed?: boolean
   priority?: boolean
   style?: CSSProperties
 }) {
+  const width = Math.round(height * RATIO)
+  if (themed) {
+    return (
+      <>
+        <Image src="/Color_Logo.png" alt="meaLoyo" width={width} height={height} priority={priority} className="logo-themed-light" style={{ display: 'block', ...style }} />
+        <Image src="/White_Logo.png" alt="meaLoyo" width={width} height={height} priority={priority} className="logo-themed-dark" style={{ display: 'none', ...style }} />
+      </>
+    )
+  }
   return (
     <Image
       src={white ? '/White_Logo.png' : '/Color_Logo.png'}
       alt="meaLoyo"
-      width={Math.round(height * RATIO)}
+      width={width}
       height={height}
       priority={priority}
       style={{ display: 'block', ...style }}
