@@ -3,12 +3,31 @@
   --brand: #C8006A;
   --brand-dark: #A00055;
   --brand-light: #FFE8F4;
+
+  /* Themeable surface tokens — light mode is the default. The brand colour
+     (#C8006A) intentionally stays constant across both modes. */
+  --bg-primary: #ffffff;
+  --bg-secondary: #F8F0F4;
+  --bg-card: #ffffff;
+  --text-primary: #1A1A1A;
+  --text-secondary: #444444;
+  --border: rgba(200, 0, 106, 0.08);
+  --shadow: rgba(200, 0, 106, 0.06);
+}
+html.dark {
+  --bg-primary: #0D0D0D;
+  --bg-secondary: #1A1A1A;
+  --bg-card: #222222;
+  --text-primary: #F5F5F5;
+  --text-secondary: #AAAAAA;
+  --border: rgba(200, 0, 106, 0.2);
+  --shadow: rgba(0, 0, 0, 0.3);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
 html { scroll-behavior: smooth; }
 ::-webkit-scrollbar { width: 0; height: 0; }
 * { scrollbar-width: none; -ms-overflow-style: none; }
-body { font-family: Inter, system-ui, sans-serif; background: #fff; color: #1A1A1A; }
+body { font-family: Inter, system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); transition: background 0.3s ease, color 0.3s ease; }
 a { text-decoration: none; color: inherit; }
 button { font-family: Inter, system-ui, sans-serif; cursor: pointer; }
 input, select, textarea { font-family: Inter, system-ui, sans-serif; }

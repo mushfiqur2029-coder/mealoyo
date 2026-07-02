@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
+import ThemeToggle from '@/components/ThemeToggle'
 import type { User, Profile } from '@/lib/types'
 
 const NAV = [
@@ -184,6 +185,15 @@ export default function BuyerProfile() {
 
         {error && <div className="fade-up" style={{background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:12, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#C8006A', fontWeight:600}}>{error}</div>}
         {savedOk && <div className="fade-up" style={{background:'#E4F6EA', border:'1.5px solid rgba(45,168,78,0.25)', borderRadius:12, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#1A6030', fontWeight:600}}>✅ Profile updated</div>}
+
+        {/* Appearance */}
+        <div className="fade-up" style={{background:'#fff', borderRadius:22, padding:'22px 24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', marginBottom:18, display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap'}}>
+          <div>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#1A1A1A', marginBottom:2}}>Appearance</h3>
+            <p style={{fontSize:12.5, color:'#1A1A1A', opacity:0.6}}>Choose light, dark, or match your device.</p>
+          </div>
+          <ThemeToggle/>
+        </div>
 
         {/* Details form */}
         <form onSubmit={handleSave} className="fade-up" style={{background:'#fff', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column', gap:18, marginBottom:18}}>

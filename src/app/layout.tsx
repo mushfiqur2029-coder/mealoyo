@@ -2,6 +2,14 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthProvider } from '@/components/AuthProvider'
 import MobileTabBar from '@/components/MobileTabBar'
+import ThemeProvider from '@/components/ThemeProvider'
+
+// Anti-FOUC: runs synchronously in <head> before first paint, reading the
+// zustand-persisted theme ({"state":{"theme":...}}) from localStorage and
+// setting the `dark` class + color-scheme on <html>. Keeps SSR (light default)
+// from flashing before ThemeProvider hydrates. See Next's "Preventing Flash"
+// guide. 'auto'/unset falls back to the OS preference.
+const themeScript = `(function(){try{var m='auto';var raw=localStorage.getItem('mealoyo-theme');if(raw){var t=JSON.parse(raw);if(t&&t.state&&t.state.theme)m=t.state.theme;}var d=m==='dark'||(m==='auto'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var e=document.documentElement;if(d)e.classList.add('dark');e.style.colorScheme=d?'dark':'light';}catch(e){}})();`
 
 const title = 'meaLoyo — Home cooked food, delivered'
 const description =
@@ -54,10 +62,15 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
-        <AuthProvider>{children}</AuthProvider>
-        <MobileTabBar />
+        <ThemeProvider>
+          <AuthProvider>{children}</AuthProvider>
+          <MobileTabBar />
+        </ThemeProvider>
       </body>
     </html>
   )

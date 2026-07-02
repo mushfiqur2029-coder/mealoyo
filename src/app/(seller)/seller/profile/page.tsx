@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
+import ThemeToggle from '@/components/ThemeToggle'
 import { isValidUKPostcode, formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
@@ -251,6 +252,15 @@ export default function SellerProfile() {
         {/* Re-approval policy note */}
         <div className="fade-up" style={{background:'#FFF8F0', border:'1.5px solid #F3E0C0', borderRadius:14, padding:'12px 15px', marginBottom:18, fontSize:12.5, color:'#8C5500', lineHeight:1.55}}>
           ⏳ Changing your <strong>name</strong> or <strong>address</strong> sends your account back for a quick admin re-approval (your listings pause until then). Phone and postcode can be updated any time.
+        </div>
+
+        {/* Appearance */}
+        <div className="fade-up" style={{background:'#fff', borderRadius:22, padding:'22px 24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', marginBottom:18, display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap'}}>
+          <div>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#1A1A1A', marginBottom:2}}>Appearance</h3>
+            <p style={{fontSize:12.5, color:'#1A1A1A', opacity:0.6}}>Choose light, dark, or match your device.</p>
+          </div>
+          <ThemeToggle/>
         </div>
 
         {/* Details form */}

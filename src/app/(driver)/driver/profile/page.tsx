@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
+import ThemeToggle from '@/components/ThemeToggle'
 import { formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
@@ -229,6 +230,15 @@ export default function DriverProfile() {
         {/* Re-approval policy note */}
         <div className="fade-up" style={{background:'rgba(184,115,10,0.1)', border:'1px solid rgba(184,115,10,0.3)', borderRadius:14, padding:'12px 15px', marginBottom:18, fontSize:12.5, color:'#FBBF24', lineHeight:1.55}}>
           ⏳ Changing your <strong>name</strong> or <strong>address</strong> sends your account back for a quick admin re-approval. Phone and postcode can be updated any time.
+        </div>
+
+        {/* Appearance */}
+        <div className="fade-up" style={{...cardStyle, flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap'}}>
+          <div>
+            <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', marginBottom:2}}>Appearance</h3>
+            <p style={{fontSize:12.5, color:'rgba(255,255,255,0.6)'}}>Choose light, dark, or match your device.</p>
+          </div>
+          <ThemeToggle/>
         </div>
 
         {/* Details form */}

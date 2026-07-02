@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import ThemeToggle from '@/components/ThemeToggle'
 import type { Profile } from '@/lib/types'
 
 const COMMISSION_RATE = 0.12
@@ -207,6 +208,18 @@ export default function AdminSettings() {
               <button type="submit" disabled={promoting} className="promote-btn" style={{height:44, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:promoting ? 'not-allowed' : 'pointer', opacity:promoting ? 0.7 : 1, whiteSpace:'nowrap', transition:'background 0.14s'}}>{promoting ? 'Adding…' : 'Add admin'}</button>
             </form>
           </div>
+        </div>
+
+        {/* Appearance */}
+        <div className="fade-up" style={{marginTop:24, background:'rgba(255,255,255,0.03)', borderRadius:18, padding:'22px 24px', border:'1px solid rgba(255,255,255,0.08)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, flexWrap:'wrap'}}>
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <div style={{width:38, height:38, borderRadius:10, background:'rgba(200,0,106,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18}}>🎨</div>
+            <div>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff'}}>Appearance</h2>
+              <p style={{fontSize:12.5, color:'rgba(255,255,255,0.5)'}}>Light, dark, or match your device.</p>
+            </div>
+          </div>
+          <ThemeToggle/>
         </div>
 
         {/* Deletion history / audit log */}
