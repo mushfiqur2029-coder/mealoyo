@@ -89,18 +89,18 @@ export default function BuyerDashboard() {
       * { scrollbar-width: none; -ms-overflow-style: none; }
       a { text-decoration: none; color: inherit; }
       button { font-family: Inter, system-ui, sans-serif; }
-      .skel { background: linear-gradient(90deg, #F3E6EE 0%, #FBF1F7 50%, #F3E6EE 100%); background-size: 960px 100%; animation: shimmer 1.4s ease-in-out infinite; }
+      .skel { background: linear-gradient(90deg, rgba(200,0,106,0.06) 0%, rgba(200,0,106,0.13) 50%, rgba(200,0,106,0.06) 100%); background-size: 960px 100%; animation: shimmer 1.4s ease-in-out infinite; }
       .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
       .nav-link:hover { color: #C8006A !important; }
       .stat-card { transition: transform 0.18s; }
       .stat-card:hover { transform: translateY(-2px); }
       .points-card { transition: transform 0.18s, box-shadow 0.18s; }
       .points-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(200,0,106,0.32) !important; }
-      .orow:hover { background: #FFF5FA !important; }
-      .qa-row:hover { background: #FFF5FA !important; transform: translateX(2px); }
+      .orow:hover { background: rgba(200,0,106,0.06) !important; }
+      .qa-row:hover { background: rgba(200,0,106,0.06) !important; transform: translateX(2px); }
       .rec-card { transition: transform 0.18s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.18s; }
       .rec-card:hover { transform: translateY(-4px); box-shadow: 0 14px 36px rgba(200,0,106,0.14) !important; }
-      .signout:hover { background: #FFE8F4 !important; color: #C8006A !important; }
+      .signout:hover { background: rgba(200,0,106,0.12) !important; color: #C8006A !important; }
       .browse-btn:hover { background: #A00055 !important; transform: translateY(-1px); }
       @media (max-width: 900px) {
         .nav-links { display: none !important; }
@@ -115,21 +115,21 @@ export default function BuyerDashboard() {
   )
 
   const nav = (
-    <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-card)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={34}/></Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map((t, i) => {
             const active = t.h === '/buyer/dashboard'
             return (
-              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : '#1A1A1A', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : 'var(--text-primary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
             )
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           <CartButton />
           <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'B'}/>
-          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, fontSize:13, fontWeight:600, color:'#1A1A1A', background:'#fff', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
+          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
         </div>
       </div>
     </nav>
@@ -137,7 +137,7 @@ export default function BuyerDashboard() {
 
   // ── LOADING SKELETON ──
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
@@ -174,7 +174,7 @@ export default function BuyerDashboard() {
   ]
 
   return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
 
@@ -182,8 +182,8 @@ export default function BuyerDashboard() {
 
         {/* Welcome header */}
         <div className="fade-up" style={{marginBottom:26}}>
-          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,34px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 👋</h1>
-          <p style={{fontSize:14, color:'#1A1A1A', opacity:0.85}}>{today}</p>
+          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,34px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 👋</h1>
+          <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>{today}</p>
         </div>
 
         {/* Top stats */}
@@ -193,9 +193,9 @@ export default function BuyerDashboard() {
             { icon:'✅', value:String(deliveredCount), label:'Delivered' },
             { icon:'⏳', value:String(inProgressCount), label:'In progress' },
           ].map((s, i) => (
-            <div key={i} className="stat-card" style={{background:'#fff', borderRadius:18, padding:'20px', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div key={i} className="stat-card" style={{background:'var(--bg-card)', borderRadius:18, padding:'20px', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid var(--border)'}}>
               <div style={{fontSize:20, marginBottom:10}}>{s.icon}</div>
-              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,26px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,26px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
               <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:6}}>{s.label}</div>
             </div>
           ))}
@@ -214,28 +214,28 @@ export default function BuyerDashboard() {
           <div style={{display:'flex', flexDirection:'column', gap:20, minWidth:0}}>
 
             {/* Recent orders */}
-            <div className="fade-up" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
-              <div style={{padding:'18px 22px', borderBottom:'1px solid #F5F0F3', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#1A1A1A'}}>Recent orders <span style={{fontSize:13, color:'#C8006A', fontFamily:'Inter'}}>· {orderCount} total</span></h3>
+            <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border)'}}>
+              <div style={{padding:'18px 22px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Recent orders <span style={{fontSize:13, color:'#C8006A', fontFamily:'Inter'}}>· {orderCount} total</span></h3>
                 <Link href="/buyer/orders" className="nav-link" style={{fontSize:13, fontWeight:700, color:'#C8006A'}}>View all →</Link>
               </div>
               {orders.length === 0 ? (
                 <div style={{padding:'40px 32px', textAlign:'center'}}>
                   <div style={{fontSize:36, marginBottom:10}}>🛒</div>
-                  <p style={{fontSize:14, color:'#1A1A1A', marginBottom:16, lineHeight:1.6}}>No orders yet — find a home cook near you and place your first order.</p>
+                  <p style={{fontSize:14, color:'var(--text-primary)', marginBottom:16, lineHeight:1.6}}>No orders yet — find a home cook near you and place your first order.</p>
                   <Link href="/browse" className="browse-btn" style={{display:'inline-flex', alignItems:'center', height:42, padding:'0 20px', background:'#C8006A', color:'#fff', borderRadius:10, fontSize:13, fontWeight:700, boxShadow:'0 4px 14px rgba(200,0,106,0.28)', transition:'all 0.16s'}}>Browse food →</Link>
                 </div>
               ) : orders.map((o, i) => {
                 const cookFirst = (o.profiles?.full_name || 'Home cook').trim().split(/\s+/)[0]
                 return (
-                  <Link key={o.id} href={`/buyer/orders/${o.id}`} className="orow" style={{display:'flex', alignItems:'center', gap:12, padding:'14px 22px', borderBottom:i < orders.length - 1 ? '1px solid #F5F0F3' : 'none', transition:'background 0.12s'}}>
+                  <Link key={o.id} href={`/buyer/orders/${o.id}`} className="orow" style={{display:'flex', alignItems:'center', gap:12, padding:'14px 22px', borderBottom:i < orders.length - 1 ? '1px solid var(--border)' : 'none', transition:'background 0.12s'}}>
                     <div style={{width:42, height:42, borderRadius:11, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:21, flexShrink:0}}>{cuisineEmoji[o.listings?.cuisine || 'Other'] || '🍽️'}</div>
                     <div style={{flex:1, minWidth:0}}>
-                      <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listings?.name || 'Order'}</div>
-                      <div style={{fontSize:12, color:'#1A1A1A', opacity:0.8, marginTop:1}}>👨‍🍳 {cookFirst}</div>
+                      <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listings?.name || 'Order'}</div>
+                      <div style={{fontSize:12, color:'var(--text-primary)', opacity:0.8, marginTop:1}}>👨‍🍳 {cookFirst}</div>
                     </div>
                     <div style={{textAlign:'right', flexShrink:0}}>
-                      <div style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'#1A1A1A', marginBottom:4}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
+                      <div style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
                       <span style={{background:statusBg(o.status), color:statusColor(o.status), padding:'2px 8px', borderRadius:100, fontSize:10, fontWeight:700, textTransform:'capitalize', whiteSpace:'nowrap'}}>{o.status.replace('_', ' ')}</span>
                     </div>
                   </Link>
@@ -244,30 +244,30 @@ export default function BuyerDashboard() {
             </div>
 
             {/* Recommended for you */}
-            <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'18px 22px 22px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'18px 22px 22px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border)'}}>
               <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16}}>
-                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#1A1A1A'}}>Recommended for you</h3>
+                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Recommended for you</h3>
                 <Link href="/browse" className="nav-link" style={{fontSize:13, fontWeight:700, color:'#C8006A'}}>See more →</Link>
               </div>
               {recommended.length === 0 ? (
                 <div style={{padding:'24px 12px', textAlign:'center'}}>
                   <div style={{fontSize:34, marginBottom:8}}>🍽️</div>
-                  <p style={{fontSize:14, color:'#1A1A1A', lineHeight:1.6}}>No dishes available right now. Check back soon for fresh home-cooked meals.</p>
+                  <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.6}}>No dishes available right now. Check back soon for fresh home-cooked meals.</p>
                 </div>
               ) : (
                 <div className="rec-grid" style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14}}>
                   {recommended.map(l => (
-                    <Link key={l.id} href={`/dish/${l.id}`} className="rec-card" style={{background:'#fff', borderRadius:16, overflow:'hidden', border:'1.5px solid rgba(200,0,106,0.08)', boxShadow:'0 2px 12px rgba(200,0,106,0.06)', display:'flex', flexDirection:'column'}}>
+                    <Link key={l.id} href={`/dish/${l.id}`} className="rec-card" style={{background:'var(--bg-card)', borderRadius:16, overflow:'hidden', border:'1.5px solid var(--border)', boxShadow:'0 2px 12px rgba(200,0,106,0.06)', display:'flex', flexDirection:'column'}}>
                       <div style={{height:88, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, position:'relative', overflow:'hidden'}}>
                         {cuisineEmoji[l.cuisine] || '🍽️'}
                         {l.image_url && <img src={l.image_url} alt={l.name} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
                       </div>
                       <div style={{padding:'12px 14px', display:'flex', flexDirection:'column', flex:1}}>
-                        <div style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'#1A1A1A', lineHeight:1.3, marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
-                        <div style={{fontSize:12, color:'#1A1A1A', opacity:0.8, marginBottom:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.profiles?.full_name || 'Home cook'}</div>
+                        <div style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', lineHeight:1.3, marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
+                        <div style={{fontSize:12, color:'var(--text-primary)', opacity:0.8, marginBottom:10, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.profiles?.full_name || 'Home cook'}</div>
                         <div style={{marginTop:'auto', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                           <span style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#C8006A'}}>£{parseFloat(l.price || '0').toFixed(2)}</span>
-                          {l.rating ? <span style={{fontSize:12, fontWeight:700, color:'#1A1A1A'}}>⭐ {l.rating.toFixed(1)}</span> : <span style={{fontSize:11, fontWeight:700, color:'#C8006A'}}>{l.cuisine}</span>}
+                          {l.rating ? <span style={{fontSize:12, fontWeight:700, color:'var(--text-primary)'}}>⭐ {l.rating.toFixed(1)}</span> : <span style={{fontSize:11, fontWeight:700, color:'#C8006A'}}>{l.cuisine}</span>}
                         </div>
                       </div>
                     </Link>
@@ -293,16 +293,16 @@ export default function BuyerDashboard() {
             </Link>
 
             {/* Quick actions */}
-            <div className="fade-up" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border)'}}>
               <div style={{padding:'18px 22px 12px'}}>
-                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#1A1A1A'}}>Quick actions</h3>
+                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Quick actions</h3>
               </div>
               {quickActions.map((a, i) => (
-                <Link key={i} href={a.h} className="qa-row" style={{display:'flex', alignItems:'center', gap:13, padding:'13px 22px', borderTop:'1px solid #F5F0F3', transition:'all 0.14s'}}>
+                <Link key={i} href={a.h} className="qa-row" style={{display:'flex', alignItems:'center', gap:13, padding:'13px 22px', borderTop:'1px solid var(--border)', transition:'all 0.14s'}}>
                   <div style={{width:38, height:38, borderRadius:10, background:'#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, flexShrink:0}}>{a.i}</div>
                   <div style={{flex:1, minWidth:0}}>
-                    <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A'}}>{a.l}</div>
-                    <div style={{fontSize:12, color:'#1A1A1A', opacity:0.75, marginTop:1}}>{a.s}</div>
+                    <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)'}}>{a.l}</div>
+                    <div style={{fontSize:12, color:'var(--text-primary)', opacity:0.75, marginTop:1}}>{a.s}</div>
                   </div>
                   <span style={{fontSize:16, color:'#C8006A', flexShrink:0}}>→</span>
                 </Link>
@@ -310,30 +310,30 @@ export default function BuyerDashboard() {
             </div>
 
             {/* Recently saved */}
-            <div className="fade-up" style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
-              <div style={{padding:'18px 22px', borderBottom:'1px solid #F5F0F3', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#1A1A1A'}}>Recently saved</h3>
+            <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border)'}}>
+              <div style={{padding:'18px 22px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Recently saved</h3>
                 <Link href="/buyer/saved" className="nav-link" style={{fontSize:13, fontWeight:700, color:'#C8006A'}}>All →</Link>
               </div>
               {saved.length === 0 ? (
                 <div style={{padding:'32px 22px', textAlign:'center'}}>
                   <div style={{fontSize:32, marginBottom:8}}>🤍</div>
-                  <p style={{fontSize:13, color:'#1A1A1A', lineHeight:1.6}}>No saved dishes yet. Tap the heart on any dish to keep it here.</p>
+                  <p style={{fontSize:13, color:'var(--text-primary)', lineHeight:1.6}}>No saved dishes yet. Tap the heart on any dish to keep it here.</p>
                 </div>
               ) : saved.map((s, i) => {
                 const l = s.listings
                 if (!l) return null
                 return (
-                  <Link key={s.id} href={`/dish/${l.id}`} className="qa-row" style={{display:'flex', alignItems:'center', gap:12, padding:'13px 22px', borderTop:i === 0 ? 'none' : '1px solid #F5F0F3', transition:'all 0.14s'}}>
+                  <Link key={s.id} href={`/dish/${l.id}`} className="qa-row" style={{display:'flex', alignItems:'center', gap:12, padding:'13px 22px', borderTop:i === 0 ? 'none' : '1px solid var(--border)', transition:'all 0.14s'}}>
                     <div style={{width:40, height:40, borderRadius:11, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, flexShrink:0, position:'relative', overflow:'hidden'}}>
                       {cuisineEmoji[l.cuisine] || '🍽️'}
                       {l.image_url && <img src={l.image_url} alt={l.name} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover'}} />}
                     </div>
                     <div style={{flex:1, minWidth:0}}>
-                      <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
-                      <div style={{fontSize:12, color:'#1A1A1A', opacity:0.8, marginTop:1}}>{l.cuisine}</div>
+                      <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
+                      <div style={{fontSize:12, color:'var(--text-primary)', opacity:0.8, marginTop:1}}>{l.cuisine}</div>
                     </div>
-                    <div style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'#1A1A1A', flexShrink:0}}>£{parseFloat(l.price || '0').toFixed(2)}</div>
+                    <div style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', flexShrink:0}}>£{parseFloat(l.price || '0').toFixed(2)}</div>
                     <span style={{fontSize:15, flexShrink:0}}>❤️</span>
                   </Link>
                 )

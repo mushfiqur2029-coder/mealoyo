@@ -17,8 +17,20 @@ type PendingItem = {
   cuisine?: string | null
   created_at: string
 }
-type AdminOrderRow = { status: string; platform_commission?: string | null }
+type AdminOrderRow = { id?: string; status: string; platform_commission?: string | null; total?: string | null; created_at?: string | null }
 type Stats = { users: number; sellers: number; drivers: number; orders: number; listings: number; revenue: number }
+
+// Compact relative time, e.g. "3m ago", "2h ago", "5d ago".
+function timeAgo(iso?: string | null): string {
+  if (!iso) return ''
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24); if (d < 30) return `${d}d ago`
+  const mo = Math.floor(d / 30); if (mo < 12) return `${mo}mo ago`
+  return `${Math.floor(mo / 12)}y ago`
+}
 
 const NAV = [
   { l:'Dashboard', h:'/admin/dashboard' },
@@ -58,6 +70,7 @@ export default function AdminDashboard() {
   const [drivers, setDrivers] = useState<PendingItem[]>([])
   const [listings, setListings] = useState<PendingItem[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
+  const [recentOrders, setRecentOrders] = useState<AdminOrderRow[]>([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -90,9 +103,17 @@ export default function AdminDashboard() {
       setDrivers(pendingDrivers || [])
       setListings(pendingListings || [])
 
-      const revenue = (allOrders as AdminOrderRow[] | null || [])
+      const orderRows = (allOrders as AdminOrderRow[] | null) || []
+      const revenue = orderRows
         .filter(o => o.status === 'delivered')
         .reduce((sum, o) => sum + parseFloat(o.platform_commission || '0'), 0)
+
+      setRecentOrders(
+        orderRows
+          .slice()
+          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+          .slice(0, 6)
+      )
 
       setStats({
         sellers: allSellers?.length || 0,
@@ -248,7 +269,7 @@ export default function AdminDashboard() {
                 </div>
                 <div style={{flex:1, minWidth:0}}>
                   <div style={{fontSize:14, fontWeight:700, color:'#fff', marginBottom:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.full_name || item.name || 'Unknown'}</div>
-                  <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.email || item.cuisine || ''} · {new Date(item.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                  <div style={{fontSize:12, color:'rgba(255,255,255,0.45)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.email || item.cuisine || ''} · applied {timeAgo(item.created_at)}</div>
                 </div>
                 <div style={{display:'flex', gap:8, flexShrink:0}}>
                   <button className="approve" onClick={() => approve(item.id, section.type)} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s'}}>Approve</button>
@@ -258,6 +279,29 @@ export default function AdminDashboard() {
             ))}
           </div>
         ))}
+
+        {/* Recent activity */}
+        <h2 className="fade-up" style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#fff', margin:'12px 0 14px'}}>Recent activity</h2>
+        <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
+          {recentOrders.length === 0 ? (
+            <div style={{padding:'30px 22px', textAlign:'center', color:'rgba(255,255,255,0.35)', fontSize:14}}>No orders yet</div>
+          ) : recentOrders.map((o, i) => {
+            const delivered = o.status === 'delivered'
+            const dot = delivered ? '#34D399' : o.status === 'cancelled' ? '#C0392B' : '#E8930A'
+            return (
+              <div key={o.id || i} style={{display:'flex', alignItems:'center', gap:14, padding:'13px 22px', borderBottom:i < recentOrders.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none'}}>
+                <span style={{width:9, height:9, borderRadius:'50%', background:dot, flexShrink:0, boxShadow:`0 0 0 3px ${dot}22`}}/>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontSize:13.5, fontWeight:600, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                    Order {o.id ? `#${o.id.slice(0, 8)}` : ''} <span style={{color:'rgba(255,255,255,0.45)', fontWeight:500, textTransform:'capitalize'}}>· {o.status}</span>
+                  </div>
+                  <div style={{fontSize:12, color:'rgba(255,255,255,0.4)'}}>{timeAgo(o.created_at)}</div>
+                </div>
+                {o.total != null && <span style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:delivered ? '#34D399' : '#fff', flexShrink:0}}>£{parseFloat(o.total || '0').toFixed(2)}</span>}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
