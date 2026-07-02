@@ -41,9 +41,12 @@ export default function SellerEarnings() {
   const [orders, setOrders] = useState<Order[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([])
+  const [bank, setBank] = useState<{ name: string | null; sort: string | null; acct: string | null }>({ name: null, sort: null, acct: null })
   const [bankSaved, setBankSaved] = useState(false)
   const [requesting, setRequesting] = useState(false)
   const [wError, setWError] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -61,6 +64,7 @@ export default function SellerEarnings() {
       // Bank details aren't part of get_my_profile — read them directly to know
       // whether a withdrawal can be requested.
       const { data: bank } = await supabase.from('profiles').select('bank_account_name, bank_sort_code, bank_account_number').eq('id', user.id).maybeSingle()
+      setBank({ name: bank?.bank_account_name ?? null, sort: bank?.bank_sort_code ?? null, acct: bank?.bank_account_number ?? null })
       setBankSaved(!!(bank?.bank_account_name && bank?.bank_sort_code && bank?.bank_account_number))
       const { data } = await supabase
         .from('orders')
@@ -81,7 +85,11 @@ export default function SellerEarnings() {
     if (error) { setWError(error.message.replace(/^.*?:\s*/, '')); setRequesting(false); return }
     await loadWithdrawals()
     setRequesting(false)
+    setSubmitted(true)
   }
+
+  const openModal = () => { setWError(''); setSubmitted(false); setModalOpen(true) }
+  const closeModal = () => { setModalOpen(false); setSubmitted(false); setWError('') }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -200,7 +208,7 @@ export default function SellerEarnings() {
             <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>Available to withdraw</div>
             <div style={{fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:14}}>£{available.toFixed(2)}</div>
             {wError && <div style={{background:'#FFE8F4', border:'1px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'10px 12px', marginBottom:12, fontSize:12.5, color:'#C8006A', fontWeight:600}}>{wError}</div>}
-            <button onClick={() => handleRequestWithdrawal(available)} disabled={!canWithdraw} style={{width:'100%', height:46, background:canWithdraw ? '#C8006A' : '#E7D6E0', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:canWithdraw ? 'pointer' : 'not-allowed', marginBottom:10}}>{requesting ? 'Requesting…' : 'Request withdrawal'}</button>
+            <button onClick={openModal} disabled={!canWithdraw} style={{width:'100%', height:46, background:canWithdraw ? '#C8006A' : '#E7D6E0', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:canWithdraw ? 'pointer' : 'not-allowed', marginBottom:10}}>Withdraw funds</button>
             {!bankSaved && <p style={{fontSize:12, color:'rgba(26,26,26,0.6)', lineHeight:1.5, marginBottom:14}}>Add your bank details in <Link href="/seller/profile" style={{color:'#C8006A', fontWeight:600}}>your profile</Link> to request a withdrawal.</p>}
             {bankSaved && available < 0.01 && <p style={{fontSize:12, color:'rgba(26,26,26,0.5)', marginBottom:14}}>No funds available to withdraw right now.</p>}
 
@@ -211,13 +219,21 @@ export default function SellerEarnings() {
               ) : withdrawals.map(w => {
                 const badge = wBadge[w.status] || wBadge.pending
                 return (
-                  <div key={w.id} style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'10px 0', borderBottom:'1px solid #F5F0F3'}}>
-                    <div>
-                      <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A'}}>£{parseFloat(w.amount || '0').toFixed(2)}</div>
-                      <div style={{fontSize:11, color:'rgba(26,26,26,0.5)'}}>{new Date(w.requested_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
-                      {w.status === 'rejected' && w.admin_note && <div style={{fontSize:11, color:'#C0392B', marginTop:2}}>{w.admin_note}</div>}
+                  <div key={w.id} style={{padding:'10px 0', borderBottom:'1px solid #F5F0F3'}}>
+                    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:10}}>
+                      <div>
+                        <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A'}}>£{parseFloat(w.amount || '0').toFixed(2)}</div>
+                        <div style={{fontSize:11, color:'rgba(26,26,26,0.5)'}}>{new Date(w.requested_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                      </div>
+                      <span style={{background:badge.bg, color:badge.c, fontSize:10.5, fontWeight:800, padding:'3px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.03em', flexShrink:0}}>{badge.l}</span>
                     </div>
-                    <span style={{background:badge.bg, color:badge.c, fontSize:10.5, fontWeight:800, padding:'3px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.03em', flexShrink:0}}>{badge.l}</span>
+                    {w.status === 'rejected' && (w.rejection_reason || w.admin_note) && <div style={{fontSize:11, color:'#C0392B', marginTop:4}}>Reason: {w.rejection_reason || w.admin_note}</div>}
+                    {w.status === 'paid' && (
+                      <div style={{marginTop:6, background:'#E4F6EA', border:'1px solid rgba(26,96,48,0.2)', borderRadius:8, padding:'8px 10px'}}>
+                        <div style={{fontSize:11.5, color:'#1A6030', fontWeight:700}}>✅ Payment confirmed — check your bank account</div>
+                        {w.receipt_url && <a href={w.receipt_url} target="_blank" rel="noopener noreferrer" style={{fontSize:11.5, color:'#1A6030', fontWeight:600, textDecoration:'underline', display:'inline-block', marginTop:3}}>Download receipt →</a>}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -225,6 +241,59 @@ export default function SellerEarnings() {
           </div>
         </div>
       </div>
+
+      {modalOpen && (
+        <div onClick={closeModal} style={{position:'fixed', inset:0, background:'rgba(26,26,26,0.5)', backdropFilter:'blur(3px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'#fff', borderRadius:20, width:'100%', maxWidth:440, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+            {submitted ? (
+              <div style={{padding:'40px 32px', textAlign:'center'}}>
+                <div style={{width:64, height:64, borderRadius:'50%', background:'#E4F6EA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, margin:'0 auto 18px'}}>✅</div>
+                <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Withdrawal request submitted</h2>
+                <p style={{fontSize:14, color:'rgba(26,26,26,0.65)', lineHeight:1.6, marginBottom:24}}>Admin will review and process within 2–3 business days. You&apos;ll see the status update here once it&apos;s paid.</p>
+                <button onClick={closeModal} style={{height:46, padding:'0 32px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer'}}>Done</button>
+              </div>
+            ) : (
+              <div style={{padding:'26px 28px 28px'}}>
+                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18}}>
+                  <h2 style={{fontFamily:'Georgia,serif', fontSize:21, fontWeight:700, color:'#1A1A1A'}}>Withdraw funds</h2>
+                  <button onClick={closeModal} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid #E7D6E0', background:'#fff', fontSize:16, color:'#1A1A1A', cursor:'pointer'}}>✕</button>
+                </div>
+
+                <div style={{background:'#FBF3F8', borderRadius:14, padding:'16px 18px', marginBottom:18}}>
+                  <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4}}>Amount to withdraw</div>
+                  <div style={{fontFamily:'Georgia,serif', fontSize:30, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em'}}>£{available.toFixed(2)}</div>
+                </div>
+
+                {!bankSaved ? (
+                  <div style={{background:'#FFF4E0', border:'1px solid rgba(184,115,10,0.3)', borderRadius:12, padding:'14px 16px', marginBottom:18}}>
+                    <p style={{fontSize:13, color:'#8A5600', fontWeight:600, lineHeight:1.5, marginBottom:8}}>Please add your bank details in Profile first.</p>
+                    <Link href="/seller/profile" style={{fontSize:13, color:'#C8006A', fontWeight:700, textDecoration:'underline'}}>Go to Profile settings →</Link>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{fontSize:12, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Payment goes to</div>
+                    {[
+                      { l:'Account holder name', v:bank.name },
+                      { l:'Sort code', v:bank.sort },
+                      { l:'Account number', v:bank.acct },
+                    ].map(f => (
+                      <div key={f.l} style={{marginBottom:12}}>
+                        <label style={{display:'block', fontSize:11, fontWeight:600, color:'rgba(26,26,26,0.55)', marginBottom:5}}>{f.l}</label>
+                        <input value={f.v || ''} readOnly style={{width:'100%', height:42, border:'1px solid #EADCE5', borderRadius:10, padding:'0 14px', fontSize:14, fontWeight:600, color:'#1A1A1A', background:'#F8F0F4', cursor:'not-allowed'}}/>
+                      </div>
+                    ))}
+                    <p style={{fontSize:11.5, color:'rgba(26,26,26,0.55)', lineHeight:1.55, marginTop:6, marginBottom:18}}>Payments are only made to the account registered under your name. For security, bank details can only be changed in your <Link href="/seller/profile" style={{color:'#C8006A', fontWeight:600}}>Profile settings</Link>.</p>
+                  </>
+                )}
+
+                {wError && <div style={{background:'#FFE8F4', border:'1px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'10px 12px', marginBottom:14, fontSize:12.5, color:'#C8006A', fontWeight:600}}>{wError}</div>}
+
+                <button onClick={() => handleRequestWithdrawal(available)} disabled={!bankSaved || requesting || available < 0.01} style={{width:'100%', height:48, background:(!bankSaved || requesting || available < 0.01) ? '#E7D6E0' : '#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:(!bankSaved || requesting || available < 0.01) ? 'not-allowed' : 'pointer'}}>{requesting ? 'Submitting…' : 'Request withdrawal'}</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

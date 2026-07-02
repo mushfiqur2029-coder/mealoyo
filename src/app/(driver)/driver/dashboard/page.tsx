@@ -215,7 +215,7 @@ export default function DriverDashboard() {
                   <div style={{fontSize:15, color:'#fff', fontWeight:700, fontFamily:'Georgia,serif'}}>{orders.length}</div>
                 </div>
               </div>
-              <button onClick={() => alert('Payouts are coming soon. Once Stripe Connect onboarding is live, your delivery earnings will pay out automatically to your bank.')} style={{width:'100%', height:46, background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:10}}>Withdraw funds</button>
+              <button onClick={() => router.push('/driver/earnings')} style={{width:'100%', height:46, background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:10}}>Withdraw funds</button>
               <Link href="/driver/earnings" style={{display:'block', textAlign:'center', fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.85)'}}>View earnings history →</Link>
             </div>
 

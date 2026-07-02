@@ -86,10 +86,13 @@ export interface WithdrawalRequest {
   bank_sort_code: string | null
   bank_account_number: string | null
   admin_note: string | null
+  rejection_reason?: string | null
+  receipt_url?: string | null
   requested_at: string
+  approved_at?: string | null
   paid_at: string | null
-  // Joined for the admin view (requester's name)
-  profiles?: Pick<Profile, 'full_name' | 'email'> | null
+  // Joined for the admin view (requester's name + role)
+  profiles?: Pick<Profile, 'full_name' | 'email' | 'role'> | null
 }
 
 export interface LoyaltyPoint {

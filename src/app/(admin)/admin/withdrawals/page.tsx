@@ -48,6 +48,9 @@ export default function AdminWithdrawals() {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [paidModal, setPaidModal] = useState<WithdrawalRequest | null>(null)
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
 
@@ -69,12 +72,32 @@ export default function AdminWithdrawals() {
     getData()
   }, [router])
 
-  const markPaid = async (id: string) => {
+  const approve = async (id: string) => {
     setError(''); setBusyId(id)
-    const { error } = await supabase.rpc('admin_update_withdrawal', { p_id: id, p_status: 'paid', p_note: null })
+    const { error } = await supabase.rpc('admin_update_withdrawal', { p_id: id, p_status: 'approved', p_note: null })
     if (error) { setError(error.message); setBusyId(null); return }
     await load()
     setBusyId(null)
+  }
+
+  const openPaidModal = (w: WithdrawalRequest) => { setError(''); setReceiptFile(null); setPaidModal(w) }
+  const closePaidModal = () => { setPaidModal(null); setReceiptFile(null); setUploading(false) }
+
+  const confirmPaid = async () => {
+    if (!paidModal) return
+    setError(''); setUploading(true)
+    let receiptUrl: string | null = null
+    if (receiptFile) {
+      const ext = receiptFile.name.split('.').pop() || 'jpg'
+      const path = `${paidModal.user_id}/${paidModal.id}-${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('receipts').upload(path, receiptFile, { upsert: true, contentType: receiptFile.type })
+      if (upErr) { setError(`Receipt upload failed: ${upErr.message}`); setUploading(false); return }
+      receiptUrl = supabase.storage.from('receipts').getPublicUrl(path).data.publicUrl
+    }
+    const { error } = await supabase.rpc('admin_update_withdrawal', { p_id: paidModal.id, p_status: 'paid', p_note: null, p_receipt_url: receiptUrl })
+    if (error) { setError(error.message); setUploading(false); return }
+    closePaidModal()
+    await load()
   }
 
   const confirmReject = async (id: string) => {
@@ -124,9 +147,10 @@ export default function AdminWithdrawals() {
   const pending = rows.filter(r => r.status === 'pending' || r.status === 'approved')
   const processed = rows.filter(r => r.status === 'paid' || r.status === 'rejected')
 
+  const roleLabel = (r?: string | null) => r === 'driver' ? 'Driver' : r === 'seller' ? 'Seller' : (r || '—')
+
   const renderRow = (w: WithdrawalRequest) => {
     const badge = wBadge[w.status] || wBadge.pending
-    const actionable = w.status === 'pending' || w.status === 'approved'
     return (
       <div key={w.id} style={{background:'rgba(255,255,255,0.03)', borderRadius:16, border:'1px solid rgba(255,255,255,0.08)', padding:'18px 20px', marginBottom:14}}>
         <div className="wr-row" style={{display:'flex', alignItems:'center', gap:16}}>
@@ -135,22 +159,35 @@ export default function AdminWithdrawals() {
               <span style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#fff'}}>£{parseFloat(w.amount || '0').toFixed(2)}</span>
               <span style={{background:badge.bg, color:badge.c, fontSize:10.5, fontWeight:800, padding:'3px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.03em'}}>{badge.l}</span>
             </div>
-            <div style={{fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.85)', marginBottom:2}}>{w.profiles?.full_name || w.profiles?.email || 'Unknown user'}</div>
+            <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:2}}>
+              <span style={{fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.85)'}}>{w.profiles?.full_name || w.profiles?.email || 'Unknown user'}</span>
+              <span style={{background:'rgba(255,255,255,0.08)', color:'rgba(255,255,255,0.6)', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em'}}>{roleLabel(w.profiles?.role)}</span>
+            </div>
             <div style={{fontSize:12.5, color:'rgba(255,255,255,0.55)', lineHeight:1.6}}>
               {w.bank_account_name || '—'} · Sort {w.bank_sort_code || '—'} · Acct {w.bank_account_number || '—'}
             </div>
             <div style={{fontSize:11.5, color:'rgba(255,255,255,0.4)', marginTop:4}}>
               Requested {new Date(w.requested_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}
+              {w.approved_at && ` · Approved ${new Date(w.approved_at).toLocaleDateString('en-GB', { day:'numeric', month:'short' })}`}
               {w.paid_at && ` · Paid ${new Date(w.paid_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}`}
             </div>
-            {w.status === 'rejected' && w.admin_note && <div style={{fontSize:12, color:'#FF8A8A', marginTop:4}}>Reason: {w.admin_note}</div>}
+            {w.status === 'rejected' && (w.rejection_reason || w.admin_note) && <div style={{fontSize:12, color:'#FF8A8A', marginTop:4}}>Reason: {w.rejection_reason || w.admin_note}</div>}
+            {w.status === 'paid' && w.receipt_url && <a href={w.receipt_url} target="_blank" rel="noopener noreferrer" style={{fontSize:12, color:'#34D399', fontWeight:600, textDecoration:'underline', display:'inline-block', marginTop:5}}>View transfer receipt →</a>}
           </div>
-          {actionable && (
-            <div className="wr-actions" style={{display:'flex', gap:8, flexShrink:0}}>
-              <button onClick={() => markPaid(w.id)} disabled={busyId === w.id} className="paid-btn" style={{height:40, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:busyId === w.id ? 'not-allowed' : 'pointer', opacity:busyId === w.id ? 0.7 : 1, transition:'background 0.14s'}}>Mark as Paid</button>
-              <button onClick={() => { setRejectingId(rejectingId === w.id ? null : w.id); setRejectReason(''); setError('') }} className="reject-btn" style={{height:40, padding:'0 16px', background:'transparent', color:'#FF8A8A', border:'1px solid rgba(192,57,43,0.5)', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Reject</button>
-            </div>
-          )}
+          <div className="wr-actions" style={{display:'flex', gap:8, flexShrink:0}}>
+            {w.status === 'pending' && (
+              <>
+                <button onClick={() => approve(w.id)} disabled={busyId === w.id} className="paid-btn" style={{height:40, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:busyId === w.id ? 'not-allowed' : 'pointer', opacity:busyId === w.id ? 0.7 : 1, transition:'background 0.14s'}}>Approve</button>
+                <button onClick={() => { setRejectingId(rejectingId === w.id ? null : w.id); setRejectReason(''); setError('') }} className="reject-btn" style={{height:40, padding:'0 16px', background:'transparent', color:'#FF8A8A', border:'1px solid rgba(192,57,43,0.5)', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Reject</button>
+              </>
+            )}
+            {w.status === 'approved' && (
+              <button onClick={() => openPaidModal(w)} className="paid-btn" style={{height:40, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Mark as Paid</button>
+            )}
+            {w.status === 'paid' && (
+              <span style={{height:40, padding:'0 16px', display:'flex', alignItems:'center', background:'rgba(45,168,78,0.15)', color:'#34D399', borderRadius:10, fontSize:13, fontWeight:700}}>✓ Paid</span>
+            )}
+          </div>
         </div>
         {rejectingId === w.id && (
           <div style={{marginTop:14, paddingTop:14, borderTop:'1px solid rgba(255,255,255,0.07)', display:'flex', gap:8, flexWrap:'wrap'}}>
@@ -190,6 +227,35 @@ export default function AdminWithdrawals() {
           )}
         </div>
       </div>
+
+      {paidModal && (
+        <div onClick={closePaidModal} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(4px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'#161616', borderRadius:20, width:'100%', maxWidth:460, maxHeight:'90vh', overflowY:'auto', border:'1px solid rgba(255,255,255,0.1)', boxShadow:'0 20px 60px rgba(0,0,0,0.6)', padding:'26px 28px 28px'}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:21, fontWeight:700, color:'#fff'}}>Mark as paid</h2>
+              <button onClick={closePaidModal} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid rgba(255,255,255,0.15)', background:'transparent', fontSize:15, color:'rgba(255,255,255,0.7)', cursor:'pointer'}}>✕</button>
+            </div>
+
+            <div style={{background:'rgba(255,255,255,0.05)', borderRadius:14, padding:'16px 18px', marginBottom:18, border:'1px solid rgba(255,255,255,0.07)'}}>
+              <p style={{fontSize:14, color:'rgba(255,255,255,0.85)', lineHeight:1.6}}>
+                Confirm payment of <strong style={{color:'#34D399'}}>£{parseFloat(paidModal.amount || '0').toFixed(2)}</strong> to <strong style={{color:'#fff'}}>{paidModal.bank_account_name || '—'}</strong> ({paidModal.bank_sort_code || '—'} {paidModal.bank_account_number || '—'}).
+              </p>
+            </div>
+
+            <label style={{display:'block', fontSize:12, fontWeight:700, color:'#fff', marginBottom:8}}>Upload bank transfer receipt <span style={{color:'rgba(255,255,255,0.4)', fontWeight:500}}>(optional)</span></label>
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceiptFile(e.target.files?.[0] || null)} style={{width:'100%', fontSize:13, color:'rgba(255,255,255,0.7)', marginBottom:6}}/>
+            {receiptFile && <div style={{fontSize:12, color:'#34D399', fontWeight:600, marginBottom:12}}>Attached: {receiptFile.name}</div>}
+            <p style={{fontSize:11.5, color:'rgba(255,255,255,0.45)', lineHeight:1.55, marginTop:8, marginBottom:18}}>The requester will see this receipt and a &ldquo;Payment confirmed&rdquo; message on their earnings page.</p>
+
+            {error && <div style={{background:'rgba(255,138,138,0.14)', border:'1px solid rgba(255,138,138,0.3)', borderRadius:10, padding:'10px 12px', marginBottom:14, fontSize:12.5, color:'#FF8A8A', fontWeight:600}}>{error}</div>}
+
+            <div style={{display:'flex', gap:10}}>
+              <button onClick={closePaidModal} disabled={uploading} style={{flex:'0 0 auto', height:46, padding:'0 20px', background:'transparent', color:'rgba(255,255,255,0.7)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:12, fontSize:14, fontWeight:600, cursor:uploading ? 'not-allowed' : 'pointer'}}>Cancel</button>
+              <button onClick={confirmPaid} disabled={uploading} className="paid-btn" style={{flex:1, height:46, background:'#2DA84E', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:uploading ? 'not-allowed' : 'pointer', opacity:uploading ? 0.7 : 1, transition:'background 0.14s'}}>{uploading ? 'Processing…' : 'Confirm payment'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
