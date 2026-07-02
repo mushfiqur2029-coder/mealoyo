@@ -50,6 +50,7 @@ export default function AdminWithdrawals() {
   const [rejectReason, setRejectReason] = useState('')
   const [paidModal, setPaidModal] = useState<WithdrawalRequest | null>(null)
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [dragActive, setDragActive] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
@@ -81,7 +82,7 @@ export default function AdminWithdrawals() {
   }
 
   const openPaidModal = (w: WithdrawalRequest) => { setError(''); setReceiptFile(null); setPaidModal(w) }
-  const closePaidModal = () => { setPaidModal(null); setReceiptFile(null); setUploading(false) }
+  const closePaidModal = () => { setPaidModal(null); setReceiptFile(null); setDragActive(false); setUploading(false) }
 
   const confirmPaid = async () => {
     if (!paidModal) return
@@ -144,8 +145,16 @@ export default function AdminWithdrawals() {
     </div>
   )
 
-  const pending = rows.filter(r => r.status === 'pending' || r.status === 'approved')
+  // Priority queue: status 'pending' outranks 'approved' (awaiting transfer),
+  // and within each, largest amounts surface first.
+  const pending = rows
+    .filter(r => r.status === 'pending' || r.status === 'approved')
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'pending' ? -1 : 1
+      return parseFloat(b.amount || '0') - parseFloat(a.amount || '0')
+    })
   const processed = rows.filter(r => r.status === 'paid' || r.status === 'rejected')
+  const pendingTotal = pending.reduce((s, r) => s + parseFloat(r.amount || '0'), 0)
 
   const roleLabel = (r?: string | null) => r === 'driver' ? 'Driver' : r === 'seller' ? 'Seller' : (r || '—')
 
@@ -211,7 +220,10 @@ export default function AdminWithdrawals() {
         {error && <div className="fade-up" style={{background:'rgba(255,138,138,0.14)', border:'1px solid rgba(255,138,138,0.3)', borderRadius:10, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#FF8A8A', fontWeight:600}}>{error}</div>}
 
         <div className="fade-up">
-          <h2 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff', marginBottom:14}}>Pending requests {pending.length > 0 && <span style={{color:'#FBBF24'}}>({pending.length})</span>}</h2>
+          <div style={{display:'flex', alignItems:'baseline', justifyContent:'space-between', gap:12, marginBottom:14, flexWrap:'wrap'}}>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff'}}>Priority queue {pending.length > 0 && <span style={{color:'#FBBF24'}}>({pending.length})</span>}</h2>
+            {pending.length > 0 && <span style={{fontSize:12.5, color:'rgba(255,255,255,0.55)', fontWeight:600}}>Outstanding: <strong style={{color:'#FBBF24', fontFamily:'Georgia,serif'}}>£{pendingTotal.toFixed(2)}</strong></span>}
+          </div>
           {pending.length === 0 ? (
             <div style={{background:'rgba(255,255,255,0.03)', borderRadius:16, border:'1px solid rgba(255,255,255,0.08)', padding:'40px 20px', textAlign:'center', marginBottom:32}}>
               <div style={{fontSize:38, marginBottom:10}}>✅</div>
@@ -243,8 +255,28 @@ export default function AdminWithdrawals() {
             </div>
 
             <label style={{display:'block', fontSize:12, fontWeight:700, color:'#fff', marginBottom:8}}>Upload bank transfer receipt <span style={{color:'rgba(255,255,255,0.4)', fontWeight:500}}>(optional)</span></label>
-            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceiptFile(e.target.files?.[0] || null)} style={{width:'100%', fontSize:13, color:'rgba(255,255,255,0.7)', marginBottom:6}}/>
-            {receiptFile && <div style={{fontSize:12, color:'#34D399', fontWeight:600, marginBottom:12}}>Attached: {receiptFile.name}</div>}
+            <label
+              onDragOver={e => { e.preventDefault(); setDragActive(true) }}
+              onDragLeave={e => { e.preventDefault(); setDragActive(false) }}
+              onDrop={e => {
+                e.preventDefault(); setDragActive(false)
+                const f = e.dataTransfer.files?.[0]
+                if (f) setReceiptFile(f)
+              }}
+              style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, textAlign:'center', cursor:'pointer', padding:'22px 16px', borderRadius:14, border:`1.5px dashed ${dragActive ? '#C8006A' : receiptFile ? 'rgba(52,211,153,0.5)' : 'rgba(255,255,255,0.18)'}`, background:dragActive ? 'rgba(200,0,106,0.08)' : 'rgba(255,255,255,0.03)', transition:'all 0.15s', marginBottom:6}}
+            >
+              <div style={{fontSize:24}}>{receiptFile ? '📎' : '⬆️'}</div>
+              {receiptFile ? (
+                <div style={{fontSize:12.5, color:'#34D399', fontWeight:700, wordBreak:'break-all'}}>{receiptFile.name}</div>
+              ) : (
+                <>
+                  <div style={{fontSize:13, color:'rgba(255,255,255,0.75)', fontWeight:600}}>Drag & drop receipt here</div>
+                  <div style={{fontSize:11.5, color:'rgba(255,255,255,0.4)'}}>or click to browse · JPG, PNG, WebP or PDF</div>
+                </>
+              )}
+              <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={e => setReceiptFile(e.target.files?.[0] || null)} style={{display:'none'}}/>
+            </label>
+            {receiptFile && <button onClick={() => setReceiptFile(null)} style={{fontSize:11.5, color:'#FF8A8A', fontWeight:600, background:'none', border:'none', cursor:'pointer', padding:0, marginBottom:6}}>Remove</button>}
             <p style={{fontSize:11.5, color:'rgba(255,255,255,0.45)', lineHeight:1.55, marginTop:8, marginBottom:18}}>The requester will see this receipt and a &ldquo;Payment confirmed&rdquo; message on their earnings page.</p>
 
             {error && <div style={{background:'rgba(255,138,138,0.14)', border:'1px solid rgba(255,138,138,0.3)', borderRadius:10, padding:'10px 12px', marginBottom:14, fontSize:12.5, color:'#FF8A8A', fontWeight:600}}>{error}</div>}

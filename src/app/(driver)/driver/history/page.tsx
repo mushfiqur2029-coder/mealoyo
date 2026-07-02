@@ -35,13 +35,23 @@ const dark = `
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
   .signout:hover { background: rgba(200,0,106,0.15) !important; color: #fff !important; border-color: rgba(200,0,106,0.4) !important; }
   .prim:hover { background: #A00055 !important; }
+  .chip { transition: all 0.14s; }
+  .chip:hover { border-color: rgba(200,0,106,0.5) !important; color: #fff !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } }
   @media (max-width: 560px) { .hstats { grid-template-columns: 1fr 1fr !important; } .route-cell { display: none !important; } }
 `
 
+type Range = 'all' | '7d' | '30d'
+const RANGES: { v: Range; l: string }[] = [
+  { v: 'all', l: 'All time' },
+  { v: '30d', l: 'Last 30 days' },
+  { v: '7d', l: 'Last 7 days' },
+]
+
 export default function DriverHistory() {
   const [orders, setOrders] = useState<Order[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [range, setRange] = useState<Range>('all')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -107,9 +117,13 @@ export default function DriverHistory() {
     </div>
   )
 
-  const delivered = orders.filter(o => o.status === 'delivered')
+  // Date-range filter.
+  const cutoffDays = range === '7d' ? 7 : range === '30d' ? 30 : null
+  const filtered = cutoffDays == null ? orders : orders.filter(o => (Date.now() - new Date(o.created_at).getTime()) / 864e5 <= cutoffDays)
+
+  const delivered = filtered.filter(o => o.status === 'delivered')
   const totalEarned = delivered.reduce((s, o) => s + parseFloat(o.delivery_fee || '0'), 0)
-  const cancelledCount = orders.filter(o => o.status === 'cancelled').length
+  const cancelledCount = filtered.filter(o => o.status === 'cancelled').length
 
   const stats = [
     { value:String(delivered.length), label:'Completed', color:'#fff' },
@@ -117,13 +131,37 @@ export default function DriverHistory() {
     { value:String(cancelledCount), label:'Cancelled', color:'#FF8A8A' },
   ]
 
+  // Group into a timeline by calendar day (already sorted newest-first).
+  const groups: { key: string; label: string; items: Order[] }[] = []
+  for (const o of filtered) {
+    const d = new Date(o.created_at)
+    const key = d.toDateString()
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const yest = new Date(today); yest.setDate(today.getDate() - 1)
+    const label = key === today.toDateString() ? 'Today' : key === yest.toDateString() ? 'Yesterday'
+      : d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' })
+    const last = groups[groups.length - 1]
+    if (last && last.key === key) last.items.push(o)
+    else groups.push({ key, label, items: [o] })
+  }
+
   return (
     <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{marginBottom:24}}>
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.5vw,30px)', fontWeight:700, color:'#fff', letterSpacing:'-0.02em', marginBottom:4}}>Delivery history</h1>
-          <p style={{fontSize:14, color:'rgba(255,255,255,0.55)'}}>{orders.length} {orders.length === 1 ? 'drop' : 'drops'} completed or cancelled.</p>
+          <p style={{fontSize:14, color:'rgba(255,255,255,0.55)'}}>{filtered.length} {filtered.length === 1 ? 'drop' : 'drops'} {range === 'all' ? 'completed or cancelled' : `in the ${range === '7d' ? 'last 7 days' : 'last 30 days'}`}.</p>
+        </div>
+
+        {/* Date-range filter */}
+        <div className="fade-up" style={{display:'flex', gap:8, marginBottom:20, flexWrap:'wrap'}}>
+          {RANGES.map(r => {
+            const on = range === r.v
+            return (
+              <button key={r.v} className="chip" onClick={() => setRange(r.v)} style={{height:36, padding:'0 16px', borderRadius:100, fontSize:13, fontWeight:700, cursor:'pointer', border:`1px solid ${on ? '#C8006A' : 'rgba(255,255,255,0.14)'}`, background:on ? '#C8006A' : 'transparent', color:on ? '#fff' : 'rgba(255,255,255,0.6)'}}>{r.l}</button>
+            )
+          })}
         </div>
 
         <div className="hstats fade-up" style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginBottom:24}}>
@@ -135,41 +173,56 @@ export default function DriverHistory() {
           ))}
         </div>
 
-        <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', overflow:'hidden'}}>
-          <div style={{padding:'16px 20px', borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#fff'}}>All drops</h2>
+        {filtered.length === 0 ? (
+          <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', padding:'64px 20px', textAlign:'center'}}>
+            <div style={{fontSize:48, marginBottom:16}}>🚴</div>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#fff', marginBottom:8}}>{range === 'all' ? 'No deliveries yet' : 'Nothing in this range'}</h2>
+            <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>{range === 'all' ? 'Completed and cancelled drops will show up here.' : 'Try widening the date range above.'}</p>
           </div>
-          {orders.length === 0 ? (
-            <div style={{padding:'64px 20px', textAlign:'center'}}>
-              <div style={{fontSize:48, marginBottom:16}}>🚴</div>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#fff', marginBottom:8}}>No deliveries yet</h2>
-              <p style={{fontSize:14, color:'rgba(255,255,255,0.5)'}}>Completed and cancelled drops will show up here.</p>
-            </div>
-          ) : orders.map((o, i) => {
-            const isDelivered = o.status === 'delivered'
-            const dropTo = o.delivery_type === 'collect' ? 'Collection' : (o.delivery_address?.split(',')[0] || 'Customer')
-            return (
-              <div key={o.id} className="hrow" style={{display:'flex', alignItems:'center', gap:14, padding:'15px 20px', borderBottom:i < orders.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none', transition:'background 0.12s'}}>
-                <div style={{width:44, height:44, borderRadius:12, background:isDelivered ? 'rgba(52,211,153,0.12)' : 'rgba(255,138,138,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0}}>
-                  {cuisineEmoji[o.listings?.cuisine || 'Other'] || '🍽️'}
-                </div>
-                <div style={{minWidth:0, width:200, flexShrink:0}}>
-                  <div style={{fontSize:14, fontWeight:700, color:'#fff', marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listings?.name || 'Delivery'}</div>
-                  <div style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>#{o.id.slice(0, 8).toUpperCase()} · {new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
-                </div>
-                <div className="route-cell" style={{flex:1, minWidth:0, display:'flex', alignItems:'center', gap:8, color:'rgba(255,255,255,0.55)', fontSize:13, fontWeight:500}}>
-                  <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>🍳 Kitchen</span>
-                  <span style={{color:'#C8006A', flexShrink:0}}>→</span>
-                  <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>📍 {dropTo}</span>
-                </div>
-                <div style={{textAlign:'right', flexShrink:0}}>
-                  <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:isDelivered ? '#34D399' : 'rgba(255,255,255,0.4)'}}>£{parseFloat(o.delivery_fee || '0').toFixed(2)}</div>
-                  <span style={{fontSize:10.5, fontWeight:700, color:isDelivered ? '#34D399' : '#FF8A8A', textTransform:'uppercase', letterSpacing:'0.04em'}}>{o.status}</span>
-                </div>
+        ) : groups.map(group => {
+          const dayTotal = group.items.filter(o => o.status === 'delivered').reduce((s, o) => s + parseFloat(o.delivery_fee || '0'), 0)
+          return (
+            <div key={group.key} className="fade-up" style={{marginBottom:22}}>
+              {/* Timeline day header */}
+              <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:12}}>
+                <h2 style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#fff'}}>{group.label}</h2>
+                <div style={{flex:1, height:1, background:'rgba(255,255,255,0.08)'}}/>
+                <span style={{fontFamily:'Georgia,serif', fontSize:13, fontWeight:700, color:'#34D399'}}>£{dayTotal.toFixed(2)}</span>
               </div>
-            )
-          })}
-        </div>
+              {/* Timeline rail */}
+              <div style={{position:'relative', paddingLeft:26}}>
+                <div style={{position:'absolute', left:7, top:6, bottom:6, width:2, background:'rgba(255,255,255,0.08)'}}/>
+                {group.items.map(o => {
+                  const isDelivered = o.status === 'delivered'
+                  const dropTo = o.delivery_type === 'collect' ? 'Collection' : (o.delivery_address?.split(',')[0] || 'Customer')
+                  return (
+                    <div key={o.id} style={{position:'relative', marginBottom:10}}>
+                      <span style={{position:'absolute', left:-23, top:22, width:12, height:12, borderRadius:'50%', background:'#0D0D0D', border:`2.5px solid ${isDelivered ? '#34D399' : '#FF8A8A'}`, zIndex:1}}/>
+                      <div className="hrow" style={{display:'flex', alignItems:'center', gap:14, padding:'13px 16px', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:14, transition:'background 0.12s'}}>
+                        <div style={{width:44, height:44, borderRadius:12, background:isDelivered ? 'rgba(52,211,153,0.12)' : 'rgba(255,138,138,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0}}>
+                          {cuisineEmoji[o.listings?.cuisine || 'Other'] || '🍽️'}
+                        </div>
+                        <div style={{minWidth:0, width:200, flexShrink:0}}>
+                          <div style={{fontSize:14, fontWeight:700, color:'#fff', marginBottom:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listings?.name || 'Delivery'}</div>
+                          <div style={{fontSize:12, color:'rgba(255,255,255,0.45)'}}>#{o.id.slice(0, 8).toUpperCase()} · {new Date(o.created_at).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}</div>
+                        </div>
+                        <div className="route-cell" style={{flex:1, minWidth:0, display:'flex', alignItems:'center', gap:8, color:'rgba(255,255,255,0.55)', fontSize:13, fontWeight:500}}>
+                          <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>🍳 Kitchen</span>
+                          <span style={{color:'#C8006A', flexShrink:0}}>→</span>
+                          <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>📍 {dropTo}</span>
+                        </div>
+                        <div style={{textAlign:'right', flexShrink:0}}>
+                          <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:isDelivered ? '#34D399' : 'rgba(255,255,255,0.4)'}}>£{parseFloat(o.delivery_fee || '0').toFixed(2)}</div>
+                          <span style={{fontSize:10.5, fontWeight:700, color:isDelivered ? '#34D399' : '#FF8A8A', textTransform:'uppercase', letterSpacing:'0.04em'}}>{o.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
