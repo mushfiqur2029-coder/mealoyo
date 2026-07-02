@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import WeeklyBarChart from '@/components/WeeklyBarChart'
 import type { Order, Profile, WithdrawalRequest } from '@/lib/types'
 
 const NAV = [
@@ -153,6 +154,15 @@ export default function DriverEarnings() {
     { label:'Avg per drop', value:`£${avgPerDrop.toFixed(2)}`, color:'#fff' },
   ]
 
+  // Last 7 days, oldest → newest, for the weekly chart + daily breakdown.
+  const days = Array.from({ length: 7 }).map((_, i) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (6 - i)); return d })
+  const weekRows = days.map(d => {
+    const next = new Date(d); next.setDate(d.getDate() + 1)
+    const dayOrders = orders.filter(o => { const od = new Date(o.created_at); return od >= d && od < next })
+    return { date: d, label: d.toLocaleDateString('en-GB', { weekday: 'short' }), full: d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }), drops: dayOrders.length, value: dayOrders.reduce((s, o) => s + fee(o), 0) }
+  })
+  const weekTotal = weekRows.reduce((s, r) => s + r.value, 0)
+
   return (
     <div style={{minHeight:'100vh', background:'#0D0D0D', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
@@ -173,6 +183,31 @@ export default function DriverEarnings() {
               <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:c.color, letterSpacing:'-0.02em', lineHeight:1}}>{c.value}</div>
             </div>
           ))}
+        </div>
+
+        {/* Weekly earnings chart + daily breakdown */}
+        <div className="fade-up" style={{background:'rgba(255,255,255,0.03)', borderRadius:18, border:'1px solid rgba(255,255,255,0.08)', padding:'22px 22px 20px', marginBottom:20}}>
+          <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, marginBottom:18, flexWrap:'wrap'}}>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#fff'}}>Last 7 days</h2>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontSize:10.5, color:'rgba(255,255,255,0.5)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em'}}>Week total</div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#34D399', lineHeight:1}}>£{weekTotal.toFixed(2)}</div>
+            </div>
+          </div>
+          <WeeklyBarChart bars={weekRows.map(r => ({ label: r.label, value: r.value }))} />
+
+          {/* Daily breakdown table */}
+          <div style={{marginTop:22, borderTop:'1px solid rgba(255,255,255,0.06)', paddingTop:6}}>
+            {weekRows.slice().reverse().map((r, i) => (
+              <div key={i} style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, padding:'11px 0', borderBottom:i < 6 ? '1px solid rgba(255,255,255,0.05)' : 'none'}}>
+                <div style={{fontSize:13.5, fontWeight:600, color:'#fff'}}>{r.full}</div>
+                <div style={{display:'flex', alignItems:'center', gap:16}}>
+                  <span style={{fontSize:12.5, color:'rgba(255,255,255,0.5)'}}>{r.drops} {r.drops === 1 ? 'drop' : 'drops'}</span>
+                  <span style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:r.value > 0 ? '#34D399' : 'rgba(255,255,255,0.4)', minWidth:64, textAlign:'right'}}>£{r.value.toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="bottom-grid" style={{display:'grid', gridTemplateColumns:'minmax(0,1.7fr) minmax(0,320px)', gap:20, alignItems:'start'}}>
