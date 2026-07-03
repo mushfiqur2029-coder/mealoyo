@@ -189,25 +189,25 @@ export default function SellerOrders() {
   )
 
   const nav = (
-    <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={34}/></Link>
         <div className="nav-links" style={{display:'flex', gap:0, flex:1}}>
           {NAV.map((t, i) => {
             const active = t.h === '/seller/orders'
             return (
-              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : '#1A1A1A', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : 'var(--text-primary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
             )
           })}
         </div>
-        <button onClick={signOut} className="nav-link" style={{marginLeft:'auto', height:36, padding:'0 14px', border:'1.5px solid #E0E0E0', borderRadius:8, background:'#fff', fontSize:13, fontWeight:600, color:'#1A1A1A', cursor:'pointer', flexShrink:0}}>Sign out</button>
+        <button onClick={signOut} className="nav-link" style={{marginLeft:'auto', height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, background:'var(--bg-card)', fontSize:13, fontWeight:600, color:'var(--text-primary)', cursor:'pointer', flexShrink:0}}>Sign out</button>
       </div>
     </nav>
   )
 
   // ── LOADING SKELETON ──
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
@@ -220,7 +220,7 @@ export default function SellerOrders() {
         </div>
         <div className="orders-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(380px,1fr))', gap:16}}>
           {Array.from({length:4}).map((_, i) => (
-            <div key={i} style={{background:'#fff', borderRadius:20, padding:20, border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div key={i} style={{background:'var(--bg-card)', borderRadius:20, padding:20, border:'1.5px solid var(--border-subtle)'}}>
               <div style={{display:'flex', gap:14, marginBottom:16}}>
                 <div className="skel" style={{width:52, height:52, borderRadius:14, flexShrink:0}}/>
                 <div style={{flex:1}}>
@@ -242,31 +242,31 @@ export default function SellerOrders() {
 
   // ── PENDING APPROVAL GATE ──
   if (profile?.status === 'pending') return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter,system-ui,sans-serif', padding:24}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter,system-ui,sans-serif', padding:24}}>
       {pageStyles}
-      <div className="fade-up" style={{background:'#fff', borderRadius:24, padding:'48px 36px', maxWidth:480, width:'100%', textAlign:'center', boxShadow:'0 4px 24px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
+      <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:24, padding:'48px 36px', maxWidth:480, width:'100%', textAlign:'center', boxShadow:'0 4px 24px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
         <div style={{fontSize:56, marginBottom:16}}>⏳</div>
-        <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Awaiting approval</h2>
-        <p style={{fontSize:14, color:'#1A1A1A', lineHeight:1.7, marginBottom:24}}>Your seller account is being reviewed. You will be notified within 24–48 hours.</p>
+        <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Awaiting approval</h2>
+        <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.7, marginBottom:24}}>Your seller account is being reviewed. You will be notified within 24–48 hours.</p>
         <button onClick={signOut} className="advance-btn" style={{height:46, padding:'0 24px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer'}}>Sign out</button>
       </div>
     </div>
   )
 
   return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
 
       {/* ── REALTIME TOAST: new order received ── */}
       {toast && (
-        <div role="status" aria-live="polite" style={{position:'fixed', top:78, right:20, zIndex:300, display:'flex', alignItems:'center', gap:12, background:'#fff', borderLeft:'4px solid #C8006A', borderRadius:14, padding:'14px 18px 14px 16px', boxShadow:'0 12px 36px rgba(200,0,106,0.22)', animation:'toastIn 0.32s cubic-bezier(0.34,1.3,0.64,1) both', maxWidth:'calc(100vw - 40px)'}}>
-          <span style={{width:38, height:38, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0, animation:'toastDot 1.8s ease-out infinite'}}>🔔</span>
+        <div role="status" aria-live="polite" style={{position:'fixed', top:78, right:20, zIndex:300, display:'flex', alignItems:'center', gap:12, background:'var(--bg-card)', borderLeft:'4px solid #C8006A', borderRadius:14, padding:'14px 18px 14px 16px', boxShadow:'0 12px 36px rgba(200,0,106,0.22)', animation:'toastIn 0.32s cubic-bezier(0.34,1.3,0.64,1) both', maxWidth:'calc(100vw - 40px)'}}>
+          <span style={{width:38, height:38, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0, animation:'toastDot 1.8s ease-out infinite'}}>🔔</span>
           <div>
-            <div style={{fontSize:14, fontWeight:700, color:'#1A1A1A', lineHeight:1.2}}>{toast}</div>
+            <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', lineHeight:1.2}}>{toast}</div>
             <div style={{fontSize:12, color:'#C8006A', fontWeight:600, marginTop:2}}>It&apos;s ready for you to accept</div>
           </div>
-          <button onClick={() => setToast(null)} aria-label="Dismiss" style={{marginLeft:6, width:26, height:26, border:'none', background:'#F8F0F4', borderRadius:'50%', color:'#1A1A1A', fontSize:14, cursor:'pointer', flexShrink:0, lineHeight:1}}>✕</button>
+          <button onClick={() => setToast(null)} aria-label="Dismiss" style={{marginLeft:6, width:26, height:26, border:'none', background:'var(--bg-page)', borderRadius:'50%', color:'var(--text-primary)', fontSize:14, cursor:'pointer', flexShrink:0, lineHeight:1}}>✕</button>
         </div>
       )}
 
@@ -275,8 +275,8 @@ export default function SellerOrders() {
         {/* Header */}
         <div className="fade-up" style={{marginBottom:22}}>
           <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>Seller workspace</div>
-          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,32px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:4}}>Orders</h1>
-          <p style={{fontSize:14, color:'#1A1A1A'}}>{orders.length} {orders.length === 1 ? 'order' : 'orders'} total · sorted newest first</p>
+          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,32px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>Orders</h1>
+          <p style={{fontSize:14, color:'var(--text-primary)'}}>{orders.length} {orders.length === 1 ? 'order' : 'orders'} total · sorted newest first</p>
         </div>
 
         {/* Revenue summary cards */}
@@ -287,9 +287,9 @@ export default function SellerOrders() {
             { label:'Gross revenue', value:`£${revenue.toFixed(2)}`, icon:'💷', accent:false },
             { label:'Your earnings', value:`£${earnings.toFixed(2)}`, icon:'💰', accent:true },
           ].map((s, i) => (
-            <div key={i} className="stat-card" style={{background:s.accent ? 'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)' : '#fff', borderRadius:18, padding:'18px 20px', boxShadow:s.accent ? '0 8px 24px rgba(200,0,106,0.25)' : '0 2px 14px rgba(200,0,106,0.06)', border:s.accent ? 'none' : '1.5px solid rgba(200,0,106,0.07)'}}>
+            <div key={i} className="stat-card" style={{background:s.accent ? 'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)' : 'var(--bg-card)', borderRadius:18, padding:'18px 20px', boxShadow:s.accent ? '0 8px 24px rgba(200,0,106,0.25)' : '0 2px 10px var(--shadow-card)', border:s.accent ? 'none' : '1.5px solid var(--border-subtle)'}}>
               <div style={{fontSize:18, marginBottom:10}}>{s.icon}</div>
-              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,26px)', fontWeight:700, color:s.accent ? '#fff' : '#1A1A1A', letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,26px)', fontWeight:700, color:s.accent ? '#fff' : 'var(--text-primary)', letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
               <div style={{fontSize:11, fontWeight:700, color:s.accent ? 'rgba(255,255,255,0.8)' : '#C8006A', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:6}}>{s.label}</div>
             </div>
           ))}
@@ -300,9 +300,9 @@ export default function SellerOrders() {
           {FILTERS.map(f => {
             const on = filter === f
             return (
-              <button key={f} onClick={() => setFilter(f)} className="filter-pill" style={{flexShrink:0, display:'flex', alignItems:'center', gap:7, height:40, padding:'0 16px', borderRadius:100, border:on ? '2px solid #C8006A' : '1.5px solid #E0E0E0', background:on ? '#FFE8F4' : '#fff', color:on ? '#C8006A' : '#1A1A1A', fontSize:13, fontWeight:700, cursor:'pointer', textTransform:'capitalize'}}>
+              <button key={f} onClick={() => setFilter(f)} className="filter-pill" style={{flexShrink:0, display:'flex', alignItems:'center', gap:7, height:40, padding:'0 16px', borderRadius:100, border:on ? '2px solid #C8006A' : '1.5px solid var(--border-subtle)', background:on ? '#FFE8F4' : 'var(--bg-card)', color:on ? '#C8006A' : 'var(--text-primary)', fontSize:13, fontWeight:700, cursor:'pointer', textTransform:'capitalize'}}>
                 {f.replace('_', ' ')}
-                <span style={{display:'inline-flex', alignItems:'center', justifyContent:'center', minWidth:20, height:20, padding:'0 6px', borderRadius:100, background:on ? '#C8006A' : '#F0E4EC', color:on ? '#fff' : '#1A1A1A', fontSize:11, fontWeight:700}}>{counts[f] ?? 0}</span>
+                <span style={{display:'inline-flex', alignItems:'center', justifyContent:'center', minWidth:20, height:20, padding:'0 6px', borderRadius:100, background:on ? '#C8006A' : 'var(--border-subtle)', color:on ? '#fff' : 'var(--text-primary)', fontSize:11, fontWeight:700}}>{counts[f] ?? 0}</span>
               </button>
             )
           })}
@@ -310,10 +310,10 @@ export default function SellerOrders() {
 
         {/* Orders */}
         {filtered.length === 0 ? (
-          <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
-            <div style={{width:88, height:88, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:42, margin:'0 auto 20px'}}>📦</div>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:8}}>No orders {filter !== 'all' ? `in "${filter.replace('_', ' ')}"` : 'yet'}</h2>
-            <p style={{fontSize:14, color:'#1A1A1A', lineHeight:1.65, maxWidth:380, margin:'0 auto'}}>{filter === 'all' ? 'Orders will appear here the moment buyers start ordering your dishes.' : 'Try a different filter to see more orders.'}</p>
+          <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 10px var(--shadow-card)', border:'1.5px solid var(--border-subtle)'}}>
+            <div style={{width:88, height:88, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:42, margin:'0 auto 20px'}}>📦</div>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No orders {filter !== 'all' ? `in "${filter.replace('_', ' ')}"` : 'yet'}</h2>
+            <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.65, maxWidth:380, margin:'0 auto'}}>{filter === 'all' ? 'Orders will appear here the moment buyers start ordering your dishes.' : 'Try a different filter to see more orders.'}</p>
           </div>
         ) : (
           <div className="orders-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(380px,1fr))', gap:16}}>
@@ -323,48 +323,48 @@ export default function SellerOrders() {
               const dt = new Date(o.created_at)
               const isDelivery = o.delivery_type === 'delivery'
               return (
-                <div key={o.id} className="order-card fade-up" style={{background:'#fff', borderRadius:20, padding:'20px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'flex', flexDirection:'column'}}>
+                <div key={o.id} className="order-card fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'20px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column'}}>
 
                   {/* Top: dish + status */}
                   <div style={{display:'flex', gap:14, marginBottom:16}}>
-                    <div style={{width:54, height:54, borderRadius:14, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, flexShrink:0}}>
+                    <div style={{width:54, height:54, borderRadius:14, background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, flexShrink:0}}>
                       {cuisineEmoji[o.listings?.cuisine || 'Other'] || '🍽️'}
                     </div>
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8}}>
-                        <div style={{fontSize:15, fontWeight:700, color:'#1A1A1A', lineHeight:1.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listings?.name || 'Order'}</div>
+                        <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)', lineHeight:1.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listings?.name || 'Order'}</div>
                         <span style={{flexShrink:0, background:statusBg(o.status), color:statusColor(o.status), padding:'3px 10px', borderRadius:100, fontSize:11, fontWeight:700, textTransform:'capitalize', whiteSpace:'nowrap'}}>{o.status.replace('_', ' ')}</span>
                       </div>
-                      <div style={{fontSize:12, color:'#1A1A1A', fontWeight:500, marginTop:3}}>#{o.id.slice(0, 8).toUpperCase()}</div>
+                      <div style={{fontSize:12, color:'var(--text-primary)', fontWeight:500, marginTop:3}}>#{o.id.slice(0, 8).toUpperCase()}</div>
                     </div>
                   </div>
 
                   {/* Meta pills */}
                   <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:14}}>
-                    <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'#F8F0F4', color:'#1A1A1A', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>👤 {buyerFirst}</span>
-                    <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'#F8F0F4', color:'#1A1A1A', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>× {o.quantity}</span>
+                    <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'var(--bg-page)', color:'var(--text-primary)', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>👤 {buyerFirst}</span>
+                    <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'var(--bg-page)', color:'var(--text-primary)', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>× {o.quantity}</span>
                     <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'#FFE8F4', color:'#C8006A', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:700}}>{isDelivery ? '🚴 Delivery' : '📍 Collection'}</span>
                   </div>
 
                   {/* Date / time */}
-                  <div style={{fontSize:12, color:'#1A1A1A', fontWeight:500, marginBottom:14, opacity:0.85}}>
+                  <div style={{fontSize:12, color:'var(--text-primary)', fontWeight:500, marginBottom:14, opacity:0.85}}>
                     🕐 {dt.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })} · {dt.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}
                   </div>
 
                   {/* Notes */}
                   {o.notes && (
-                    <div style={{background:'#F8F0F4', borderRadius:12, padding:'10px 14px', fontSize:13, color:'#1A1A1A', lineHeight:1.5, marginBottom:14}}>
+                    <div style={{background:'var(--bg-page)', borderRadius:12, padding:'10px 14px', fontSize:13, color:'var(--text-primary)', lineHeight:1.5, marginBottom:14}}>
                       <span style={{fontWeight:700, color:'#C8006A'}}>📝 Note</span> · {o.notes}
                     </div>
                   )}
 
                   {/* Footer: amounts + action */}
-                  <div className="card-footer" style={{marginTop:'auto', paddingTop:14, borderTop:'1px solid #F5F0F3', display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:12}}>
+                  <div className="card-footer" style={{marginTop:'auto', paddingTop:14, borderTop:'1px solid var(--bg-secondary)', display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:12}}>
                     <div>
                       <div style={{display:'flex', gap:16}}>
                         <div>
-                          <div style={{fontSize:10, color:'#1A1A1A', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', opacity:0.7, marginBottom:2}}>Order total</div>
-                          <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.01em'}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
+                          <div style={{fontSize:10, color:'var(--text-primary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', opacity:0.7, marginBottom:2}}>Order total</div>
+                          <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
                         </div>
                         <div>
                           <div style={{fontSize:10, color:'#C8006A', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:2}}>Your payout</div>

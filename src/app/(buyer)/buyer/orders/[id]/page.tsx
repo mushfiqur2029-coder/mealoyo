@@ -181,25 +181,25 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   )
 
   const nav = (
-    <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:66}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:66}}>
       <div style={{maxWidth:1040, margin:'0 auto', padding:'0 20px', height:66, display:'flex', alignItems:'center', gap:14}}>
-        <Link href="/buyer/orders" className="back-btn" aria-label="Back to orders" style={{width:38, height:38, border:'1.5px solid #E0E0E0', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:'#1A1A1A', flexShrink:0, transition:'all 0.14s'}}>←</Link>
+        <Link href="/buyer/orders" className="back-btn" aria-label="Back to orders" style={{width:38, height:38, border:'1.5px solid var(--border-subtle)', borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, color:'var(--text-primary)', flexShrink:0, transition:'all 0.14s'}}>←</Link>
         <Link href="/" style={{flexShrink:0}}><Logo height={34}/></Link>
-        {order && <span style={{fontSize:14, color:'#1A1A1A', fontWeight:500, marginLeft:4, whiteSpace:'nowrap'}}>· Order #{order.id.slice(0, 8).toUpperCase()}</span>}
+        {order && <span style={{fontSize:14, color:'var(--text-primary)', fontWeight:500, marginLeft:4, whiteSpace:'nowrap'}}>· Order #{order.id.slice(0, 8).toUpperCase()}</span>}
       </div>
     </nav>
   )
 
   // ── LOADING SKELETON ──
   if (loading) return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
       <div style={{maxWidth:1040, margin:'0 auto', padding:'28px 20px 48px'}}>
         <div className="skel" style={{height:150, borderRadius:20, marginBottom:20}}/>
         <div className="order-grid" style={{display:'grid', gridTemplateColumns:'1fr 360px', gap:20}}>
           <div>
-            <div style={{background:'#fff', borderRadius:20, padding:24, marginBottom:16, border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div style={{background:'var(--bg-card)', borderRadius:20, padding:24, marginBottom:16, border:'1.5px solid var(--border-subtle)'}}>
               <div className="skel" style={{height:20, borderRadius:8, width:'40%', marginBottom:18}}/>
               <div style={{display:'flex', gap:16}}>
                 <div className="skel" style={{width:64, height:64, borderRadius:14, flexShrink:0}}/>
@@ -210,7 +210,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                 </div>
               </div>
             </div>
-            <div style={{background:'#fff', borderRadius:20, padding:24, border:'1.5px solid rgba(200,0,106,0.07)'}}>
+            <div style={{background:'var(--bg-card)', borderRadius:20, padding:24, border:'1.5px solid var(--border-subtle)'}}>
               <div className="skel" style={{height:20, borderRadius:8, width:'40%', marginBottom:20}}/>
               {Array.from({length:4}).map((_, i) => (
                 <div key={i} style={{display:'flex', gap:12, marginBottom:16, alignItems:'center'}}>
@@ -220,7 +220,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               ))}
             </div>
           </div>
-          <div style={{background:'#fff', borderRadius:20, padding:24, border:'1.5px solid rgba(200,0,106,0.07)'}}>
+          <div style={{background:'var(--bg-card)', borderRadius:20, padding:24, border:'1.5px solid var(--border-subtle)'}}>
             <div className="skel" style={{height:20, borderRadius:8, width:'55%', marginBottom:20}}/>
             <div className="skel" style={{height:13, borderRadius:6, width:'100%', marginBottom:12}}/>
             <div className="skel" style={{height:13, borderRadius:6, width:'80%', marginBottom:20}}/>
@@ -234,14 +234,14 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
   // ── ERROR / NOT FOUND ──
   if (notFound || !order) return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
       <div style={{maxWidth:560, margin:'0 auto', padding:'72px 20px'}}>
-        <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'56px 32px', textAlign:'center', boxShadow:'0 4px 24px rgba(200,0,106,0.08)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
-          <div style={{width:88, height:88, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:42, margin:'0 auto 22px'}}>🧾</div>
-          <h1 style={{fontFamily:'Georgia,serif', fontSize:26, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Order not found</h1>
-          <p style={{fontSize:15, color:'#1A1A1A', lineHeight:1.7, marginBottom:28, maxWidth:380, margin:'0 auto 28px'}}>We couldn&apos;t find this order on your account. It may have been removed, or the link is incorrect.</p>
+        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'56px 32px', textAlign:'center', boxShadow:'0 4px 24px rgba(200,0,106,0.08)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
+          <div style={{width:88, height:88, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4 0%,var(--bg-secondary) 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:42, margin:'0 auto 22px'}}>🧾</div>
+          <h1 style={{fontFamily:'Georgia,serif', fontSize:26, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Order not found</h1>
+          <p style={{fontSize:15, color:'var(--text-primary)', lineHeight:1.7, marginBottom:28, maxWidth:380, margin:'0 auto 28px'}}>We couldn&apos;t find this order on your account. It may have been removed, or the link is incorrect.</p>
           <Link href="/buyer/orders" className="prim-btn" style={{display:'inline-flex', alignItems:'center', height:52, padding:'0 30px', background:'#C8006A', color:'#fff', borderRadius:12, fontSize:15, fontWeight:700, boxShadow:'0 6px 20px rgba(200,0,106,0.3)'}}>
             View your orders →
           </Link>
@@ -263,7 +263,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const isDelivery = order.delivery_type === 'delivery'
 
   return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
 
@@ -295,7 +295,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
           {/* Estimated delivery / progress message */}
           <div style={{position:'relative', display:'inline-flex', alignItems:'center', gap:8, background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.22)', borderRadius:100, padding:'8px 16px', marginBottom:22}}>
-            {!delivered && <span style={{width:8, height:8, borderRadius:'50%', background:'#fff', flexShrink:0, animation:'pulseRing 1.8s ease-out infinite'}}/>}
+            {!delivered && <span style={{width:8, height:8, borderRadius:'50%', background:'var(--bg-card)', flexShrink:0, animation:'pulseRing 1.8s ease-out infinite'}}/>}
             <span style={{fontSize:13.5, fontWeight:600, color:'#fff'}}>{delivered ? '🎉 ' : '⏱ '}{etaMessages[order.status] || 'Tracking your order'}</span>
           </div>
 
@@ -328,34 +328,34 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           <div className="fade-up">
 
             {/* Order details */}
-            <div style={{background:'#fff', borderRadius:20, padding:'24px', marginBottom:16, boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', marginBottom:18}}>Order details</h2>
+            <div style={{background:'var(--bg-card)', borderRadius:20, padding:'24px', marginBottom:16, boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border-subtle)'}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:18}}>Order details</h2>
               <div style={{display:'flex', gap:16, marginBottom:order.notes || isDelivery ? 16 : 0, alignItems:'flex-start'}}>
-                <div style={{width:68, height:68, borderRadius:16, background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:34, flexShrink:0}}>{emoji}</div>
+                <div style={{width:68, height:68, borderRadius:16, background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:34, flexShrink:0}}>{emoji}</div>
                 <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontSize:16, fontWeight:700, color:'#1A1A1A', marginBottom:3}}>{listing?.name || 'Dish'}</div>
-                  <div style={{fontSize:13, color:'#1A1A1A', marginBottom:8}}>by {seller?.full_name || 'Home cook'}</div>
+                  <div style={{fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:3}}>{listing?.name || 'Dish'}</div>
+                  <div style={{fontSize:13, color:'var(--text-primary)', marginBottom:8}}>by {seller?.full_name || 'Home cook'}</div>
                   <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-                    <span style={{background:'#F8F0F4', color:'#1A1A1A', padding:'4px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>Qty: {order.quantity}</span>
+                    <span style={{background:'var(--bg-page)', color:'var(--text-primary)', padding:'4px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>Qty: {order.quantity}</span>
                     <span style={{background:'#FFE8F4', color:'#C8006A', padding:'4px 11px', borderRadius:100, fontSize:12, fontWeight:700}}>{isDelivery ? '🚴 Delivery' : '📍 Collection'}</span>
                   </div>
                 </div>
               </div>
               {isDelivery && order.delivery_address && (
-                <div style={{background:'#F8F0F4', borderRadius:12, padding:'12px 15px', fontSize:13, color:'#1A1A1A', lineHeight:1.55, marginBottom:order.notes ? 10 : 0}}>
+                <div style={{background:'var(--bg-page)', borderRadius:12, padding:'12px 15px', fontSize:13, color:'var(--text-primary)', lineHeight:1.55, marginBottom:order.notes ? 10 : 0}}>
                   <span style={{fontWeight:700, color:'#C8006A'}}>📍 Delivery address</span><br/>{order.delivery_address}
                 </div>
               )}
               {order.notes && (
-                <div style={{background:'#F8F0F4', borderRadius:12, padding:'12px 15px', fontSize:13, color:'#1A1A1A', lineHeight:1.55}}>
+                <div style={{background:'var(--bg-page)', borderRadius:12, padding:'12px 15px', fontSize:13, color:'var(--text-primary)', lineHeight:1.55}}>
                   <span style={{fontWeight:700, color:'#C8006A'}}>📝 Special request</span><br/>{order.notes}
                 </div>
               )}
             </div>
 
             {/* Timeline */}
-            <div style={{background:'#fff', borderRadius:20, padding:'24px', marginBottom:16, boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', marginBottom:20}}>Order timeline</h2>
+            <div style={{background:'var(--bg-card)', borderRadius:20, padding:'24px', marginBottom:16, boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border-subtle)'}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:20}}>Order timeline</h2>
               {statusSteps.map((step, i) => {
                 const done = i <= currentStep
                 const isCurrent = i === currentStep
@@ -363,13 +363,13 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                 return (
                   <div key={step} style={{display:'flex', gap:14}}>
                     <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
-                      <div style={{width:34, height:34, borderRadius:'50%', background:done ? '#C8006A' : '#F0E4EC', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, flexShrink:0, transition:'background 0.3s', animation:isCurrent && !delivered ? 'pulseDot 1.8s ease-out infinite' : 'none'}}>
-                        {done ? <span style={{fontSize:15}}>{statusIcons[step]}</span> : <span style={{color:'#1A1A1A', fontSize:12, fontWeight:700, opacity:0.4}}>{i + 1}</span>}
+                      <div style={{width:34, height:34, borderRadius:'50%', background:done ? '#C8006A' : 'var(--border-subtle)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, flexShrink:0, transition:'background 0.3s', animation:isCurrent && !delivered ? 'pulseDot 1.8s ease-out infinite' : 'none'}}>
+                        {done ? <span style={{fontSize:15}}>{statusIcons[step]}</span> : <span style={{color:'var(--text-primary)', fontSize:12, fontWeight:700, opacity:0.4}}>{i + 1}</span>}
                       </div>
-                      {!last && <div style={{width:2.5, flex:1, background:i < currentStep ? '#C8006A' : '#F0E4EC', minHeight:26, marginTop:4, marginBottom:4, transition:'background 0.3s'}}/>}
+                      {!last && <div style={{width:2.5, flex:1, background:i < currentStep ? '#C8006A' : 'var(--border-subtle)', minHeight:26, marginTop:4, marginBottom:4, transition:'background 0.3s'}}/>}
                     </div>
                     <div style={{paddingTop:7, paddingBottom:last ? 0 : 14}}>
-                      <div style={{fontSize:14, fontWeight:done ? 700 : 500, color:done ? '#1A1A1A' : '#1A1A1A', opacity:done ? 1 : 0.45}}>{statusLabels[step]}</div>
+                      <div style={{fontSize:14, fontWeight:done ? 700 : 500, color:'var(--text-primary)', opacity:done ? 1 : 0.45}}>{statusLabels[step]}</div>
                       {isCurrent && !delivered && <div style={{fontSize:12, color:'#C8006A', fontWeight:700, marginTop:3}}>● In progress</div>}
                       {isCurrent && delivered && <div style={{fontSize:12, color:'#2DA84E', fontWeight:700, marginTop:3}}>✓ Completed</div>}
                     </div>
@@ -380,19 +380,19 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
             {/* Review — only delivered & not yet reviewed */}
             {delivered && !reviewed && (
-              <div className="fade-up" style={{background:'#fff', borderRadius:20, padding:'24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.1)'}}>
-                <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', marginBottom:6}}>Rate your order</h2>
-                <p style={{fontSize:14, color:'#1A1A1A', marginBottom:18}}>How was {seller?.full_name || 'the cook'}&apos;s food?</p>
+              <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'24px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.1)'}}>
+                <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>Rate your order</h2>
+                <p style={{fontSize:14, color:'var(--text-primary)', marginBottom:18}}>How was {seller?.full_name || 'the cook'}&apos;s food?</p>
                 <div style={{display:'flex', gap:8, marginBottom:18}} onMouseLeave={() => setHoverRating(0)}>
                   {[1, 2, 3, 4, 5].map(star => (
                     <span key={star} className="star" onClick={() => setRating(star)} onMouseEnter={() => setHoverRating(star)}
-                      style={{fontSize:38, color:star <= (hoverRating || rating) ? '#C8006A' : '#EAD9E4'}}>★</span>
+                      style={{fontSize:38, color:star <= (hoverRating || rating) ? '#C8006A' : 'var(--border-subtle)'}}>★</span>
                   ))}
                 </div>
                 <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="Tell others what you thought (optional)..." rows={3}
-                  style={{width:'100%', border:'1.5px solid #E0E0E0', borderRadius:12, padding:'12px 15px', fontSize:14, color:'#1A1A1A', background:'#FAFAFA', fontFamily:'Inter,system-ui,sans-serif', outline:'none', resize:'none', lineHeight:1.55, marginBottom:14}}/>
+                  style={{width:'100%', border:'1.5px solid var(--border-subtle)', borderRadius:12, padding:'12px 15px', fontSize:14, color:'var(--text-primary)', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif', outline:'none', resize:'none', lineHeight:1.55, marginBottom:14}}/>
                 <button onClick={submitReview} disabled={rating === 0 || submittingReview} className={rating === 0 ? '' : 'prim-btn'}
-                  style={{height:48, padding:'0 26px', background:rating === 0 ? '#EAD9E4' : '#C8006A', color:rating === 0 ? '#1A1A1A' : '#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:rating === 0 || submittingReview ? 'not-allowed' : 'pointer', boxShadow:rating === 0 ? 'none' : '0 6px 18px rgba(200,0,106,0.28)', opacity:submittingReview ? 0.8 : 1}}>
+                  style={{height:48, padding:'0 26px', background:rating === 0 ? 'var(--border-subtle)' : '#C8006A', color:rating === 0 ? 'var(--text-primary)' : '#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:rating === 0 || submittingReview ? 'not-allowed' : 'pointer', boxShadow:rating === 0 ? 'none' : '0 6px 18px rgba(200,0,106,0.28)', opacity:submittingReview ? 0.8 : 1}}>
                   {submittingReview ? 'Submitting...' : 'Submit review →'}
                 </button>
               </div>
@@ -413,38 +413,38 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           {/* ── RIGHT COLUMN: payment summary (sticky) ── */}
           <div className="fade-up">
             <div className="pay-panel" style={{position:'sticky', top:82}}>
-              <div style={{background:'#fff', borderRadius:20, padding:'24px', boxShadow:'0 4px 24px rgba(200,0,106,0.08)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
-                <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', marginBottom:18}}>Payment summary</h2>
+              <div style={{background:'var(--bg-card)', borderRadius:20, padding:'24px', boxShadow:'0 4px 24px rgba(200,0,106,0.08)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
+                <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:18}}>Payment summary</h2>
                 <div style={{display:'flex', flexDirection:'column', gap:11, marginBottom:16}}>
-                  <div style={{display:'flex', justifyContent:'space-between', gap:12, fontSize:13, color:'#1A1A1A'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', gap:12, fontSize:13, color:'var(--text-primary)'}}>
                     <span style={{minWidth:0}}>{listing?.name || 'Dish'} × {order.quantity}</span>
                     <span style={{fontWeight:600, flexShrink:0}}>£{subtotal.toFixed(2)}</span>
                   </div>
                   {serviceFeeAmt > 0 && (
-                    <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#1A1A1A'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'var(--text-primary)'}}>
                       <span>Service fee</span>
                       <span style={{fontWeight:600}}>£{serviceFeeAmt.toFixed(2)}</span>
                     </div>
                   )}
                   {deliveryFee > 0 && (
-                    <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'#1A1A1A'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', fontSize:13, color:'var(--text-primary)'}}>
                       <span>Delivery fee</span>
                       <span style={{fontWeight:600}}>£{deliveryFee.toFixed(2)}</span>
                     </div>
                   )}
-                  <div style={{borderTop:'1px solid #F0E4EC', paddingTop:11, display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:15, fontWeight:700}}>
+                  <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:11, display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:15, fontWeight:700}}>
                     <span>Total paid</span>
                     <span style={{color:'#C8006A', fontFamily:'Georgia,serif', fontSize:22}}>£{total.toFixed(2)}</span>
                   </div>
                 </div>
-                <div style={{background:'#F8F0F4', borderRadius:12, padding:'12px 15px', fontSize:12, color:'#1A1A1A', lineHeight:1.6}}>
+                <div style={{background:'var(--bg-page)', borderRadius:12, padding:'12px 15px', fontSize:12, color:'var(--text-primary)', lineHeight:1.6}}>
                   🔒 Payment secured by Stripe. Funds release to the cook on delivery confirmation.
                 </div>
                 <div style={{marginTop:16, display:'flex', flexDirection:'column', gap:10}}>
                   <Link href={`/dish/${order.listing_id}`} className="prim-btn" style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', background:'#C8006A', color:'#fff', borderRadius:12, fontSize:15, fontWeight:700, boxShadow:'0 6px 18px rgba(200,0,106,0.28)'}}>
                     Order again →
                   </Link>
-                  <Link href="/buyer/dashboard" className="ghost-btn" style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid #E0E0E0', color:'#1A1A1A', borderRadius:12, fontSize:15, fontWeight:600, transition:'all 0.14s'}}>
+                  <Link href="/buyer/dashboard" className="ghost-btn" style={{height:48, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid var(--border-subtle)', color:'var(--text-primary)', borderRadius:12, fontSize:15, fontWeight:600, transition:'all 0.14s'}}>
                     Back to dashboard
                   </Link>
                 </div>

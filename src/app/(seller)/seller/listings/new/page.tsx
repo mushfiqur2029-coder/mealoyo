@@ -171,15 +171,15 @@ export default function NewListing() {
       input:focus, select:focus, textarea:focus { border-color: #C8006A !important; outline: none; background: #fff !important; box-shadow: 0 0 0 3px rgba(200,0,106,0.08); }
       .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
       .nav-link:hover { color: #C8006A !important; }
-      .chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1.5px solid #E0E0E0; cursor: pointer; font-size: 13px; font-weight: 600; color: #1A1A1A; background: #fff; transition: all 0.15s cubic-bezier(0.34,1.2,0.64,1); user-select: none; }
+      .chip { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 44px; padding: 0 14px; border-radius: 12px; border: 1.5px solid var(--border-subtle); cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-primary); background: var(--bg-card); transition: all 0.15s cubic-bezier(0.34,1.2,0.64,1); user-select: none; }
       .chip:hover { border-color: #C8006A; transform: translateY(-1px); }
       .chip.on { border-color: #C8006A; background: #FFE8F4; color: #C8006A; box-shadow: 0 2px 8px rgba(200,0,106,0.12); }
-      .diet-chip { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border-radius: 100px; border: 1.5px solid #E0E0E0; cursor: pointer; font-size: 14px; font-weight: 600; color: #1A1A1A; background: #fff; transition: all 0.15s cubic-bezier(0.34,1.2,0.64,1); user-select: none; }
+      .diet-chip { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 18px; border-radius: 100px; border: 1.5px solid var(--border-subtle); cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text-primary); background: var(--bg-card); transition: all 0.15s cubic-bezier(0.34,1.2,0.64,1); user-select: none; }
       .diet-chip:hover { border-color: #C8006A; transform: translateY(-1px); }
       .diet-chip.on { border-color: #C8006A; background: #FFE8F4; color: #C8006A; box-shadow: 0 2px 8px rgba(200,0,106,0.12); }
       .sub:hover { background: #A00055 !important; transform: translateY(-1px); }
       .step-dot { cursor: pointer; transition: all 0.18s; }
-      .upload-zone:hover { border-color: #C8006A !important; background: #FFF5FA !important; }
+      .upload-zone:hover { border-color: #C8006A !important; background: var(--bg-secondary) !important; }
       .mobile-bar { display: none; }
       @media (max-width: 900px) {
         .nav-links { display: none !important; }
@@ -193,14 +193,14 @@ export default function NewListing() {
   )
 
   const nav = (
-    <nav style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
+    <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
         <Link href="/" style={{marginRight:28, flexShrink:0}}><Logo height={34}/></Link>
         <div className="nav-links" style={{display:'flex', flex:1}}>
           {NAV.map((t, i) => {
             const active = t.h === '/seller/listings'
             return (
-              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : '#1A1A1A', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
+              <Link key={i} href={t.h} className="nav-link" style={{height:64, padding:'0 14px', display:'flex', alignItems:'center', fontSize:13, fontWeight:active ? 700 : 500, color:active ? '#C8006A' : 'var(--text-primary)', borderBottom:active ? '2.5px solid #C8006A' : '2.5px solid transparent', transition:'color 0.12s'}}>{t.l}</Link>
             )
           })}
         </div>
@@ -209,7 +209,7 @@ export default function NewListing() {
   )
 
   if (checkingProfile) return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}{nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'32px 20px'}}>
         <div className="skel" style={{height:30, width:260, borderRadius:8, marginBottom:8}}/>
@@ -225,13 +225,13 @@ export default function NewListing() {
   )
 
   if (profile?.status === 'pending') return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}{nav}
       <div style={{maxWidth:480, margin:'0 auto', padding:'56px 20px'}}>
-        <div className="fade-up" style={{background:'#fff', borderRadius:24, padding:'48px 36px', textAlign:'center', boxShadow:'0 4px 24px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
-          <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, margin:'0 auto 18px'}}>⏳</div>
-          <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', marginBottom:10}}>Awaiting approval</h2>
-          <p style={{fontSize:14, color:'#1A1A1A', lineHeight:1.7, marginBottom:24}}>Your seller account is being reviewed. You&apos;ll be able to add listings within 24–48 hours.</p>
+        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:24, padding:'48px 36px', textAlign:'center', boxShadow:'0 4px 24px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
+          <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, margin:'0 auto 18px'}}>⏳</div>
+          <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Awaiting approval</h2>
+          <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.7, marginBottom:24}}>Your seller account is being reviewed. You&apos;ll be able to add listings within 24–48 hours.</p>
           <button onClick={signOut} className="sub" style={{height:46, padding:'0 24px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer'}}>Sign out</button>
         </div>
       </div>
@@ -239,26 +239,26 @@ export default function NewListing() {
   )
 
   if (saved) return (
-    <div style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif', padding:24}}>
+    <div style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif', padding:24}}>
       {pageStyles}
-      <div className="fade-up" style={{background:'#fff', borderRadius:24, padding:'48px 36px', textAlign:'center', maxWidth:420, boxShadow:'0 4px 24px rgba(200,0,106,0.12)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
+      <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:24, padding:'48px 36px', textAlign:'center', maxWidth:420, boxShadow:'0 4px 24px rgba(200,0,106,0.12)', border:'1.5px solid rgba(200,0,106,0.08)'}}>
         <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,#E4F6EA,#F0FBF3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, margin:'0 auto 18px'}}>✅</div>
-        <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', marginBottom:8}}>Listing submitted</h2>
-        <p style={{fontSize:14, color:'#1A1A1A', lineHeight:1.65}}>Your dish has been submitted for review. Our team will verify and make it live within 24 hours.</p>
+        <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>Listing submitted</h2>
+        <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.65}}>Your dish has been submitted for review. Our team will verify and make it live within 24 hours.</p>
       </div>
     </div>
   )
 
-  const inp: CSSProperties = {height:48, border:'1.5px solid #E0E0E0', borderRadius:12, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#FAFAFA', width:'100%', fontFamily:'Inter,system-ui,sans-serif', outline:'none', transition:'all 0.15s'}
-  const lbl = {fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase' as const, letterSpacing:'0.06em', marginBottom:7, display:'block'}
-  const sec: CSSProperties = {background:'#fff', borderRadius:20, padding:'26px', marginBottom:18, boxShadow:'0 2px 12px rgba(200,0,106,0.05)', border:'1.5px solid rgba(200,0,106,0.07)', scrollMarginTop:88}
+  const inp: CSSProperties = {height:48, border:'1.5px solid var(--border-subtle)', borderRadius:12, padding:'0 14px', fontSize:14, color:'var(--text-primary)', background:'var(--bg-secondary)', width:'100%', fontFamily:'Inter,system-ui,sans-serif', outline:'none', transition:'all 0.15s'}
+  const lbl = {fontSize:11, fontWeight:700, color:'var(--text-primary)', textTransform:'uppercase' as const, letterSpacing:'0.06em', marginBottom:7, display:'block'}
+  const sec: CSSProperties = {background:'var(--bg-card)', borderRadius:20, padding:'26px', marginBottom:18, boxShadow:'0 2px 12px rgba(200,0,106,0.05)', border:'1.5px solid var(--border-subtle)', scrollMarginTop:88}
   const sel = {...inp, appearance:'none' as const, paddingRight:36, cursor:'pointer'}
   const secTitle = (n: number, t: string, s?: string) => (
     <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:18}}>
       <div style={{width:30, height:30, borderRadius:9, background:'#FFE8F4', color:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:800, fontFamily:'Georgia,serif', flexShrink:0}}>{n}</div>
       <div>
-        <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#1A1A1A'}}>{t}</h2>
-        {s && <p style={{fontSize:12, color:'#1A1A1A', opacity:0.7, fontWeight:500}}>{s}</p>}
+        <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>{t}</h2>
+        {s && <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.7, fontWeight:500}}>{s}</p>}
       </div>
     </div>
   )
@@ -266,12 +266,12 @@ export default function NewListing() {
   const dietaryActive = DIETARY.filter(d => (form as unknown as Record<string, boolean>)[d.k])
 
   return (
-    <div style={{minHeight:'100vh', background:'#F8F0F4', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
 
       {/* Progress indicator */}
-      <div style={{background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:64, zIndex:90}}>
+      <div style={{background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderBottom:'1px solid rgba(200,0,106,0.08)', position:'sticky', top:64, zIndex:90}}>
         <div style={{maxWidth:1080, margin:'0 auto', padding:'14px 20px', display:'flex', alignItems:'center', gap:6, overflowX:'auto'}}>
           {SECTIONS.map((s, i) => {
             const done = i < activeStep
@@ -279,8 +279,8 @@ export default function NewListing() {
             return (
               <div key={s} style={{display:'flex', alignItems:'center', gap:6, flexShrink:0}}>
                 <div className="step-dot" onClick={() => scrollTo(i)} style={{display:'flex', alignItems:'center', gap:8}}>
-                  <div style={{width:26, height:26, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, background:active ? '#C8006A' : done ? '#E4F6EA' : '#F0E4EC', color:active ? '#fff' : done ? '#2DA84E' : '#1A1A1A', transition:'all 0.18s', flexShrink:0}}>{done ? '✓' : i + 1}</div>
-                  <span style={{fontSize:13, fontWeight:active ? 700 : 600, color:active ? '#C8006A' : '#1A1A1A', whiteSpace:'nowrap'}}>{s}</span>
+                  <div style={{width:26, height:26, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, background:active ? '#C8006A' : done ? '#E4F6EA' : 'var(--border-subtle)', color:active ? '#fff' : done ? '#2DA84E' : 'var(--text-primary)', transition:'all 0.18s', flexShrink:0}}>{done ? '✓' : i + 1}</div>
+                  <span style={{fontSize:13, fontWeight:active ? 700 : 600, color:active ? '#C8006A' : 'var(--text-primary)', whiteSpace:'nowrap'}}>{s}</span>
                 </div>
                 {i < SECTIONS.length - 1 && <div style={{width:24, height:2, background:done ? '#2DA84E' : '#EBD7BE', borderRadius:2}}/>}
               </div>
@@ -291,8 +291,8 @@ export default function NewListing() {
 
       <div className="form-wrap" style={{maxWidth:1080, margin:'0 auto', padding:'28px 20px 48px'}}>
         <div className="fade-up" style={{marginBottom:22}}>
-          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,30px)', fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.02em', marginBottom:4}}>Add a new dish</h1>
-          <p style={{fontSize:14, color:'#1A1A1A', opacity:0.8}}>Fill in the details below — your listing goes live within 24 hours of review.</p>
+          <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,30px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>Add a new dish</h1>
+          <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.8}}>Fill in the details below — your listing goes live within 24 hours of review.</p>
         </div>
 
         {error && (
@@ -331,16 +331,16 @@ export default function NewListing() {
                     </div>
                   </div>
                   {parseFloat(form.price) > 0 && (
-                    <div style={{background:'#FFF5FA', border:'1.5px solid rgba(200,0,106,0.14)', borderRadius:12, padding:'12px 15px', display:'flex', flexDirection:'column', gap:6}}>
-                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:13, color:'#1A1A1A'}}>
+                    <div style={{background:'var(--bg-secondary)', border:'1.5px solid rgba(200,0,106,0.14)', borderRadius:12, padding:'12px 15px', display:'flex', flexDirection:'column', gap:6}}>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:13, color:'var(--text-primary)'}}>
                         <span>Platform commission ({Math.round(COMMISSION_RATE*100)}%)</span>
                         <span style={{fontWeight:700, color:'#C8006A', fontFamily:'Georgia,serif'}}>£{commission(parseFloat(form.price)).toFixed(2)}</span>
                       </div>
-                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:13, color:'#1A1A1A'}}>
+                      <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', fontSize:13, color:'var(--text-primary)'}}>
                         <span>You receive ({Math.round((1-COMMISSION_RATE)*100)}%)</span>
                         <span style={{fontWeight:700, color:'#C8006A', fontFamily:'Georgia,serif', fontSize:15}}>£{sellerReceives(parseFloat(form.price)).toFixed(2)}</span>
                       </div>
-                      <p style={{fontSize:11, color:'#1A1A1A', opacity:0.6, marginTop:2}}>Per portion, before delivery. Buyers also pay a small service fee.</p>
+                      <p style={{fontSize:11, color:'var(--text-primary)', opacity:0.6, marginTop:2}}>Per portion, before delivery. Buyers also pay a small service fee.</p>
                     </div>
                   )}
                   <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
@@ -383,7 +383,7 @@ export default function NewListing() {
                       </select>
                     </div>
                   </div>
-                  <p style={{fontSize:12, color:'#1A1A1A', opacity:0.65, marginTop:-6}}>Buyers beyond your radius (or over 5 miles) won&apos;t see a delivery option — collection only.</p>
+                  <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.65, marginTop:-6}}>Buyers beyond your radius (or over 5 miles) won&apos;t see a delivery option — collection only.</p>
                 </div>
               </div>
 
@@ -420,7 +420,7 @@ export default function NewListing() {
                     const on = form.allergens.includes(a)
                     return (
                       <div key={a} className={`chip ${on ? 'on' : ''}`} onClick={() => toggleAllergen(a)}>
-                        <span style={{width:18, height:18, borderRadius:5, border:on ? 'none' : '1.5px solid #CBB8C4', background:on ? '#C8006A' : '#fff', color:'#fff', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, flexShrink:0}}>{on ? '✓' : ''}</span>
+                        <span style={{width:18, height:18, borderRadius:5, border:on ? 'none' : '1.5px solid #CBB8C4', background:on ? '#C8006A' : 'var(--bg-card)', color:'#fff', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, flexShrink:0}}>{on ? '✓' : ''}</span>
                         {a}
                       </div>
                     )
@@ -440,7 +440,7 @@ export default function NewListing() {
                   </p>
                 </div>
                 <div className="desktop-submit" style={{display:'flex', gap:12}}>
-                  <Link href="/seller/listings" style={{flex:1, height:52, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid #E0E0E0', borderRadius:12, fontSize:14, fontWeight:600, color:'#1A1A1A', background:'#fff'}}>Cancel</Link>
+                  <Link href="/seller/listings" style={{flex:1, height:52, display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid var(--border-subtle)', borderRadius:12, fontSize:14, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)'}}>Cancel</Link>
                   <button type="submit" disabled={loading} className="sub"
                     style={{flex:2, height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:loading ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'all 0.15s', opacity:loading ? 0.8 : 1}}>
                     {loading ? 'Submitting...' : 'Submit listing →'}
@@ -452,39 +452,39 @@ export default function NewListing() {
             {/* RIGHT: live preview */}
             <div className="preview-col" style={{position:'sticky', top:140}}>
               <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:10}}>Live preview</div>
-              <div style={{background:'#fff', borderRadius:20, overflow:'hidden', boxShadow:'0 4px 20px rgba(200,0,106,0.1)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
-                <div style={{height:130, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF0F8 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:56, position:'relative', overflow:'hidden'}}>
+              <div style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 4px 20px rgba(200,0,106,0.1)', border:'1.5px solid var(--border-subtle)'}}>
+                <div style={{height:130, background:'linear-gradient(135deg,#FFE8F4 0%,var(--bg-secondary) 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:56, position:'relative', overflow:'hidden'}}>
                   {imagePreview
                     ? <Image src={imagePreview} alt="" fill sizes="360px" style={{objectFit:'cover'}} unoptimized />
                     : (cuisineEmoji[form.cuisine] || '🍽️')}
                   <span style={{position:'absolute', top:12, right:12, background:'#FFF4E0', color:'#B8730A', padding:'4px 11px', borderRadius:100, fontSize:11, fontWeight:700}}>Pending</span>
                 </div>
                 <div style={{padding:'18px'}}>
-                  <h3 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', lineHeight:1.25, marginBottom:6}}>{form.name || 'Your dish name'}</h3>
-                  <p style={{fontSize:13, color:'#1A1A1A', opacity:0.85, lineHeight:1.5, marginBottom:14, minHeight:38, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{form.description || 'Your description will appear here as buyers see it.'}</p>
-                  <div style={{display:'flex', gap:14, marginBottom:12, fontSize:12, color:'#1A1A1A', fontWeight:600}}>
+                  <h3 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', lineHeight:1.25, marginBottom:6}}>{form.name || 'Your dish name'}</h3>
+                  <p style={{fontSize:13, color:'var(--text-primary)', opacity:0.85, lineHeight:1.5, marginBottom:14, minHeight:38, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{form.description || 'Your description will appear here as buyers see it.'}</p>
+                  <div style={{display:'flex', gap:14, marginBottom:12, fontSize:12, color:'var(--text-primary)', fontWeight:600}}>
                     <span>👥 Serves {form.serves}</span>
                     <span>⏱️ {form.prep_time}</span>
                   </div>
                   <div style={{display:'flex', gap:6, flexWrap:'wrap', marginBottom:14}}>
-                    {form.cuisine && <span style={{background:'#F8F0F4', color:'#C8006A', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:700}}>{form.cuisine}</span>}
-                    {dietaryActive.slice(0, 2).map(d => <span key={d.k} style={{background:'#F8F0F4', color:'#1A1A1A', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:600}}>{d.e} {d.l}</span>)}
+                    {form.cuisine && <span style={{background:'var(--bg-page)', color:'#C8006A', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:700}}>{form.cuisine}</span>}
+                    {dietaryActive.slice(0, 2).map(d => <span key={d.k} style={{background:'var(--bg-page)', color:'var(--text-primary)', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:600}}>{d.e} {d.l}</span>)}
                     {form.allergens.length > 0 && <span style={{background:'#FFF4E0', color:'#B8730A', padding:'4px 10px', borderRadius:100, fontSize:11, fontWeight:700}}>⚠️ {form.allergens.length} allergen{form.allergens.length === 1 ? '' : 's'}</span>}
                   </div>
-                  <div style={{paddingTop:14, borderTop:'1px solid #F5F0F3', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                  <div style={{paddingTop:14, borderTop:'1px solid var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between'}}>
                     <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>£{form.price ? parseFloat(form.price).toFixed(2) : '0.00'}</div>
                     <span style={{height:34, padding:'0 14px', background:'#C8006A', color:'#fff', borderRadius:9, fontSize:12, fontWeight:700, display:'flex', alignItems:'center'}}>Order now</span>
                   </div>
                 </div>
               </div>
-              <p style={{fontSize:12, color:'#1A1A1A', opacity:0.65, textAlign:'center', marginTop:12, lineHeight:1.5}}>This is how your dish will appear to buyers once approved.</p>
+              <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.65, textAlign:'center', marginTop:12, lineHeight:1.5}}>This is how your dish will appear to buyers once approved.</p>
             </div>
           </div>
 
           {/* Sticky mobile submit bar — sits above the global mobile tab bar */}
-          <div className="mobile-bar" style={{position:'fixed', bottom:'calc(58px + env(safe-area-inset-bottom))', left:0, right:0, zIndex:95, background:'rgba(255,255,255,0.98)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderTop:'1px solid rgba(200,0,106,0.1)', padding:'12px 16px', gap:12, alignItems:'center', boxShadow:'0 -4px 20px rgba(0,0,0,0.06)'}}>
+          <div className="mobile-bar" style={{position:'fixed', bottom:'calc(58px + env(safe-area-inset-bottom))', left:0, right:0, zIndex:95, background:'var(--bg-nav)', backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)', borderTop:'1px solid rgba(200,0,106,0.1)', padding:'12px 16px', gap:12, alignItems:'center', boxShadow:'0 -4px 20px rgba(0,0,0,0.06)'}}>
             <div style={{flexShrink:0}}>
-              <div style={{fontSize:11, color:'#1A1A1A', opacity:0.7, fontWeight:600}}>Price</div>
+              <div style={{fontSize:11, color:'var(--text-primary)', opacity:0.7, fontWeight:600}}>Price</div>
               <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#C8006A'}}>£{form.price ? parseFloat(form.price).toFixed(2) : '0.00'}</div>
             </div>
             <button type="submit" disabled={loading} className="sub" style={{flex:1, height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:loading ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', opacity:loading ? 0.8 : 1}}>
