@@ -42,7 +42,7 @@ export default function BecomeADriver() {
   const weekly = daily * 5
 
   return (
-    <div style={{ background: '#fff', fontFamily: 'Inter,system-ui,sans-serif', color: '#1A1A1A' }}>
+    <div style={{ background: 'var(--bg-page)', fontFamily: 'Inter,system-ui,sans-serif', color: 'var(--text-primary)' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
@@ -58,14 +58,14 @@ export default function BecomeADriver() {
         input[type=range] { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 100px; background: #F0D9E7; outline: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #C8006A; cursor: pointer; box-shadow: 0 4px 12px rgba(200,0,106,0.4); border: 3px solid #fff; }
         input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #C8006A; cursor: pointer; border: 3px solid #fff; }
-        details { border: 1.5px solid #EEE; border-radius: 14px; overflow: hidden; transition: border-color 0.15s; }
+        details { border: 1.5px solid var(--border-subtle); border-radius: 14px; overflow: hidden; transition: border-color 0.15s; }
         details[open] { border-color: rgba(200,0,106,0.3); }
-        summary { list-style: none; cursor: pointer; padding: 18px 20px; font-size: 15px; font-weight: 700; color: #1A1A1A; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+        summary { list-style: none; cursor: pointer; padding: 18px 20px; font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
         summary::-webkit-details-marker { display: none; }
         summary::after { content: '+'; font-size: 22px; font-weight: 400; color: #C8006A; flex-shrink: 0; line-height: 1; }
         details[open] summary::after { content: '−'; }
         details[open] summary { color: #C8006A; }
-        .h-section { font-family: Georgia, serif; font-weight: 700; letter-spacing: -0.02em; color: #1A1A1A; }
+        .h-section { font-family: Georgia, serif; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
         @media (max-width: 860px) {
           .steps-grid { grid-template-columns: 1fr 1fr !important; }
           .calc-grid { grid-template-columns: 1fr !important; }
@@ -78,11 +78,11 @@ export default function BecomeADriver() {
       `}</style>
 
       {/* NAV */}
-      <nav style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(200,0,106,0.08)', position: 'sticky', top: 0, zIndex: 100, height: 64 }}>
+      <nav style={{ background: 'var(--bg-nav)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, zIndex: 100, height: 64 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 64, display: 'flex', alignItems: 'center', gap: 14 }}>
           <Link href="/" style={{ flexShrink: 0 }}><Logo height={34} /></Link>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Link href="/login" style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>Sign in</Link>
+            <Link href="/login" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Sign in</Link>
             <Link href="/register?role=driver" className="cta" style={{ height: 42, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#C8006A', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, boxShadow: '0 4px 14px rgba(200,0,106,0.3)' }}>Start delivering</Link>
           </div>
         </div>
@@ -98,26 +98,26 @@ export default function BecomeADriver() {
           <h1 className="h-section" style={{ fontSize: 'clamp(32px,5.2vw,60px)', color: '#fff', lineHeight: 1.07, marginBottom: 18 }}>Deliver on your schedule, earn what you’re worth</h1>
           <p style={{ fontSize: 'clamp(16px,1.7vw,20px)', color: 'rgba(255,255,255,0.9)', lineHeight: 1.6, maxWidth: 560, margin: '0 auto 32px' }}>Flexible hours. Instant pay. Be your own boss.</p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/register?role=driver" className="cta" style={{ height: 54, padding: '0 32px', display: 'flex', alignItems: 'center', background: '#fff', color: '#C8006A', borderRadius: 13, fontSize: 16, fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.22)' }}>Start delivering today →</Link>
+            <Link href="/register?role=driver" className="cta" style={{ height: 54, padding: '0 32px', display: 'flex', alignItems: 'center', background: 'var(--bg-card)', color: '#C8006A', borderRadius: 13, fontSize: 16, fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.22)' }}>Start delivering today →</Link>
             <a href="#calculator" style={{ height: 54, padding: '0 28px', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.12)', color: '#fff', border: '2px solid rgba(255,255,255,0.3)', borderRadius: 13, fontSize: 16, fontWeight: 600 }}>See what you could earn</a>
           </div>
         </div>
       </section>
 
       {/* EARNINGS CALCULATOR */}
-      <section id="calculator" style={{ padding: '80px 0', background: '#fff' }}>
+      <section id="calculator" style={{ padding: '80px 0', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 44 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Earnings calculator</div>
             <h2 className="h-section" style={{ fontSize: 'clamp(26px,3.4vw,42px)', marginBottom: 12 }}>See what you could earn</h2>
-            <p style={{ fontSize: 16, color: '#1A1A1A', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>Based on roughly £{AVG_DELIVERY.toFixed(2)} per delivery across a 5-day week.</p>
+            <p style={{ fontSize: 16, color: 'var(--text-primary)', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>Based on roughly £{AVG_DELIVERY.toFixed(2)} per delivery across a 5-day week.</p>
           </div>
-          <div className="calc-grid lift" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, background: '#fff', border: '1.5px solid rgba(200,0,106,0.14)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 6px 28px rgba(200,0,106,0.08)' }}>
+          <div className="calc-grid lift" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, background: 'var(--bg-card)', border: '1.5px solid var(--border-subtle)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 6px 28px var(--shadow-card)' }}>
             <div style={{ padding: '36px 32px' }}>
               <label htmlFor="deliveries" style={{ display: 'block', fontSize: 15, fontWeight: 700, marginBottom: 6 }}>How many deliveries per day?</label>
               <div style={{ fontFamily: 'Georgia,serif', fontSize: 48, fontWeight: 700, color: '#C8006A', marginBottom: 18, letterSpacing: '-0.02em' }}>{deliveries}</div>
               <input id="deliveries" type="range" min={1} max={40} value={deliveries} onChange={e => setDeliveries(Number(e.target.value))} style={{ width: '100%' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#1A1A1A', fontWeight: 600, marginTop: 8, opacity: 0.7 }}><span>1</span><span>40+</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-primary)', fontWeight: 600, marginTop: 8, opacity: 0.7 }}><span>1</span><span>40+</span></div>
             </div>
             <div style={{ padding: '36px 32px', background: 'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 20 }}>
               <div>
@@ -130,12 +130,12 @@ export default function BecomeADriver() {
               </div>
             </div>
           </div>
-          <p style={{ fontSize: 12.5, color: '#1A1A1A', textAlign: 'center', marginTop: 16, opacity: 0.7 }}>Estimates only. Actual earnings vary with distance, demand and tips.</p>
+          <p style={{ fontSize: 12.5, color: 'var(--text-primary)', textAlign: 'center', marginTop: 16, opacity: 0.7 }}>Estimates only. Actual earnings vary with distance, demand and tips.</p>
         </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section style={{ padding: '80px 0', background: '#F8F0F4' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-page)' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>How it works</div>
@@ -143,13 +143,13 @@ export default function BecomeADriver() {
           </div>
           <div className="steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 20 }}>
             {steps.map(s => (
-              <div key={s.n} className="lift" style={{ background: '#fff', borderRadius: 20, padding: '28px 24px', border: '1.5px solid rgba(200,0,106,0.08)' }}>
+              <div key={s.n} className="lift" style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '28px 24px', border: '1.5px solid var(--border-subtle)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                   <div style={{ width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>{s.icon}</div>
                   <span style={{ fontFamily: 'Georgia,serif', fontSize: 30, fontWeight: 700, color: '#F0D9E7' }}>{s.n}</span>
                 </div>
                 <h3 className="h-section" style={{ fontSize: 18, marginBottom: 8 }}>{s.title}</h3>
-                <p style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6 }}>{s.desc}</p>
+                <p style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6 }}>{s.desc}</p>
               </div>
             ))}
           </div>
@@ -157,7 +157,7 @@ export default function BecomeADriver() {
       </section>
 
       {/* BENEFITS */}
-      <section style={{ padding: '80px 0', background: '#fff' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Why drive with us</div>
@@ -165,10 +165,10 @@ export default function BecomeADriver() {
           </div>
           <div className="benefits-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 20 }}>
             {benefits.map(b => (
-              <div key={b.title} className="lift" style={{ background: '#F8F0F4', borderRadius: 20, padding: '30px 24px', border: '1.5px solid rgba(200,0,106,0.08)', textAlign: 'center' }}>
+              <div key={b.title} className="lift" style={{ background: 'var(--bg-page)', borderRadius: 20, padding: '30px 24px', border: '1.5px solid var(--border-subtle)', textAlign: 'center' }}>
                 <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, margin: '0 auto 16px' }}>{b.icon}</div>
                 <h3 className="h-section" style={{ fontSize: 17, marginBottom: 8 }}>{b.title}</h3>
-                <p style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6, opacity: 0.85 }}>{b.desc}</p>
+                <p style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6, opacity: 0.85 }}>{b.desc}</p>
               </div>
             ))}
           </div>
@@ -176,7 +176,7 @@ export default function BecomeADriver() {
       </section>
 
       {/* REQUIREMENTS */}
-      <section style={{ padding: '80px 0', background: '#F8F0F4' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-page)' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>What you’ll need</div>
@@ -184,11 +184,11 @@ export default function BecomeADriver() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {requirements.map(r => (
-              <div key={r.title} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', background: '#fff', borderRadius: 16, padding: '20px 22px', border: '1.5px solid rgba(200,0,106,0.08)' }}>
+              <div key={r.title} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', background: 'var(--bg-card)', borderRadius: 16, padding: '20px 22px', border: '1.5px solid var(--border-subtle)' }}>
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: r.optional ? '#FFE8F4' : '#2DA84E', color: r.optional ? '#C8006A' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, flexShrink: 0 }}>{r.optional ? '○' : '✓'}</div>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 3 }}>{r.title}{r.optional && <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: '#FFE8F4', color: '#C8006A', padding: '2px 8px', borderRadius: 100 }}>OPTIONAL</span>}</div>
-                  <div style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6, opacity: 0.85 }}>{r.desc}</div>
+                  <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6, opacity: 0.85 }}>{r.desc}</div>
                 </div>
               </div>
             ))}
@@ -197,7 +197,7 @@ export default function BecomeADriver() {
       </section>
 
       {/* FAQ */}
-      <section style={{ padding: '80px 0', background: '#fff' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>FAQ</div>
@@ -207,7 +207,7 @@ export default function BecomeADriver() {
             {faqs.map(f => (
               <details key={f.q}>
                 <summary>{f.q}</summary>
-                <div style={{ padding: '0 20px 20px', fontSize: 14.5, color: '#1A1A1A', lineHeight: 1.8 }}>{f.a}</div>
+                <div style={{ padding: '0 20px 20px', fontSize: 14.5, color: 'var(--text-primary)', lineHeight: 1.8 }}>{f.a}</div>
               </details>
             ))}
           </div>
@@ -219,7 +219,7 @@ export default function BecomeADriver() {
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <h2 className="h-section" style={{ fontSize: 'clamp(28px,4vw,46px)', color: '#fff', marginBottom: 14 }}>Ready to hit the road?</h2>
           <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', lineHeight: 1.6, marginBottom: 30 }}>Sign up today and start earning on your own schedule.</p>
-          <Link href="/register?role=driver" className="cta" style={{ display: 'inline-flex', alignItems: 'center', height: 56, padding: '0 36px', background: '#fff', color: '#C8006A', borderRadius: 14, fontSize: 17, fontWeight: 700, boxShadow: '0 10px 30px rgba(0,0,0,0.25)' }}>Start delivering today →</Link>
+          <Link href="/register?role=driver" className="cta" style={{ display: 'inline-flex', alignItems: 'center', height: 56, padding: '0 36px', background: 'var(--bg-card)', color: '#C8006A', borderRadius: 14, fontSize: 17, fontWeight: 700, boxShadow: '0 10px 30px rgba(0,0,0,0.25)' }}>Start delivering today →</Link>
         </div>
       </section>
 

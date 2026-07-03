@@ -48,7 +48,7 @@ export default function BecomeASeller() {
   const monthly = weekly * 52 / 12
 
   return (
-    <div style={{ background: '#fff', fontFamily: 'Inter,system-ui,sans-serif', color: '#1A1A1A' }}>
+    <div style={{ background: 'var(--bg-page)', fontFamily: 'Inter,system-ui,sans-serif', color: 'var(--text-primary)' }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
@@ -64,14 +64,14 @@ export default function BecomeASeller() {
         input[type=range] { -webkit-appearance: none; appearance: none; height: 8px; border-radius: 100px; background: #F0D9E7; outline: none; }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #C8006A; cursor: pointer; box-shadow: 0 4px 12px rgba(200,0,106,0.4); border: 3px solid #fff; }
         input[type=range]::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #C8006A; cursor: pointer; border: 3px solid #fff; }
-        details { border: 1.5px solid #EEE; border-radius: 14px; overflow: hidden; transition: border-color 0.15s; }
+        details { border: 1.5px solid var(--border-subtle); border-radius: 14px; overflow: hidden; transition: border-color 0.15s; }
         details[open] { border-color: rgba(200,0,106,0.3); }
-        summary { list-style: none; cursor: pointer; padding: 18px 20px; font-size: 15px; font-weight: 700; color: #1A1A1A; display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+        summary { list-style: none; cursor: pointer; padding: 18px 20px; font-size: 15px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
         summary::-webkit-details-marker { display: none; }
         summary::after { content: '+'; font-size: 22px; font-weight: 400; color: #C8006A; flex-shrink: 0; line-height: 1; }
         details[open] summary::after { content: '−'; }
         details[open] summary { color: #C8006A; }
-        .h-section { font-family: Georgia, serif; font-weight: 700; letter-spacing: -0.02em; color: #1A1A1A; }
+        .h-section { font-family: Georgia, serif; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); }
         @media (max-width: 860px) {
           .steps-grid { grid-template-columns: 1fr 1fr !important; }
           .calc-grid { grid-template-columns: 1fr !important; }
@@ -85,11 +85,11 @@ export default function BecomeASeller() {
       `}</style>
 
       {/* NAV */}
-      <nav style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(200,0,106,0.08)', position: 'sticky', top: 0, zIndex: 100, height: 64 }}>
+      <nav style={{ background: 'var(--bg-nav)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border-subtle)', position: 'sticky', top: 0, zIndex: 100, height: 64 }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 64, display: 'flex', alignItems: 'center', gap: 14 }}>
           <Link href="/" style={{ flexShrink: 0 }}><Logo height={34} /></Link>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Link href="/login" style={{ fontSize: 14, fontWeight: 600, color: '#1A1A1A' }}>Sign in</Link>
+            <Link href="/login" style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Sign in</Link>
             <Link href="/register?role=seller" className="cta" style={{ height: 42, padding: '0 20px', display: 'flex', alignItems: 'center', background: '#C8006A', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, boxShadow: '0 4px 14px rgba(200,0,106,0.3)' }}>Start selling</Link>
           </div>
         </div>
@@ -105,26 +105,26 @@ export default function BecomeASeller() {
           <h1 className="h-section" style={{ fontSize: 'clamp(34px,5.5vw,62px)', color: '#fff', lineHeight: 1.06, marginBottom: 18 }}>Turn your cooking into income</h1>
           <p style={{ fontSize: 'clamp(16px,1.7vw,20px)', color: 'rgba(255,255,255,0.9)', lineHeight: 1.6, maxWidth: 600, margin: '0 auto 32px' }}>Join meaLoyo and earn from your home kitchen. Keep <strong style={{ color: '#fff' }}>88% of every order</strong>.</p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/register?role=seller" className="cta" style={{ height: 54, padding: '0 32px', display: 'flex', alignItems: 'center', background: '#fff', color: '#C8006A', borderRadius: 13, fontSize: 16, fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.22)' }}>Start selling today →</Link>
+            <Link href="/register?role=seller" className="cta" style={{ height: 54, padding: '0 32px', display: 'flex', alignItems: 'center', background: 'var(--bg-card)', color: '#C8006A', borderRadius: 13, fontSize: 16, fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.22)' }}>Start selling today →</Link>
             <a href="#calculator" style={{ height: 54, padding: '0 28px', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.12)', color: '#fff', border: '2px solid rgba(255,255,255,0.3)', borderRadius: 13, fontSize: 16, fontWeight: 600 }}>See what you could earn</a>
           </div>
         </div>
       </section>
 
       {/* EARNINGS CALCULATOR */}
-      <section id="calculator" style={{ padding: '80px 0', background: '#fff' }}>
+      <section id="calculator" style={{ padding: '80px 0', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: 1000, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 44 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Earnings calculator</div>
             <h2 className="h-section" style={{ fontSize: 'clamp(26px,3.4vw,42px)', marginBottom: 12 }}>See what you could earn</h2>
-            <p style={{ fontSize: 16, color: '#1A1A1A', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>Based on an average order of £{AVG_ORDER} and your 88% payout.</p>
+            <p style={{ fontSize: 16, color: 'var(--text-primary)', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>Based on an average order of £{AVG_ORDER} and your 88% payout.</p>
           </div>
-          <div className="calc-grid lift" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, background: '#fff', border: '1.5px solid rgba(200,0,106,0.14)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 6px 28px rgba(200,0,106,0.08)' }}>
+          <div className="calc-grid lift" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0, background: 'var(--bg-card)', border: '1.5px solid var(--border-subtle)', borderRadius: 24, overflow: 'hidden', boxShadow: '0 6px 28px var(--shadow-card)' }}>
             <div style={{ padding: '36px 32px' }}>
               <label htmlFor="orders" style={{ display: 'block', fontSize: 15, fontWeight: 700, marginBottom: 6 }}>How many orders per week?</label>
               <div style={{ fontFamily: 'Georgia,serif', fontSize: 48, fontWeight: 700, color: '#C8006A', marginBottom: 18, letterSpacing: '-0.02em' }}>{orders}</div>
               <input id="orders" type="range" min={1} max={50} value={orders} onChange={e => setOrders(Number(e.target.value))} style={{ width: '100%' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#1A1A1A', fontWeight: 600, marginTop: 8, opacity: 0.7 }}><span>1</span><span>50+</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-primary)', fontWeight: 600, marginTop: 8, opacity: 0.7 }}><span>1</span><span>50+</span></div>
             </div>
             <div style={{ padding: '36px 32px', background: 'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 20 }}>
               <div>
@@ -137,12 +137,12 @@ export default function BecomeASeller() {
               </div>
             </div>
           </div>
-          <p style={{ fontSize: 12.5, color: '#1A1A1A', textAlign: 'center', marginTop: 16, opacity: 0.7 }}>Estimates only. Your actual earnings depend on your prices, menu and demand.</p>
+          <p style={{ fontSize: 12.5, color: 'var(--text-primary)', textAlign: 'center', marginTop: 16, opacity: 0.7 }}>Estimates only. Your actual earnings depend on your prices, menu and demand.</p>
         </div>
       </section>
 
       {/* HOW IT WORKS */}
-      <section style={{ padding: '80px 0', background: '#F8F0F4' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-page)' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>How it works</div>
@@ -150,13 +150,13 @@ export default function BecomeASeller() {
           </div>
           <div className="steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 20 }}>
             {steps.map(s => (
-              <div key={s.n} className="lift" style={{ background: '#fff', borderRadius: 20, padding: '28px 24px', border: '1.5px solid rgba(200,0,106,0.08)' }}>
+              <div key={s.n} className="lift" style={{ background: 'var(--bg-card)', borderRadius: 20, padding: '28px 24px', border: '1.5px solid var(--border-subtle)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                   <div style={{ width: 52, height: 52, borderRadius: 14, background: 'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>{s.icon}</div>
                   <span style={{ fontFamily: 'Georgia,serif', fontSize: 30, fontWeight: 700, color: '#F0D9E7' }}>{s.n}</span>
                 </div>
                 <h3 className="h-section" style={{ fontSize: 18, marginBottom: 8 }}>{s.title}</h3>
-                <p style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6 }}>{s.desc}</p>
+                <p style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6 }}>{s.desc}</p>
               </div>
             ))}
           </div>
@@ -164,24 +164,24 @@ export default function BecomeASeller() {
       </section>
 
       {/* COMMISSION COMPARISON */}
-      <section style={{ padding: '80px 0', background: '#fff' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: 880, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 44 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>The fairest deal</div>
             <h2 className="h-section" style={{ fontSize: 'clamp(26px,3.4vw,42px)', marginBottom: 12 }}>Keep more of what you earn</h2>
-            <p style={{ fontSize: 16, color: '#1A1A1A', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>Commission rates compared to the major delivery apps.</p>
+            <p style={{ fontSize: 16, color: 'var(--text-primary)', maxWidth: 520, margin: '0 auto', lineHeight: 1.6 }}>Commission rates compared to the major delivery apps.</p>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {platforms.map(p => (
-              <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px', borderRadius: 16, background: p.highlight ? 'linear-gradient(135deg,#FFF0F8,#FFE8F4)' : '#fff', border: p.highlight ? '2px solid #C8006A' : '1.5px solid #EEE', flexWrap: 'wrap' }}>
-                <div style={{ minWidth: 130, fontFamily: 'Georgia,serif', fontSize: 19, fontWeight: 700, color: p.highlight ? '#C8006A' : '#1A1A1A' }}>{p.name}{p.highlight && <span style={{ marginLeft: 8, fontFamily: 'Inter', fontSize: 11, fontWeight: 700, background: '#C8006A', color: '#fff', padding: '2px 8px', borderRadius: 100, verticalAlign: 'middle' }}>BEST</span>}</div>
+              <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 24px', borderRadius: 16, background: p.highlight ? 'linear-gradient(135deg,#FFF0F8,#FFE8F4)' : 'var(--bg-card)', border: p.highlight ? '2px solid #C8006A' : '1.5px solid var(--border-subtle)', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 130, fontFamily: 'Georgia,serif', fontSize: 19, fontWeight: 700, color: p.highlight ? '#C8006A' : 'var(--text-primary)' }}>{p.name}{p.highlight && <span style={{ marginLeft: 8, fontFamily: 'Inter', fontSize: 11, fontWeight: 700, background: '#C8006A', color: '#fff', padding: '2px 8px', borderRadius: 100, verticalAlign: 'middle' }}>BEST</span>}</div>
                 <div style={{ flex: 1, minWidth: 120 }}>
                   <div style={{ height: 12, borderRadius: 100, background: '#F0D9E7', overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: p.highlight ? '24%' : p.name === 'Just Eat' ? '56%' : p.name === 'Uber Eats' ? '70%' : '90%', background: p.highlight ? 'linear-gradient(90deg,#C8006A,#8B0047)' : '#C9A3B8', borderRadius: 100 }} />
                   </div>
                 </div>
-                <div style={{ minWidth: 90, textAlign: 'right', fontFamily: 'Georgia,serif', fontSize: 24, fontWeight: 700, color: p.highlight ? '#C8006A' : '#1A1A1A' }}>{p.rate}</div>
-                <div style={{ width: '100%', fontSize: 12.5, color: '#1A1A1A', opacity: 0.75 }}>{p.note}</div>
+                <div style={{ minWidth: 90, textAlign: 'right', fontFamily: 'Georgia,serif', fontSize: 24, fontWeight: 700, color: p.highlight ? '#C8006A' : 'var(--text-primary)' }}>{p.rate}</div>
+                <div style={{ width: '100%', fontSize: 12.5, color: p.highlight ? '#1A1A1A' : 'var(--text-primary)', opacity: 0.75 }}>{p.note}</div>
               </div>
             ))}
           </div>
@@ -189,7 +189,7 @@ export default function BecomeASeller() {
       </section>
 
       {/* REQUIREMENTS */}
-      <section style={{ padding: '80px 0', background: '#F8F0F4' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-page)' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>What you’ll need</div>
@@ -197,11 +197,11 @@ export default function BecomeASeller() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {requirements.map(r => (
-              <div key={r.title} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', background: '#fff', borderRadius: 16, padding: '20px 22px', border: '1.5px solid rgba(200,0,106,0.08)' }}>
+              <div key={r.title} style={{ display: 'flex', gap: 16, alignItems: 'flex-start', background: 'var(--bg-card)', borderRadius: 16, padding: '20px 22px', border: '1.5px solid var(--border-subtle)' }}>
                 <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#2DA84E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, flexShrink: 0 }}>✓</div>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 3 }}>{r.title}</div>
-                  <div style={{ fontSize: 14, color: '#1A1A1A', lineHeight: 1.6, opacity: 0.85 }}>{r.desc}</div>
+                  <div style={{ fontSize: 14, color: 'var(--text-primary)', lineHeight: 1.6, opacity: 0.85 }}>{r.desc}</div>
                 </div>
               </div>
             ))}
@@ -210,7 +210,7 @@ export default function BecomeASeller() {
       </section>
 
       {/* TESTIMONIALS */}
-      <section style={{ padding: '80px 0', background: '#fff' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-card)' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Cook stories</div>
@@ -218,9 +218,9 @@ export default function BecomeASeller() {
           </div>
           <div className="test-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
             {testimonials.map(t => (
-              <div key={t.name} className="lift" style={{ background: '#F8F0F4', borderRadius: 20, padding: '28px 26px', border: '1.5px solid rgba(200,0,106,0.08)' }}>
+              <div key={t.name} className="lift" style={{ background: 'var(--bg-page)', borderRadius: 20, padding: '28px 26px', border: '1.5px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: 22, color: '#C8006A', marginBottom: 12 }}>★★★★★</div>
-                <p style={{ fontSize: 15, color: '#1A1A1A', lineHeight: 1.7, marginBottom: 20 }}>“{t.quote}”</p>
+                <p style={{ fontSize: 15, color: 'var(--text-primary)', lineHeight: 1.7, marginBottom: 20 }}>“{t.quote}”</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#FFE8F4,#FFF0F8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{t.emoji}</div>
                   <div>
@@ -235,7 +235,7 @@ export default function BecomeASeller() {
       </section>
 
       {/* FAQ */}
-      <section style={{ padding: '80px 0', background: '#F8F0F4' }}>
+      <section style={{ padding: '80px 0', background: 'var(--bg-page)' }}>
         <div style={{ maxWidth: 760, margin: '0 auto', padding: '0 20px' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#C8006A', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>FAQ</div>
@@ -245,7 +245,7 @@ export default function BecomeASeller() {
             {faqs.map(f => (
               <details key={f.q}>
                 <summary>{f.q}</summary>
-                <div style={{ padding: '0 20px 20px', fontSize: 14.5, color: '#1A1A1A', lineHeight: 1.8 }}>{f.a}</div>
+                <div style={{ padding: '0 20px 20px', fontSize: 14.5, color: 'var(--text-primary)', lineHeight: 1.8 }}>{f.a}</div>
               </details>
             ))}
           </div>
@@ -257,7 +257,7 @@ export default function BecomeASeller() {
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <h2 className="h-section" style={{ fontSize: 'clamp(28px,4vw,46px)', color: '#fff', marginBottom: 14 }}>Ready to start earning?</h2>
           <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', lineHeight: 1.6, marginBottom: 30 }}>Set up your kitchen and publish your first dish today.</p>
-          <Link href="/register?role=seller" className="cta" style={{ display: 'inline-flex', alignItems: 'center', height: 56, padding: '0 36px', background: '#fff', color: '#C8006A', borderRadius: 14, fontSize: 17, fontWeight: 700, boxShadow: '0 10px 30px rgba(0,0,0,0.25)' }}>Start selling today →</Link>
+          <Link href="/register?role=seller" className="cta" style={{ display: 'inline-flex', alignItems: 'center', height: 56, padding: '0 36px', background: 'var(--bg-card)', color: '#C8006A', borderRadius: 14, fontSize: 17, fontWeight: 700, boxShadow: '0 10px 30px rgba(0,0,0,0.25)' }}>Start selling today →</Link>
         </div>
       </section>
 
