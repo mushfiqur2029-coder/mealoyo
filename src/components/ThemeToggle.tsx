@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useThemeStore, type Theme } from '@/lib/themeStore'
+import { useAuth } from '@/components/AuthProvider'
 
 // Three-way pill: Light · Auto · Dark. The active segment fills with the brand
 // colour. 36px tall, unobtrusive — lives in profile/settings pages.
@@ -39,11 +40,16 @@ const OPTS: { value: Theme; label: string; icon: React.ReactNode }[] = [
 export default function ThemeToggle() {
   const theme = useThemeStore((s) => s.theme)
   const setTheme = useThemeStore((s) => s.setTheme)
+  const { session, loading } = useAuth()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   // Persisted value is only trustworthy after hydration — until then render the
   // default so server and client markup match.
-  const active = mounted ? theme : 'auto'
+  const active = mounted ? theme : 'light'
+
+  // Theme is a signed-in-only feature: hide the control entirely for logged-out
+  // visitors (and until auth resolves) so it never appears on public pages.
+  if (loading || !session) return null
 
   return (
     <div

@@ -4,6 +4,9 @@ import { persist } from 'zustand/middleware'
 // meaLoyo supports three theme modes. 'auto' follows the OS preference at the
 // moment it's read (and reacts to live changes — see ThemeProvider). The chosen
 // mode is the durable bit; the *resolved* light/dark is derived, never stored.
+// The theme only ever applies to *signed-in* users — public/logged-out visitors
+// are always shown light (enforced by ThemeProvider + the inline script in
+// layout.tsx), regardless of any persisted preference.
 export type Theme = 'light' | 'dark' | 'auto'
 
 interface ThemeState {
@@ -14,7 +17,9 @@ interface ThemeState {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      theme: 'auto',
+      // Default to light. Users can opt into dark/auto from their profile once
+      // signed in; a first-time visitor always starts light.
+      theme: 'light',
       setTheme: (theme) => set({ theme }),
     }),
     {
