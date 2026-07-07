@@ -29,6 +29,7 @@ const NAV = [
   { l:'Drivers', h:'/admin/drivers' },
   { l:'Buyers', h:'/admin/buyers' },
   { l:'Orders', h:'/admin/orders' },
+  { l:'Withdrawals', h:'/admin/withdrawals' },
   { l:'Settings', h:'/admin/settings' },
 ]
 
@@ -40,7 +41,7 @@ const dark = `
   ::-webkit-scrollbar { width: 0; height: 0; } * { scrollbar-width: none; -ms-overflow-style: none; }
   a { text-decoration: none; color: inherit; }
   button { font-family: Inter, system-ui, sans-serif; }
-  .skelD { background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
+  .skelD { background: linear-gradient(90deg, var(--bg-card) 0%, var(--border-subtle) 50%, var(--bg-card) 100%); background-size: 960px 100%; animation: shimmerD 1.4s ease-in-out infinite; }
   .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
   .nav-link:hover { color: var(--text-primary) !important; }
   .promote-btn:hover { background: #A00055 !important; }
@@ -141,8 +142,8 @@ export default function AdminSettings() {
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           <span style={{fontSize:12, color:'var(--text-secondary)'}}>{profile?.full_name || profile?.email}</span>
-          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12, fontWeight:600, color:'rgba(255,255,255,0.6)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
-      </div>
+          <button onClick={signOut} className="signout" style={{height:34, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12, fontWeight:600, color:'var(--text-secondary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+        </div>
       </div>
     </nav>
   )
@@ -231,7 +232,7 @@ export default function AdminSettings() {
             {deletions.length === 0 ? (
               <div style={{padding:'40px', textAlign:'center', color:'var(--text-secondary)', fontSize:14}}>No deletions recorded yet.</div>
             ) : deletions.map((d, i) => (
-              <div key={d.id} style={{display:'flex', alignItems:'center', gap:14, padding:'14px 22px', borderBottom:i < deletions.length - 1 ? '1px solid var(--bg-card)' : 'none'}}>
+              <div key={d.id} style={{display:'flex', alignItems:'center', gap:14, padding:'14px 22px', borderBottom:i < deletions.length - 1 ? '1px solid var(--border-subtle)' : 'none'}}>
                 <div style={{width:36, height:36, borderRadius:9, background:'rgba(255,138,138,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0}}>🗑️</div>
                 <div style={{flex:1, minWidth:0}}>
                   <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>

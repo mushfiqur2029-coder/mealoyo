@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import type { Profile } from '@/lib/types'
 
-// admin_get_buyer_orders returns one flattened row per order, linked to the
-// buyer (names joined in the RPC). Used for per-buyer counts, total spent and
-// the "View orders" modal.
+// admin_get_all_orders returns flattened rows (FK ids + joined names). We use it
+// for per-buyer counts, total spent and the "View orders" modal — the same
+// reliable source the Orders and Drivers pages use, so dish names always resolve.
 type BuyerOrder = {
-  buyer_id: string
-  order_id: string
+  id: string
+  buyer_id: string | null
   listing_name: string | null
   total_amount: string
   status: string
@@ -79,10 +79,15 @@ export default function AdminBuyers() {
       if ((profile as Profile | null)?.role !== 'admin') { router.push('/'); return }
       setProfile(profile)
 
+      // Buyers self-register with no approval step, so their status column is
+      // often null — normalise to 'active' so the badge, filters and counts all
+      // resolve to a real value.
       const { data: buyerRows } = await supabase.rpc('admin_get_profiles_by_role', { p_role: 'buyer' })
-      setBuyers((buyerRows || []).sort((a: Profile, b: Profile) => (a.full_name || '').localeCompare(b.full_name || '')))
+      setBuyers((buyerRows || [])
+        .map((b: Profile) => ({ ...b, status: b.status || 'active' }))
+        .sort((a: Profile, b: Profile) => (a.full_name || '').localeCompare(b.full_name || '')))
 
-      const { data: orderRows } = await supabase.rpc('admin_get_buyer_orders')
+      const { data: orderRows } = await supabase.rpc('admin_get_all_orders')
       setOrders((orderRows || []) as BuyerOrder[])
 
       setLoading(false)
@@ -112,6 +117,7 @@ export default function AdminBuyers() {
   const orderCounts: Record<string, number> = {}
   const spentTotals: Record<string, number> = {}
   for (const o of orders) {
+    if (!o.buyer_id) continue
     orderCounts[o.buyer_id] = (orderCounts[o.buyer_id] || 0) + 1
     if (o.status === 'delivered') spentTotals[o.buyer_id] = (spentTotals[o.buyer_id] || 0) + parseFloat(o.total_amount || '0')
   }
@@ -235,10 +241,13 @@ export default function AdminBuyers() {
       </div>
 
       {viewBuyer && (() => {
-        const bo = orders.filter(o => o.buyer_id === viewBuyer.id).slice(0, 10)
+        const bo = orders
+          .filter(o => o.buyer_id === viewBuyer.id)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 10)
         return (
           <div onClick={() => setViewBuyer(null)} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-            <div onClick={e => e.stopPropagation()} style={{background:'#161616', border:'1px solid var(--border-subtle)', borderRadius:18, width:'100%', maxWidth:620, maxHeight:'82vh', display:'flex', flexDirection:'column', overflow:'hidden'}}>
+            <div onClick={e => e.stopPropagation()} style={{background:'var(--bg-card)', border:'1px solid var(--border-subtle)', borderRadius:18, width:'100%', maxWidth:620, maxHeight:'82vh', display:'flex', flexDirection:'column', overflow:'hidden'}}>
               <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border-subtle)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12}}>
                 <div style={{minWidth:0}}>
                   <h2 style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{viewBuyer.full_name || 'Buyer'}&rsquo;s orders</h2>
@@ -250,7 +259,7 @@ export default function AdminBuyers() {
                 {bo.length === 0 ? (
                   <div style={{padding:'44px', textAlign:'center', color:'var(--text-secondary)', fontSize:14}}>This buyer has not placed any orders yet.</div>
                 ) : bo.map(o => (
-                  <div key={o.order_id} style={{display:'flex', alignItems:'center', gap:14, padding:'12px 24px'}}>
+                  <div key={o.id} style={{display:'flex', alignItems:'center', gap:14, padding:'12px 24px'}}>
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listing_name || 'Order'}</div>
                       <div style={{fontSize:12, color:'var(--text-secondary)'}}>{new Date(o.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>

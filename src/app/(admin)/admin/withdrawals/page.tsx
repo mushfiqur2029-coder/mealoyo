@@ -243,7 +243,7 @@ export default function AdminWithdrawals() {
 
       {paidModal && (
         <div onClick={closePaidModal} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(4px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'#161616', borderRadius:20, width:'100%', maxWidth:460, maxHeight:'90vh', overflowY:'auto', border:'1px solid var(--border-subtle)', boxShadow:'0 20px 60px rgba(0,0,0,0.6)', padding:'26px 28px 28px'}}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, width:'100%', maxWidth:460, maxHeight:'90vh', overflowY:'auto', border:'1px solid var(--border-subtle)', boxShadow:'0 20px 60px rgba(0,0,0,0.6)', padding:'26px 28px 28px'}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18}}>
               <h2 style={{fontFamily:'Georgia,serif', fontSize:21, fontWeight:700, color:'var(--text-primary)'}}>Mark as paid</h2>
               <button onClick={closePaidModal} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-secondary)', cursor:'pointer'}}>✕</button>
