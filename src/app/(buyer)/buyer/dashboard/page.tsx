@@ -32,6 +32,8 @@ export default function BuyerDashboard() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [referralCode, setReferralCode] = useState<string | null>(null)
+  const [refCopied, setRefCopied] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
   const [orderCount, setOrderCount] = useState(0)
   const [deliveredCount, setDeliveredCount] = useState(0)
@@ -50,8 +52,16 @@ export default function BuyerDashboard() {
       setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
-      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
+      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url, referral_code').eq('id', user.id).maybeSingle()
       setAvatarUrl(avatarRow?.avatar_url || null)
+      setReferralCode(avatarRow?.referral_code || null)
+      // Credit a referrer captured from a ?ref= link on registration. Runs once,
+      // then clears — the RPC itself ignores self-referrals and repeats.
+      const pendingRef = localStorage.getItem('mealoyo_ref')
+      if (pendingRef) {
+        await supabase.rpc('apply_referral', { p_code: pendingRef })
+        localStorage.removeItem('mealoyo_ref')
+      }
       const { data: orders } = await supabase.from('orders').select('*, listings(name,cuisine), profiles:seller_id(full_name)').eq('buyer_id', user.id).neq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5)
       setOrders(orders || [])
       const { count: total } = await supabase.from('orders').select('id', { count: 'exact', head: true }).eq('buyer_id', user.id).neq('status', 'pending_payment')
@@ -291,6 +301,29 @@ export default function BuyerDashboard() {
               <div style={{fontSize:13, color:'rgba(255,255,255,0.85)', marginTop:6}}>worth £{pointsToPounds(points).toFixed(2)} off your next order</div>
               <div style={{display:'inline-flex', alignItems:'center', gap:6, marginTop:16, fontSize:13, fontWeight:700, color:'#fff', background:'rgba(255,255,255,0.16)', padding:'7px 14px', borderRadius:100}}>View history →</div>
             </Link>
+
+            {/* Refer a friend */}
+            {referralCode && (
+              <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'22px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border)'}}>
+                <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:10}}>
+                  <span style={{fontSize:18}}>🎉</span>
+                  <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Refer a friend</h3>
+                </div>
+                <p style={{fontSize:13, color:'var(--text-primary)', opacity:0.85, lineHeight:1.6, marginBottom:14}}>Share your code and earn <strong style={{color:'#C8006A'}}>150 points (£1)</strong> when a friend places their first order.</p>
+                <div style={{display:'flex', alignItems:'center', gap:8, background:'var(--bg-secondary)', border:'1.5px dashed var(--border)', borderRadius:10, padding:'10px 12px', marginBottom:10}}>
+                  <span style={{flex:1, minWidth:0, fontSize:12.5, fontWeight:600, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>mealoyo.com/register?ref={referralCode}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(`https://mealoyo.com/register?ref=${referralCode}`)
+                    setRefCopied(true); setTimeout(() => setRefCopied(false), 2000)
+                  }}
+                  className="browse-btn"
+                  style={{width:'100%', height:42, background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(200,0,106,0.28)', transition:'all 0.16s'}}>
+                  {refCopied ? '✓ Link copied!' : 'Copy referral link'}
+                </button>
+              </div>
+            )}
 
             {/* Quick actions */}
             <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border)'}}>

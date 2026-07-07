@@ -43,12 +43,14 @@ export default function SellerDashboard() {
   const [reviews, setReviews] = useState<Pick<Review, 'rating'>[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
     const getData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
+      setUserId(user.id)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
       const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
@@ -72,6 +74,57 @@ export default function SellerDashboard() {
     }
     getData()
   }, [router])
+
+  // ── DESKTOP PUSH NOTIFICATIONS: alert the seller the moment a paid order lands ──
+  useEffect(() => {
+    if (!userId) return
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+
+    // Ask for permission exactly once, and remember the choice so we never nag.
+    if (Notification.permission === 'default' && !localStorage.getItem('mealoyo_notif_asked')) {
+      localStorage.setItem('mealoyo_notif_asked', '1')
+      Notification.requestPermission().catch(() => {})
+    }
+
+    const notify = async (listingId: string | undefined, amount: string | undefined) => {
+      if (Notification.permission !== 'granted') return
+      let dish = 'A new dish'
+      if (listingId) {
+        const { data } = await supabase.from('listings').select('name').eq('id', listingId).maybeSingle()
+        if (data?.name) dish = data.name
+      }
+      const money = amount ? ` · £${parseFloat(amount).toFixed(2)}` : ''
+      new Notification('New order on meaLoyo', { body: `${dish}${money}`, icon: '/favicon.png' })
+    }
+
+    const channel = supabase
+      .channel(`seller-dash-notify-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'orders', filter: `seller_id=eq.${userId}` },
+        (payload) => {
+          const row = payload.new as Order
+          // Skip unpaid Stripe checkouts — they notify on the paid UPDATE below.
+          if (row.status === 'pending_payment') return
+          notify(row.listing_id, row.total_amount)
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `seller_id=eq.${userId}` },
+        (payload) => {
+          const oldRow = payload.old as Partial<Order>
+          const row = payload.new as Order
+          // Fire only on the pending_payment → paid transition (a real new order).
+          if (oldRow.status === 'pending_payment' && row.status !== 'pending_payment') {
+            notify(row.listing_id, row.total_amount)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 

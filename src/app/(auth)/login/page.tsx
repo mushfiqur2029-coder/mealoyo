@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import OAuthButtons from '@/components/OAuthButtons'
 import type { Profile } from '@/lib/types'
 
 // Eye / eye-off toggle for password fields. Brand-pink stroke.
@@ -60,6 +61,10 @@ export default function Login() {
         <h1 style={{ fontFamily:'Georgia,serif', fontSize:26, fontWeight:700, color:'#1A1A1A', marginBottom:6 }}>Welcome back</h1>
         <p style={{ fontSize:14, color:'#1A1A1A', marginBottom:28 }}>Sign in to your meaLoyo account</p>
         {error && <div style={{ background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'12px 14px', marginBottom:20, fontSize:13, color:'#C8006A', fontWeight:600 }}>{error}</div>}
+        <OAuthButtons />
+        <div style={{ display:'flex', alignItems:'center', gap:12, margin:'22px 0' }}>
+          <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
+        </div>
         <form onSubmit={handleLogin} style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Email address</label>
@@ -79,10 +84,7 @@ export default function Login() {
             {loading ? 'Signing in...' : 'Sign in →'}
           </button>
         </form>
-        <div style={{ display:'flex', alignItems:'center', gap:12, margin:'24px 0' }}>
-          <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
-        </div>
-        <p style={{ textAlign:'center', fontSize:13, color:'#1A1A1A' }}>
+        <p style={{ textAlign:'center', fontSize:13, color:'#1A1A1A', marginTop:24 }}>
           Don&apos;t have an account? <Link href="/register" style={{ color:'#C8006A', fontWeight:700 }}>Create account →</Link>
         </p>
       </div>

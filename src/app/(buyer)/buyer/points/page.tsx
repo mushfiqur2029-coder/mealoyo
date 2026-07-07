@@ -53,6 +53,9 @@ export default function BuyerPoints() {
 
   const earnedTotal = history.filter(h => h.type === 'earned').reduce((s, h) => s + h.points, 0)
   const redeemedTotal = history.filter(h => h.type === 'redeemed').reduce((s, h) => s + h.points, 0)
+  // Referral rewards are earned rows tagged "Referral:<buyer-id>" by the DB.
+  const isReferral = (h: LoyaltyPoint) => (h.description || '').startsWith('Referral:')
+  const referralEarned = history.filter(h => h.type === 'earned' && isReferral(h)).reduce((s, h) => s + h.points, 0)
 
   const pageStyles = (
     <style>{`
@@ -142,6 +145,18 @@ export default function BuyerPoints() {
           </div>
         </div>
 
+        {/* Referral earnings */}
+        {referralEarned > 0 && (
+          <div className="fade-up" style={{display:'flex', alignItems:'center', gap:14, background:'linear-gradient(135deg,#FFE8F4,var(--bg-card))', borderRadius:18, padding:'18px 20px', boxShadow:'0 2px 14px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.14)', marginBottom:20}}>
+            <div style={{width:44, height:44, borderRadius:12, background:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0}}>🎉</div>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.05em'}}>Referral rewards</div>
+              <div style={{fontSize:13, color:'var(--text-primary)', opacity:0.85, marginTop:2}}>Earned from friends&apos; first orders</div>
+            </div>
+            <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#2DA84E', flexShrink:0}}>+{referralEarned.toLocaleString('en-GB')}</div>
+          </div>
+        )}
+
         {/* History */}
         <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)'}}>
           <div style={{padding:'18px 22px', borderBottom:'1px solid var(--bg-secondary)'}}>
@@ -155,12 +170,15 @@ export default function BuyerPoints() {
             </div>
           ) : history.map((h, i) => {
             const earned = h.type === 'earned'
+            const referral = isReferral(h)
+            const title = referral ? 'Referral bonus' : earned ? 'Points earned' : 'Points redeemed'
+            const sub = referral ? 'A friend placed their first order' : (h.description || (earned ? 'Order reward' : 'Discount applied'))
             return (
               <div key={h.id} className="hrow" style={{display:'flex', alignItems:'center', gap:13, padding:'15px 22px', borderBottom:i < history.length - 1 ? '1px solid var(--bg-secondary)' : 'none', transition:'background 0.12s'}}>
-                <div style={{width:40, height:40, borderRadius:11, background:earned ? '#E4F6EA' : '#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0}}>{earned ? '🟢' : '🎟️'}</div>
+                <div style={{width:40, height:40, borderRadius:11, background:earned ? '#E4F6EA' : '#FFE8F4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0}}>{referral ? '🎉' : earned ? '🟢' : '🎟️'}</div>
                 <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)'}}>{earned ? 'Points earned' : 'Points redeemed'}</div>
-                  <div style={{fontSize:12, color:'var(--text-primary)', opacity:0.8, marginTop:1}}>{h.description || (earned ? 'Order reward' : 'Discount applied')} · {fmtDate(h.created_at)}</div>
+                  <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)'}}>{title}</div>
+                  <div style={{fontSize:12, color:'var(--text-primary)', opacity:0.8, marginTop:1}}>{sub} · {fmtDate(h.created_at)}</div>
                 </div>
                 <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:earned ? '#2DA84E' : '#C8006A', flexShrink:0}}>{earned ? '+' : '−'}{h.points.toLocaleString('en-GB')}</div>
               </div>

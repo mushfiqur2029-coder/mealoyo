@@ -1,9 +1,10 @@
 'use client'
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Logo from '@/components/Logo'
+import OAuthButtons from '@/components/OAuthButtons'
 
 type Role = 'buyer' | 'seller' | 'driver'
 
@@ -49,6 +50,13 @@ function EyeToggle({ shown, onClick }: { shown: boolean; onClick: () => void }) 
 
 function RegisterForm() {
   const searchParams = useSearchParams()
+  const refParam = searchParams.get('ref')
+  // Stash any ?ref=CODE so we can credit the referrer once this buyer has an
+  // active session (applied on their first dashboard load — see buyer/dashboard).
+  // Kept in localStorage so it survives the email-confirmation round-trip.
+  useEffect(() => {
+    if (refParam && refParam.trim()) localStorage.setItem('mealoyo_ref', refParam.trim())
+  }, [refParam])
   const roleParam = searchParams.get('role')
   const preselectedRole: Role | null = roleParam === 'seller' || roleParam === 'driver' ? roleParam : null
   // When arriving from a "become a seller/driver" CTA, pre-select that role and
@@ -122,7 +130,11 @@ function RegisterForm() {
         )}
         {step === 1 && (
           <div>
-            <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:4 }}>Join meaLoyo</h1>
+            <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:16 }}>Join meaLoyo</h1>
+            <OAuthButtons />
+            <div style={{ display:'flex', alignItems:'center', gap:12, margin:'20px 0' }}>
+              <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or sign up with email</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
+            </div>
             <p style={{ fontSize:14, color:'#1A1A1A', marginBottom:20 }}>How do you want to use meaLoyo?</p>
             <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:24 }}>
               {roles.map(r => (
@@ -151,6 +163,10 @@ function RegisterForm() {
                 Registering as <span style={{ color:'#C8006A', fontWeight:700 }}>{role==='buyer'?'a Buyer':role==='seller'?'a Seller':'a Driver'}</span>
                 {' '}<button type="button" onClick={() => setStep(1)} style={{ background:'none', border:'none', color:'#1A1A1A', fontSize:12, cursor:'pointer', textDecoration:'underline' }}>change</button>
               </p>
+            </div>
+            <OAuthButtons />
+            <div style={{ display:'flex', alignItems:'center', gap:12, margin:'4px 0' }}>
+              <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or with email</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
             </div>
             {[
               { label:'Full name', val:fullName, set:setFullName, type:'text', ph:'Your full name', toggle:null as null | { shown:boolean; set:(v:boolean)=>void } },

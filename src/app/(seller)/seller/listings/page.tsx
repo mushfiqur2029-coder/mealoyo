@@ -23,6 +23,9 @@ const NAV = [
 
 const FILTERS = ['all', 'live', 'pending', 'suspended']
 
+// Free plan allows up to 5 live listings. Payment/Featured plan is Phase 2.
+const FREE_TIER_LIMIT = 5
+
 export default function SellerListings() {
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
@@ -194,12 +197,29 @@ export default function SellerListings() {
                   <span style={{fontSize:12, fontWeight:700, color:s.c}}>{s.l}</span>
                 </div>
               ))}
+              {/* Plan / tier indicator */}
+              <div style={{display:'inline-flex', alignItems:'center', gap:7, background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.18)', borderRadius:100, padding:'6px 14px'}}>
+                <span style={{fontSize:13}}>✨</span>
+                <span style={{fontSize:12, fontWeight:700, color:'#C8006A'}}>Free plan · {counts.live}/{FREE_TIER_LIMIT} live</span>
+              </div>
             </div>
           </div>
           <Link href="/seller/listings/new" className="add-btn" style={{height:48, padding:'0 22px', display:'flex', alignItems:'center', gap:8, background:'#C8006A', borderRadius:12, fontSize:14, fontWeight:700, color:'#fff', boxShadow:'0 4px 16px rgba(200,0,106,0.3)', flexShrink:0}}>
             <span style={{fontSize:18}}>＋</span> Add new dish
           </Link>
         </div>
+
+        {/* Upgrade banner — shown once the free-tier live-listing limit is reached */}
+        {counts.live >= FREE_TIER_LIMIT && (
+          <div className="fade-up" style={{display:'flex', alignItems:'center', gap:16, flexWrap:'wrap', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)', borderRadius:18, padding:'20px 22px', marginBottom:24, boxShadow:'0 8px 24px rgba(200,0,106,0.25)'}}>
+            <div style={{width:48, height:48, borderRadius:12, background:'rgba(255,255,255,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0}}>🚀</div>
+            <div style={{flex:1, minWidth:200}}>
+              <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#fff', marginBottom:3}}>Upgrade to Featured plan for unlimited listings</div>
+              <div style={{fontSize:13, color:'rgba(255,255,255,0.85)', lineHeight:1.5}}>You&apos;ve reached the free plan&apos;s {FREE_TIER_LIMIT} live listings. Go Featured to list as many dishes as you like.</div>
+            </div>
+            <a href="mailto:hello@mealoyo.com?subject=Featured%20plan%20enquiry" style={{display:'inline-flex', alignItems:'center', height:44, padding:'0 20px', background:'#fff', color:'#C8006A', borderRadius:11, fontSize:13.5, fontWeight:700, flexShrink:0}}>Coming soon — contact hello@mealoyo.com</a>
+          </div>
+        )}
 
         {/* Filter pills */}
         {listings.length > 0 && (
