@@ -69,6 +69,9 @@ export default function AdminBuyers() {
   const [tab, setTab] = useState('all')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Captured once per mount so the "new this week" cutoff stays stable across
+  // renders (calling Date.now() during render is impure).
+  const [now] = useState(() => Date.now())
   const router = useRouter()
 
   useEffect(() => {
@@ -157,7 +160,7 @@ export default function AdminBuyers() {
 
   const activeCount = buyers.filter(b => b.status === 'active').length
   const suspendedCount = buyers.filter(b => b.status === 'suspended').length
-  const weekAgo = Date.now() - 7 * 864e5
+  const weekAgo = now - 7 * 864e5
   const newThisWeek = buyers.filter(b => new Date(b.created_at).getTime() >= weekAgo).length
 
   const stats = [

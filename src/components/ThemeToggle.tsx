@@ -42,7 +42,10 @@ export default function ThemeToggle() {
   const setTheme = useThemeStore((s) => s.setTheme)
   const { session, loading } = useAuth()
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
   // Persisted value is only trustworthy after hydration — until then render the
   // default so server and client markup match.
   const active = mounted ? theme : 'light'

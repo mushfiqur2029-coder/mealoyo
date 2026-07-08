@@ -61,7 +61,8 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   // to avoid needing a useSearchParams Suspense boundary.
   useEffect(() => {
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('cancelled') === 'true') {
-      setCancelled(true)
+      const id = requestAnimationFrame(() => setCancelled(true))
+      return () => cancelAnimationFrame(id)
     }
   }, [])
 

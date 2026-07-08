@@ -64,7 +64,8 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   // ?payment=success. Read from the URL directly to avoid a Suspense boundary.
   useEffect(() => {
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('payment') === 'success') {
-      setPaymentSuccess(true)
+      const id = requestAnimationFrame(() => setPaymentSuccess(true))
+      return () => cancelAnimationFrame(id)
     }
   }, [])
 

@@ -27,7 +27,10 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
   // (breaking the mobile bottom-sheet). Portalling to body keeps `fixed`
   // relative to the viewport. Gated on mount so SSR and first client render match.
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
 
   // Lock the page behind the cart while it's open.
   useEffect(() => {
@@ -120,7 +123,7 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
       })
       const data = await res.json()
       if (!res.ok || !data.url) throw new Error(data.error || 'Could not start checkout')
-      window.location.href = data.url
+      window.location.assign(data.url)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Checkout failed. Please try again.')
       setLoading(false)

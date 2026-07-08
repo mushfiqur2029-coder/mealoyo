@@ -17,7 +17,10 @@ export default function CartButton() {
   // The badge count comes from persisted localStorage, which isn't known during
   // SSR — gate it on mount so server and first client render match.
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
   const count = items.reduce((sum, i) => sum + i.quantity, 0)
 
   return (

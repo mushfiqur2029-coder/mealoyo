@@ -63,6 +63,9 @@ export default function AdminOrders() {
   const [view, setView] = useState<'table' | 'timeline'>('table')
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Captured once per mount so the date-range cutoffs stay stable across renders
+  // (calling Date.now() during render is impure).
+  const [now] = useState(() => Date.now())
   const router = useRouter()
 
   useEffect(() => {
@@ -139,10 +142,10 @@ export default function AdminOrders() {
   )
 
   // Date-range scope drives both the revenue summary and the list below.
-  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0)
+  const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0)
   const rangeCutoff = range === 'today' ? startOfToday.getTime()
-    : range === '7d' ? Date.now() - 7 * 864e5
-    : range === '30d' ? Date.now() - 30 * 864e5
+    : range === '7d' ? now - 7 * 864e5
+    : range === '30d' ? now - 30 * 864e5
     : null
   const dateScoped = rangeCutoff == null ? orders : orders.filter(o => new Date(o.created_at).getTime() >= rangeCutoff)
 

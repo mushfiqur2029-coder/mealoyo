@@ -53,6 +53,9 @@ export default function DriverHistory() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [range, setRange] = useState<Range>('all')
   const [loading, setLoading] = useState(true)
+  // Captured once per mount so the date-range cutoff stays stable across renders
+  // (calling Date.now() during render is impure).
+  const [now] = useState(() => Date.now())
   const router = useRouter()
 
   useEffect(() => {
@@ -119,7 +122,7 @@ export default function DriverHistory() {
 
   // Date-range filter.
   const cutoffDays = range === '7d' ? 7 : range === '30d' ? 30 : null
-  const filtered = cutoffDays == null ? orders : orders.filter(o => (Date.now() - new Date(o.created_at).getTime()) / 864e5 <= cutoffDays)
+  const filtered = cutoffDays == null ? orders : orders.filter(o => (now - new Date(o.created_at).getTime()) / 864e5 <= cutoffDays)
 
   const delivered = filtered.filter(o => o.status === 'delivered')
   const totalEarned = delivered.reduce((s, o) => s + parseFloat(o.delivery_fee || '0'), 0)

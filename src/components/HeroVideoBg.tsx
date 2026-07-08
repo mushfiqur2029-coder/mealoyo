@@ -38,10 +38,10 @@ export default function HeroVideoBg({
   // setState in the effect body) so it never blocks the initial render. In the
   // same pass, pick the mobile encode when the viewport is ≤768px.
   useEffect(() => {
-    if (mobileSrc && window.matchMedia('(max-width: 768px)').matches) {
-      setActiveSrc(mobileSrc)
-    }
-    const id = requestAnimationFrame(() => setMounted(true))
+    const id = requestAnimationFrame(() => {
+      if (mobileSrc && window.matchMedia('(max-width: 768px)').matches) setActiveSrc(mobileSrc)
+      setMounted(true)
+    })
     return () => cancelAnimationFrame(id)
   }, [src, mobileSrc])
 
