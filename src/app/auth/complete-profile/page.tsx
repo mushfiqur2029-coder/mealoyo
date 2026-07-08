@@ -71,9 +71,9 @@ export default function CompleteProfile() {
   }, [router])
 
   const roles = [
-    { id:'buyer' as Role, icon:'🛒', title:'Order food', sub:'Browse and order from home cooks', color:'#1A6ECC', bg:'#EBF2FD' },
-    { id:'seller' as Role, icon:'👩‍🍳', title:'Sell food', sub:'List my home cooking and earn', color:'#C8006A', bg:'#FFE8F4' },
-    { id:'driver' as Role, icon:'🚴', title:'Deliver food', sub:'Earn per drop, flexible hours', color:'#2DA84E', bg:'#E4F6EA' },
+    { id:'buyer' as Role, icon:'🛒', title:'I want to order food', sub:'Browse and order from home cooks', color:'#1A6ECC', bg:'#EBF2FD' },
+    { id:'seller' as Role, icon:'👩‍🍳', title:'I want to sell food', sub:'List my home cooking and earn', color:'#C8006A', bg:'#FFE8F4' },
+    { id:'driver' as Role, icon:'🚴', title:'I want to deliver food', sub:'Earn per drop, flexible hours', color:'#2DA84E', bg:'#E4F6EA' },
   ]
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -130,7 +130,7 @@ export default function CompleteProfile() {
       <style>{`*{box-sizing:border-box;} input:focus{border-color:#C8006A !important;outline:none;background:#fff !important;} .sbtn:hover{background:#A00055 !important;}`}</style>
       <div style={{ marginBottom:24 }}><Logo height={40} white/></div>
       <div style={{ background:'#fff', borderRadius:24, padding:'36px', width:'100%', maxWidth:480, boxShadow:'0 24px 80px rgba(0,0,0,0.25)' }}>
-        <h1 style={{ fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', marginBottom:4 }}>Finish setting up</h1>
+        <h1 style={{ fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', marginBottom:4 }}>Complete your profile</h1>
         <p style={{ fontSize:14, color:'#1A1A1A', marginBottom:22 }}>Just a few details to get you started on meaLoyo.</p>
         {error && <div style={{ background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#C8006A', fontWeight:600 }}>{error}</div>}
 
@@ -139,6 +139,10 @@ export default function CompleteProfile() {
             <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Full name</label>
             <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your full name" required style={inputStyle}/>
           </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Phone number</label>
+            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" required style={inputStyle}/>
+          </div>
           {emailNeeded && (
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Email address</label>
@@ -146,10 +150,6 @@ export default function CompleteProfile() {
               <span style={{ fontSize:11.5, color:'#6B6B6B' }}>Facebook didn&apos;t share your email, so please add one. We&apos;ll use it for order updates and sign-in.</span>
             </div>
           )}
-          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-            <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Phone number</label>
-            <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" required style={inputStyle}/>
-          </div>
           <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
             <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Set a password</label>
             <div style={{ position:'relative' }}>

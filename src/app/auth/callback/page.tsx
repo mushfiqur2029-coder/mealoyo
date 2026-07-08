@@ -31,7 +31,6 @@ export default function AuthCallback() {
       const providerError = qs.get('error_description') || hs.get('error_description')
         || qs.get('error') || hs.get('error')
       if (providerError) {
-        console.error('[auth/callback] OAuth provider error:', providerError)
         bounce(providerError)
         return
       }
@@ -42,18 +41,14 @@ export default function AuthCallback() {
       let lastError = ''
       for (let i = 0; i < 5 && !cancelled; i++) {
         const { data, error } = await supabase.auth.getSession()
-        if (error) { lastError = error.message; console.error('[auth/callback] getSession error:', error) }
+        if (error) lastError = error.message
         if (data.session?.user) { user = data.session.user; break }
         await new Promise(r => setTimeout(r, 500))
       }
       if (cancelled) return
 
       // Never got a session — kick back to login with whatever we learned.
-      if (!user) {
-        console.error('[auth/callback] no session after retries', lastError || '(no error reported)')
-        bounce(lastError)
-        return
-      }
+      if (!user) { bounce(lastError); return }
 
       // get_my_profile() returns the caller's row (or null). A brand-new OAuth
       // user has no role yet → dashboardPathForProfile sends them to finish
