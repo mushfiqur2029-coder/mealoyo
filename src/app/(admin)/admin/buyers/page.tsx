@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import AdminDeleteUser from '@/components/AdminDeleteUser'
 import type { Profile } from '@/lib/types'
 
 // admin_get_all_orders returns flattened rows (FK ids + joined names). We use it
@@ -237,6 +238,7 @@ export default function AdminBuyers() {
                 {b.status !== 'suspended' && (
                   <button className="reject" disabled={busyId === b.id} onClick={() => setStatus(b.id, 'suspended')} style={{height:34, padding:'0 14px', background:'rgba(192,57,43,0.85)', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === b.id ? 0.6 : 1}}>Suspend</button>
                 )}
+                <AdminDeleteUser user={b} onDeleted={id => setBuyers(prev => prev.filter(x => x.id !== id))} />
               </div>
             </div>
           ))}

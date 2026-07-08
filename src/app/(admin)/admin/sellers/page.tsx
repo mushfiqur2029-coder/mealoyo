@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import AdminDeleteUser from '@/components/AdminDeleteUser'
 import type { Profile, Listing } from '@/lib/types'
 
 const NAV = [
@@ -251,6 +252,7 @@ export default function AdminSellers() {
                 {s.status !== 'suspended' && (
                   <button className="reject" disabled={busyId === s.id} onClick={() => setStatus(s.id, 'suspended')} style={{height:34, padding:'0 14px', background:'rgba(192,57,43,0.85)', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === s.id ? 0.6 : 1}}>Suspend</button>
                 )}
+                <AdminDeleteUser user={s} onDeleted={id => setSellers(prev => prev.filter(x => x.id !== id))} />
               </div>
             </div>
           ))}

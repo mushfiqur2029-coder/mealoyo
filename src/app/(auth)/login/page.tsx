@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import OAuthButtons from '@/components/OAuthButtons'
+import SuspendedNotice from '@/components/SuspendedNotice'
 import { dashboardPathForProfile } from '@/lib/authRedirect'
 import type { Profile } from '@/lib/types'
 
@@ -34,6 +35,7 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [suspended, setSuspended] = useState(false)
   const router = useRouter()
 
   // If we arrive already signed in — e.g. the OAuth round-trip dropped the user
@@ -52,6 +54,9 @@ export default function Login() {
       const { data } = await supabase.auth.getSession()
       if (cancelled || !data.session?.user) return
       const { data: profile } = await supabase.rpc('get_my_profile')
+      // A suspended user stays on this page and sees the suspension notice
+      // instead of being sent to a dashboard (the proxy also gates this).
+      if ((profile as Profile | null)?.status === 'suspended') { setSuspended(true); return }
       router.replace(dashboardPathForProfile(profile as Profile | null))
     }
     run()
@@ -65,6 +70,8 @@ export default function Login() {
     if (authError) { setError(authError.message); setLoading(false); return }
     if (data.user) {
       const { data: profile } = await supabase.rpc('get_my_profile')
+      // Suspended accounts must not reach a dashboard — surface the notice here.
+      if ((profile as Profile | null)?.status === 'suspended') { setSuspended(true); setLoading(false); return }
       const role = (profile as Profile | null)?.role || 'buyer'
       if (role === 'buyer') router.push('/buyer/dashboard')
       else if (role === 'seller') router.push('/seller/dashboard')
@@ -73,6 +80,13 @@ export default function Login() {
       else router.push('/')
     }
   }
+
+  if (suspended) return (
+    <SuspendedNotice
+      heading="Your account has been suspended"
+      body="Please contact our admin team to appeal this decision."
+    />
+  )
 
   return (
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, fontFamily:'Inter,system-ui,sans-serif' }}>

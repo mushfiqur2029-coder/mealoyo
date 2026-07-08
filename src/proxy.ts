@@ -57,6 +57,19 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(isAdminArea ? '/admin/login' : '/login', request.url))
   }
 
+  // A suspended user must not reach any protected area — bounce them to
+  // /suspended. We only look up the profile on protected routes (to avoid the
+  // extra query on public pages), and /suspended itself is public, so there's
+  // no login↔suspended redirect loop. Admins are exempt so a mis-set status
+  // can't lock them out of the admin panel.
+  if (user && isProtected) {
+    const { data: profile } = await supabase.rpc('get_my_profile')
+    const p = profile as { status?: string; role?: string } | null
+    if (p?.status === 'suspended' && p.role !== 'admin') {
+      return NextResponse.redirect(new URL('/suspended', request.url))
+    }
+  }
+
   return supabaseResponse
 }
 

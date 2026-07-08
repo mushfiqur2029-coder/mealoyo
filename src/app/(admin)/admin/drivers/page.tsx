@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import AdminDeleteUser from '@/components/AdminDeleteUser'
 import type { Profile } from '@/lib/types'
 
 // admin_get_all_orders returns flattened rows (names joined in the RPC).
@@ -251,6 +252,7 @@ export default function AdminDrivers() {
                 {d.status !== 'suspended' && (
                   <button className="reject" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'suspended')} style={{height:34, padding:'0 14px', background:'rgba(192,57,43,0.85)', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>Suspend</button>
                 )}
+                <AdminDeleteUser user={d} onDeleted={id => setDrivers(prev => prev.filter(x => x.id !== id))} />
               </div>
             </div>
           ))}
