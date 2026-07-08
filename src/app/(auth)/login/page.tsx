@@ -42,8 +42,12 @@ export default function Login() {
   useEffect(() => {
     let cancelled = false
     const run = async () => {
-      if (new URLSearchParams(window.location.search).get('error') === 'oauth') {
-        setError('We couldn’t complete that sign-in. Please try again.')
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('error') === 'oauth') {
+        // `reason` (already URL-decoded by URLSearchParams) carries the real
+        // provider/Supabase error when the callback captured one.
+        const reason = params.get('reason')
+        setError(reason || 'We couldn’t complete that sign-in. Please try again.')
       }
       const { data } = await supabase.auth.getSession()
       if (cancelled || !data.session?.user) return
