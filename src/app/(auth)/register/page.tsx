@@ -131,7 +131,7 @@ function RegisterForm() {
         {step === 1 && (
           <div>
             <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:16 }}>Join meaLoyo</h1>
-            <OAuthButtons />
+            <OAuthButtons selectedRole={role} />
             <div style={{ display:'flex', alignItems:'center', gap:12, margin:'20px 0' }}>
               <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or sign up with email</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
             </div>
@@ -164,7 +164,7 @@ function RegisterForm() {
                 {' '}<button type="button" onClick={() => setStep(1)} style={{ background:'none', border:'none', color:'#1A1A1A', fontSize:12, cursor:'pointer', textDecoration:'underline' }}>change</button>
               </p>
             </div>
-            <OAuthButtons />
+            <OAuthButtons selectedRole={role} />
             <div style={{ display:'flex', alignItems:'center', gap:12, margin:'4px 0' }}>
               <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or with email</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
             </div>

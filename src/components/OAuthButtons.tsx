@@ -5,12 +5,21 @@ import { supabase } from '@/lib/supabase'
 // Google + Facebook social sign-in buttons. Used on the login and register
 // pages. Both providers route back to /auth/callback, which decides whether the
 // user still needs to finish their profile (see src/app/auth/callback).
-export default function OAuthButtons() {
+//
+// `selectedRole` is the role the user picked before starting OAuth (on the
+// register page). It's lost across the provider redirect, so we stash it in
+// localStorage and /auth/complete-profile reads it back to pre-select the role.
+// The login page passes nothing → we default to 'buyer' (signing in, not
+// registering a new role) and overwrite any stale value from a prior attempt.
+export default function OAuthButtons({ selectedRole }: { selectedRole?: 'buyer' | 'seller' | 'driver' }) {
   const [busy, setBusy] = useState<'google' | 'facebook' | null>(null)
   const [error, setError] = useState('')
 
   const signIn = async (provider: 'google' | 'facebook') => {
     setBusy(provider); setError('')
+    // Persist the chosen role across the OAuth redirect so complete-profile can
+    // pre-select it. Always write (defaulting to buyer) to clobber any stale value.
+    localStorage.setItem('mealoyo-oauth-role', selectedRole || 'buyer')
     // Facebook only gets public_profile — we deliberately do NOT request email.
     // Facebook's email permission is unreliable (and often not granted), which
     // made the sign-in fail with "Error getting user email from external

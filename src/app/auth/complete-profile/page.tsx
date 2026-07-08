@@ -53,6 +53,13 @@ export default function CompleteProfile() {
 
   useEffect(() => {
     const load = async () => {
+      // Restore the role the user picked before the OAuth redirect (saved by
+      // OAuthButtons). Without this every OAuth sign-up defaulted to buyer,
+      // ignoring a seller/driver selection. Read once, then clear it.
+      const savedRole = localStorage.getItem('mealoyo-oauth-role')
+      localStorage.removeItem('mealoyo-oauth-role')
+      if (savedRole === 'seller' || savedRole === 'driver') setRole(savedRole)
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login'); return }
       const meta = user.user_metadata || {}
