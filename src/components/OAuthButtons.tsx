@@ -20,6 +20,11 @@ export default function OAuthButtons({ selectedRole }: { selectedRole?: 'buyer' 
     // Persist the chosen role across the OAuth redirect so complete-profile can
     // pre-select it. Always write (defaulting to buyer) to clobber any stale value.
     localStorage.setItem('mealoyo-oauth-role', selectedRole || 'buyer')
+    // Tag which provider we're using so /auth/callback can wait longer for the
+    // slower Facebook session exchange. Passed both as a ?provider= query param
+    // on the redirect (the primary signal) and in localStorage (a fallback in
+    // case the param is stripped).
+    localStorage.setItem('mealoyo-oauth-provider', provider)
     // Facebook only gets public_profile — we deliberately do NOT request email.
     // Facebook's email permission is unreliable (and often not granted), which
     // made the sign-in fail with "Error getting user email from external
@@ -29,7 +34,7 @@ export default function OAuthButtons({ selectedRole }: { selectedRole?: 'buyer' 
     const scopes = provider === 'facebook' ? 'public_profile' : 'email profile'
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: window.location.origin + '/auth/callback', scopes },
+      options: { redirectTo: window.location.origin + '/auth/callback?provider=' + provider, scopes },
     })
     // On success the browser is redirected away, so we only land here on error.
     if (error) { setError(error.message); setBusy(null) }

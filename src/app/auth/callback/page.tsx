@@ -15,12 +15,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     let cancelled = false
-
-    // Bounce back to login, showing the real provider error when we have one.
-    const bounce = (reason: string) => {
-      const q = reason ? '&reason=' + encodeURIComponent(reason) : ''
-      router.replace('/login?error=oauth' + q)
-    }
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
     const finish = async () => {
       // When the provider (esp. Facebook) rejects the sign-in, Supabase redirects
@@ -34,24 +29,40 @@ export default function AuthCallback() {
       // sign in without one, and we collect it on /auth/complete-profile. So only
       // bounce back to login on a genuine error, not an email-related one.
       if (providerError && !/email/i.test(providerError)) {
-        bounce(providerError)
+        router.replace('/login?error=oauth&reason=' + encodeURIComponent(providerError))
         return
       }
 
-      // The session may not be parsed from the URL on the very first tick, so
-      // wait for it: up to 5 retries, 500ms apart.
+      // Facebook's code→session exchange lands noticeably slower than Google's,
+      // and on a brand-new user's FIRST sign-in the old short poll (5 × 500ms)
+      // could time out and fall through to the homepage — so it only worked on
+      // the second attempt. OAuthButtons tags the redirect with ?provider= (and
+      // a localStorage fallback); when it's Facebook we give the exchange a 1s
+      // head start before polling.
+      const provider = qs.get('provider') || hs.get('provider')
+        || (typeof window !== 'undefined' ? localStorage.getItem('mealoyo-oauth-provider') : null)
+      const isFacebook = provider === 'facebook'
+      if (isFacebook) await sleep(1000)
+
+      // Poll for the session: up to 15 tries, 600ms apart (~9s). Break as soon
+      // as it lands, so Google users (usually ready immediately) don't wait.
       let user = null
-      let lastError = ''
-      for (let i = 0; i < 5 && !cancelled; i++) {
-        const { data, error } = await supabase.auth.getSession()
-        if (error) lastError = error.message
+      for (let i = 0; i < 15 && !cancelled; i++) {
+        const { data } = await supabase.auth.getSession()
         if (data.session?.user) { user = data.session.user; break }
-        await new Promise(r => setTimeout(r, 500))
+        await sleep(600)
       }
       if (cancelled) return
 
-      // Never got a session — kick back to login with whatever we learned.
-      if (!user) { bounce(lastError); return }
+      // Still no session after all retries: do NOT drop to the homepage (which
+      // left the user staring at a "Sign in" nav). Send them back to login with
+      // a clear, retryable message.
+      if (!user) {
+        router.replace('/login?error=session_timeout')
+        return
+      }
+
+      if (typeof window !== 'undefined') localStorage.removeItem('mealoyo-oauth-provider')
 
       // Facebook signs users in without an email (we don't request it). Send them
       // to finish their profile, where they enter one — a missing email is never
@@ -74,11 +85,11 @@ export default function AuthCallback() {
 
   return (
     <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, fontFamily:'Inter,system-ui,sans-serif' }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg);}}`}</style>
-      <div style={{ marginBottom:28 }}><Logo height={44} white/></div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg);}} @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.55;}}`}</style>
+      <div style={{ marginBottom:28, animation:'pulse 1.6s ease-in-out infinite' }}><Logo height={44} white/></div>
       <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16 }}>
         <div style={{ width:40, height:40, borderRadius:'50%', border:'3px solid rgba(255,255,255,0.3)', borderTopColor:'#fff', animation:'spin 0.8s linear infinite' }}/>
-        <p style={{ fontSize:14, color:'rgba(255,255,255,0.85)', fontWeight:600 }}>Signing you in…</p>
+        <p style={{ fontSize:14, color:'rgba(255,255,255,0.85)', fontWeight:600 }}>Completing your sign in…</p>
       </div>
     </div>
   )

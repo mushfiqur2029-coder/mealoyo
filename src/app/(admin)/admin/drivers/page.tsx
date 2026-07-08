@@ -47,17 +47,17 @@ const dark = `
   .fade-up { animation: fadeUp 0.4s cubic-bezier(0.34,1.2,0.64,1) both; }
   .nav-link:hover { color: var(--text-primary) !important; }
   .approve:hover { background: #009836 !important; }
-  .reject:hover { background: #991010 !important; }
+  .reject:hover { background: #D97706 !important; }
   .urow:hover { background: var(--bg-card) !important; }
   .stat-card { transition: transform 0.18s, border-color 0.18s; }
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
   .tab:hover { color: var(--text-primary) !important; }
   .signout:hover { background: rgba(200,0,106,0.15) !important; color: var(--text-primary) !important; border-color: rgba(200,0,106,0.4) !important; }
-  .view-btn:hover { background: var(--border-subtle) !important; color: var(--text-primary) !important; }
+  .view-btn:hover { background: rgba(37,99,235,0.1) !important; }
   input::placeholder { color: var(--text-secondary); }
   input:focus { border-color: #C8006A !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } }
-  @media (max-width: 640px) { .ustats { grid-template-columns: 1fr 1fr 1fr !important; } .ucounts { display: none !important; } .search { width: 100% !important; } }
+  @media (max-width: 640px) { .ustats { grid-template-columns: 1fr 1fr 1fr !important; } .ucounts { display: none !important; } .search { width: 100% !important; } .action-row { flex-direction: column !important; align-items: stretch !important; width: 100% !important; } .action-row > button { width: 100% !important; } }
 `
 
 export default function AdminDrivers() {
@@ -244,13 +244,13 @@ export default function AdminDrivers() {
                   <div style={{fontSize:9, color:'var(--text-secondary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.04em'}}>Deliveries</div>
                 </div>
               </div>
-              <div style={{display:'flex', gap:8, flexShrink:0}}>
-                <button className="view-btn" onClick={() => setViewDriver(d)} style={{height:34, padding:'0 14px', background:'var(--bg-secondary)', color:'var(--text-primary)', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View history</button>
+              <div className="action-row" style={{display:'flex', gap:8, flexShrink:0, flexWrap:'wrap'}}>
+                <button className="view-btn action-btn" onClick={() => setViewDriver(d)} style={{height:34, padding:'0 14px', background:'transparent', color:'#2563EB', border:'1px solid rgba(37,99,235,0.5)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View history</button>
                 {d.status !== 'active' && (
                   <button className="approve" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'active')} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>{d.status === 'pending' ? 'Approve' : 'Reactivate'}</button>
                 )}
                 {d.status !== 'suspended' && (
-                  <button className="reject" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'suspended')} style={{height:34, padding:'0 14px', background:'rgba(192,57,43,0.85)', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>Suspend</button>
+                  <button className="reject action-btn" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'suspended')} style={{height:34, padding:'0 14px', background:'#F59E0B', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>Suspend</button>
                 )}
                 <AdminDeleteUser user={d} onDeleted={id => setDrivers(prev => prev.filter(x => x.id !== id))} />
               </div>

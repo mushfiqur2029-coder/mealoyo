@@ -51,6 +51,10 @@ export default function Login() {
         const reason = params.get('reason')
         setError(reason || 'We couldn’t complete that sign-in. Please try again.')
       }
+      // The callback gave up waiting for the session (slow Facebook exchange).
+      if (params.get('error') === 'session_timeout') {
+        setError('Sign in timed out, please try again.')
+      }
       const { data } = await supabase.auth.getSession()
       if (cancelled || !data.session?.user) return
       const { data: profile } = await supabase.rpc('get_my_profile')
