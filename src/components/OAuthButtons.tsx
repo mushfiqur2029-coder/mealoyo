@@ -11,10 +11,13 @@ export default function OAuthButtons() {
 
   const signIn = async (provider: 'google' | 'facebook') => {
     setBusy(provider); setError('')
-    // Facebook needs email requested explicitly (comma-separated) or Supabase
-    // gets no email back and the sign-in fails. Google uses space-separated
-    // scopes. Both must include email so we can key the profile off it.
-    const scopes = provider === 'facebook' ? 'email,public_profile' : 'email profile'
+    // Facebook only gets public_profile — we deliberately do NOT request email.
+    // Facebook's email permission is unreliable (and often not granted), which
+    // made the sign-in fail with "Error getting user email from external
+    // provider". Instead we let Facebook users through without an email and
+    // collect it ourselves on /auth/complete-profile. Google still returns email
+    // reliably (space-separated scopes).
+    const scopes = provider === 'facebook' ? 'public_profile' : 'email profile'
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: window.location.origin + '/auth/callback', scopes },

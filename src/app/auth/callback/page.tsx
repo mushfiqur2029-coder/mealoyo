@@ -30,7 +30,10 @@ export default function AuthCallback() {
       const hs = new URLSearchParams(window.location.hash.replace(/^#/, ''))
       const providerError = qs.get('error_description') || hs.get('error_description')
         || qs.get('error') || hs.get('error')
-      if (providerError) {
+      // A missing/unshared email is NOT a failure for us — Facebook is allowed to
+      // sign in without one, and we collect it on /auth/complete-profile. So only
+      // bounce back to login on a genuine error, not an email-related one.
+      if (providerError && !/email/i.test(providerError)) {
         bounce(providerError)
         return
       }
@@ -49,6 +52,14 @@ export default function AuthCallback() {
 
       // Never got a session — kick back to login with whatever we learned.
       if (!user) { bounce(lastError); return }
+
+      // Facebook signs users in without an email (we don't request it). Send them
+      // to finish their profile, where they enter one — a missing email is never
+      // an error here.
+      if (user.app_metadata?.provider === 'facebook' && !user.email) {
+        router.replace('/auth/complete-profile')
+        return
+      }
 
       // get_my_profile() returns the caller's row (or null). A brand-new OAuth
       // user has no role yet → dashboardPathForProfile sends them to finish

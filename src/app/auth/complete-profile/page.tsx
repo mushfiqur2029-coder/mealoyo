@@ -35,9 +35,13 @@ export default function CompleteProfile() {
   const [checking, setChecking] = useState(true)
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
-  // Facebook can sign a user in without sharing an email (Supabase's "allow
-  // users without an email" setting). When that happens we ask for it here.
+  // We never request email from Facebook, so Facebook users arrive without one
+  // (or with a stale one). We always ask Facebook users to confirm/enter their
+  // email here; Google users only see the field if their email is somehow
+  // missing. `existingEmail` is what's already on the auth account, so we can
+  // skip a needless updateUser (and its re-confirmation email) when unchanged.
   const [emailNeeded, setEmailNeeded] = useState(false)
+  const [existingEmail, setExistingEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -53,8 +57,13 @@ export default function CompleteProfile() {
       if (!user) { router.replace('/login'); return }
       const meta = user.user_metadata || {}
       setFullName((meta.full_name as string) || (meta.name as string) || '')
-      // No email came back from the provider — prompt for one below.
-      setEmailNeeded(!user.email)
+      // Facebook users always confirm/enter their email here (we don't request
+      // it from Facebook); everyone else only when the provider gave us none.
+      // Pre-fill from the account when an email is present, otherwise leave blank.
+      const isFacebook = user.app_metadata?.provider === 'facebook'
+      setExistingEmail(user.email || '')
+      if (user.email) setEmail(user.email)
+      setEmailNeeded(isFacebook || !user.email)
       // A genuinely new OAuth user has a profile row but no role yet. Anyone who
       // already picked a role has finished setup — skip this screen and send
       // them to their dashboard rather than making them fill it in again.
@@ -92,7 +101,9 @@ export default function CompleteProfile() {
     // and set the email too if the provider didn't give us one. (Supabase may
     // send a confirmation link for the new email — the user can still continue.)
     const updates: { password: string; email?: string } = { password }
-    if (emailNeeded) updates.email = email.trim()
+    // Only write the email when it's new/changed — re-setting the same address
+    // would trigger an unnecessary Supabase re-confirmation email.
+    if (emailNeeded && email.trim() && email.trim() !== existingEmail) updates.email = email.trim()
     const { error: pwError } = await supabase.auth.updateUser(updates)
     if (pwError) { setError(pwError.message); setLoading(false); return }
 
@@ -147,7 +158,7 @@ export default function CompleteProfile() {
             <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
               <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Email address</label>
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required style={inputStyle}/>
-              <span style={{ fontSize:11.5, color:'#6B6B6B' }}>Facebook didn&apos;t share your email, so please add one. We&apos;ll use it for order updates and sign-in.</span>
+              <span style={{ fontSize:11.5, color:'#6B6B6B' }}>{existingEmail ? 'Confirm the email we should use for order updates and sign-in.' : 'Please add your email — we’ll use it for order updates and sign-in.'}</span>
             </div>
           )}
           <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
