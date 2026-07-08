@@ -34,6 +34,10 @@ export default function CompleteProfile() {
   const router = useRouter()
   const [checking, setChecking] = useState(true)
   const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  // Facebook can sign a user in without sharing an email (Supabase's "allow
+  // users without an email" setting). When that happens we ask for it here.
+  const [emailNeeded, setEmailNeeded] = useState(false)
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -49,6 +53,8 @@ export default function CompleteProfile() {
       if (!user) { router.replace('/login'); return }
       const meta = user.user_metadata || {}
       setFullName((meta.full_name as string) || (meta.name as string) || '')
+      // No email came back from the provider — prompt for one below.
+      setEmailNeeded(!user.email)
       // A genuinely new OAuth user has a profile row but no role yet. Anyone who
       // already picked a role has finished setup — skip this screen and send
       // them to their dashboard rather than making them fill it in again.
@@ -73,13 +79,21 @@ export default function CompleteProfile() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!fullName.trim()) { setError('Please enter your full name'); return }
+    if (emailNeeded) {
+      if (!email.trim()) { setError('Please enter your email address'); return }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Please enter a valid email address'); return }
+    }
     if (!phone.trim()) { setError('Please enter your phone number'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
     if (password !== confirmPassword) { setError('Passwords do not match'); return }
     setLoading(true); setError('')
 
-    // Set a password so the account also works with email + password sign-in.
-    const { error: pwError } = await supabase.auth.updateUser({ password })
+    // Set a password so the account also works with email + password sign-in,
+    // and set the email too if the provider didn't give us one. (Supabase may
+    // send a confirmation link for the new email — the user can still continue.)
+    const updates: { password: string; email?: string } = { password }
+    if (emailNeeded) updates.email = email.trim()
+    const { error: pwError } = await supabase.auth.updateUser(updates)
     if (pwError) { setError(pwError.message); setLoading(false); return }
 
     // Write role/name/phone via a security-definer RPC (role changes aren't
@@ -125,6 +139,13 @@ export default function CompleteProfile() {
             <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Full name</label>
             <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your full name" required style={inputStyle}/>
           </div>
+          {emailNeeded && (
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Email address</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required style={inputStyle}/>
+              <span style={{ fontSize:11.5, color:'#6B6B6B' }}>Facebook didn&apos;t share your email, so please add one. We&apos;ll use it for order updates and sign-in.</span>
+            </div>
+          )}
           <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
             <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Phone number</label>
             <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" required style={inputStyle}/>

@@ -16,10 +16,6 @@ export default function AuthCallback() {
   useEffect(() => {
     let cancelled = false
 
-    // --- OAuth debug: dump exactly what the provider handed back ---
-    console.log('callback params:', window.location.href)
-    console.log('hash:', window.location.hash)
-
     // Bounce back to login, showing the real provider error when we have one.
     const bounce = (reason: string) => {
       const q = reason ? '&reason=' + encodeURIComponent(reason) : ''
