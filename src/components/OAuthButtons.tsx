@@ -41,7 +41,7 @@ export default function OAuthButtons() {
             <path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/>
           </svg>
         </span>
-        Continue with Google
+        {busy === 'google' ? 'Redirecting to Google…' : 'Continue with Google'}
       </button>
       <button type="button" className="oauth-btn" onClick={() => signIn('facebook')} disabled={!!busy} style={{ ...btn, opacity: busy && busy !== 'facebook' ? 0.6 : 1 }}>
         <span style={{ position: 'absolute', left: 16, display: 'flex' }}>
@@ -49,7 +49,7 @@ export default function OAuthButtons() {
             <path fill="#1877F2" d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.88v2.26h3.32l-.53 3.49h-2.79V24C19.61 23.1 24 18.1 24 12.07z"/>
           </svg>
         </span>
-        Continue with Facebook
+        {busy === 'facebook' ? 'Redirecting to Facebook…' : 'Continue with Facebook'}
       </button>
     </div>
   )

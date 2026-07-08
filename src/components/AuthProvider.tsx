@@ -4,6 +4,12 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { Session, User } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { dashboardPathForProfile } from '@/lib/authRedirect'
+import type { Profile } from '@/lib/types'
+
+// Pages a freshly signed-in user should never stay on — bounce them to their
+// dashboard. Everywhere else we leave the SIGNED_IN event alone.
+const AUTH_ENTRY_PATHS = ['/login', '/register', '/auth/callback']
 
 type AuthState = {
   session: Session | null
@@ -63,6 +69,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // a sign-out button and so the dead protected page leaves history.
           router.replace(path.startsWith('/admin') ? '/admin/login' : '/login')
         }
+      }
+
+      // OAuth (and email) sign-in can land the user back on an auth entry page
+      // instead of their dashboard. Catch that and route them by profile.
+      // Defer the profile lookup out of the auth callback — calling supabase
+      // methods synchronously inside onAuthStateChange can deadlock the client.
+      if (event === 'SIGNED_IN' && AUTH_ENTRY_PATHS.includes(pathRef.current)) {
+        setTimeout(async () => {
+          if (!active) return
+          const { data: profile } = await supabase.rpc('get_my_profile')
+          if (!active) return
+          router.replace(dashboardPathForProfile(profile as Profile | null))
+        }, 0)
       }
     })
 

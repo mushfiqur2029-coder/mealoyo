@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { dashboardPathForProfile } from '@/lib/authRedirect'
+import type { Profile } from '@/lib/types'
 import Logo from '@/components/Logo'
 
 type Role = 'buyer' | 'seller' | 'driver'
@@ -47,15 +49,14 @@ export default function CompleteProfile() {
       if (!user) { router.replace('/login'); return }
       const meta = user.user_metadata || {}
       setFullName((meta.full_name as string) || (meta.name as string) || '')
-      // If they already have a complete profile, skip this screen entirely.
-      const { data: profile } = await supabase.from('profiles').select('role, phone, full_name').eq('id', user.id).maybeSingle()
+      // A genuinely new OAuth user has a profile row but no role yet. Anyone who
+      // already picked a role has finished setup — skip this screen and send
+      // them to their dashboard rather than making them fill it in again.
+      const { data: profile } = await supabase.from('profiles').select('role, status, phone, full_name').eq('id', user.id).maybeSingle()
       if (profile?.full_name) setFullName(prev => prev || profile.full_name || '')
       if (profile?.phone) setPhone(profile.phone)
-      if (profile?.role && profile?.phone) {
-        const r = profile.role
-        if (r === 'seller' || r === 'driver') router.replace('/pending')
-        else if (r === 'admin') router.replace('/admin/dashboard')
-        else router.replace('/buyer/dashboard')
+      if (profile?.role) {
+        router.replace(dashboardPathForProfile(profile as Profile))
         return
       }
       setChecking(false)

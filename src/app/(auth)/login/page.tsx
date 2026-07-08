@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import OAuthButtons from '@/components/OAuthButtons'
+import { dashboardPathForProfile } from '@/lib/authRedirect'
 import type { Profile } from '@/lib/types'
 
 // Eye / eye-off toggle for password fields. Brand-pink stroke.
@@ -34,6 +35,24 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+
+  // If we arrive already signed in — e.g. the OAuth round-trip dropped the user
+  // back here instead of on the callback — send them straight to their
+  // dashboard. Also surfaces the ?error=oauth flag the callback sets on failure.
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      if (new URLSearchParams(window.location.search).get('error') === 'oauth') {
+        setError('We couldn’t complete that sign-in. Please try again.')
+      }
+      const { data } = await supabase.auth.getSession()
+      if (cancelled || !data.session?.user) return
+      const { data: profile } = await supabase.rpc('get_my_profile')
+      router.replace(dashboardPathForProfile(profile as Profile | null))
+    }
+    run()
+    return () => { cancelled = true }
+  }, [router])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
