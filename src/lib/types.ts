@@ -24,6 +24,9 @@ export interface Profile {
   bank_account_name?: string | null
   bank_sort_code?: string | null
   bank_account_number?: string | null
+  // Referrals (see 20260707_referrals_oauth.sql)
+  referral_code?: string | null
+  referred_by?: string | null
 }
 
 export interface Listing {

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { serviceFee as calcServiceFee } from '@/lib/pricing'
+import { maxRedeemablePounds, poundsToPoints } from '@/lib/loyalty'
 
 // Stripe needs the Node runtime (not Edge).
 export const runtime = 'nodejs'
@@ -47,23 +49,53 @@ export async function POST(request: Request) {
       orderId,
       listingId,
       listingName,
-      amount, // food subtotal, in pounds
       deliveryFee,
-      serviceFee,
       discount, // loyalty points discount in pounds (optional)
       buyerEmail,
       buyerId,
-      pointsToRedeem, // optional, for the webhook to record redemption
     } = body ?? {}
 
-    if (!orderId || !listingId || !listingName || amount == null || !buyerEmail) {
+    if (!orderId || !listingId || !listingName || !buyerEmail) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const subtotalPence = toPence(amount)
+    // SECURITY: never trust client-supplied prices. Derive the food subtotal from
+    // the DB listing price × the order's quantity, and recompute the service fee.
+    // (The order row is created client-side before checkout; we read its quantity
+    // and re-price it here so a tampered request can't be charged less.)
+    const { data: orderRow } = await supabaseAdmin
+      .from('orders')
+      .select('quantity')
+      .eq('id', orderId)
+      .maybeSingle()
+    const { data: listingRow } = await supabaseAdmin
+      .from('listings')
+      .select('image_url, description, price')
+      .eq('id', listingId)
+      .maybeSingle()
+    if (!listingRow) {
+      return NextResponse.json({ error: 'Listing not found' }, { status: 400 })
+    }
+
+    const quantity = Math.max(1, Math.floor(Number(orderRow?.quantity) || 1))
+    const subtotalPence = toPence(listingRow.price) * quantity
     const deliveryPence = toPence(deliveryFee)
-    const servicePence = toPence(serviceFee)
-    const discountPence = toPence(discount)
+    const servicePence = toPence(calcServiceFee(subtotalPence / 100))
+
+    // Cap the loyalty discount at the buyer's real points balance (100 pts = £1),
+    // capped again by the subtotal — a client can't discount points it lacks.
+    let discountPence = toPence(discount)
+    if (discountPence > 0) {
+      const { data: bal } = buyerId
+        ? await supabaseAdmin.rpc('get_points_balance', { p_buyer_id: String(buyerId) })
+        : { data: 0 }
+      const balance = typeof bal === 'number' ? bal : 0
+      const maxDiscountPence = maxRedeemablePounds(balance, subtotalPence / 100) * 100
+      discountPence = Math.min(discountPence, maxDiscountPence)
+    }
+    // Recompute the points actually redeemed from the (capped) discount so the
+    // webhook records the correct amount, not whatever the client claimed.
+    const pointsToRedeem = poundsToPoints(discountPence / 100)
 
     // Fold any loyalty discount into the food line item — Stripe Checkout does
     // not allow negative line items, so we reduce the subtotal line and label it.
@@ -72,13 +104,6 @@ export async function POST(request: Request) {
       discountPence > 0
         ? `${listingName} (£${(discountPence / 100).toFixed(2)} points discount applied)`
         : listingName
-
-    // Fetch the listing so Stripe Checkout can show the food photo + description.
-    const { data: listingRow } = await supabaseAdmin
-      .from('listings')
-      .select('image_url, description')
-      .eq('id', listingId)
-      .maybeSingle()
 
     const line_items: LineItem[] = [
       {
@@ -142,28 +167,48 @@ export async function POST(request: Request) {
 // created client-side) is passed to the webhook as a comma-joined list so it can
 // flip them all to paid.
 async function handleCartCheckout(body: {
-  items: Array<{ listingId?: string; name?: string; price?: unknown; quantity?: unknown; imageUrl?: string | null }>
+  items: Array<{ listingId?: string; name?: string; quantity?: unknown; imageUrl?: string | null }>
   orderIds?: string[]
-  serviceFee?: unknown
   buyerEmail?: string
   buyerId?: string
 }) {
-  const { items, orderIds, serviceFee, buyerEmail, buyerId } = body
+  const { items, orderIds, buyerEmail, buyerId } = body
 
   if (!buyerEmail || !Array.isArray(orderIds) || orderIds.length === 0) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  const line_items: LineItem[] = items.map((it) => ({
-    price_data: {
-      currency: 'gbp',
-      product_data: productData(it.name || 'Dish', null, it.imageUrl),
-      unit_amount: toPence(it.price),
-    },
-    quantity: Math.max(1, Math.floor(Number(it.quantity) || 1)),
-  }))
+  // SECURITY: never trust client-supplied item prices. Re-price every line from
+  // the DB listing so a tampered cart can't be charged less than it should be.
+  const listingIds = [...new Set(items.map((it) => it.listingId).filter(Boolean) as string[])]
+  const { data: dbListings } = await supabaseAdmin
+    .from('listings')
+    .select('id, name, price, description, image_url')
+    .in('id', listingIds)
+  const priceMap = new Map((dbListings ?? []).map((l) => [l.id, l]))
 
-  const servicePence = toPence(serviceFee)
+  let subtotalPence = 0
+  const line_items: LineItem[] = []
+  for (const it of items) {
+    const dbl = it.listingId ? priceMap.get(it.listingId) : undefined
+    if (!dbl) {
+      return NextResponse.json({ error: 'One or more items are no longer available' }, { status: 400 })
+    }
+    const quantity = Math.max(1, Math.floor(Number(it.quantity) || 1))
+    const unitPence = toPence(dbl.price)
+    subtotalPence += unitPence * quantity
+    line_items.push({
+      price_data: {
+        currency: 'gbp',
+        product_data: productData(dbl.name || it.name || 'Dish', dbl.description, dbl.image_url || it.imageUrl),
+        unit_amount: unitPence,
+      },
+      quantity,
+    })
+  }
+
+  // Recompute the service fee server-side from the DB subtotal.
+  const servicePence = toPence(calcServiceFee(subtotalPence / 100))
   if (servicePence > 0) {
     line_items.push({
       price_data: { currency: 'gbp', product_data: { name: 'Service fee' }, unit_amount: servicePence },
