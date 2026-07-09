@@ -60,8 +60,8 @@ function RegisterForm() {
   const roleParam = searchParams.get('role')
   const preselectedRole: Role | null = roleParam === 'seller' || roleParam === 'driver' ? roleParam : null
   // When arriving from a "become a seller/driver" CTA, pre-select that role and
-  // jump straight to the details step (the "change" link still returns to step 1).
-  const [step, setStep] = useState(preselectedRole ? 2 : 1)
+  // jump straight to the sign-up step (the "change" link still returns to step 1).
+  const [step, setStep] = useState<1 | 2>(preselectedRole ? 2 : 1)
   const [role, setRole] = useState<Role>(preselectedRole ?? 'buyer')
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -75,11 +75,12 @@ function RegisterForm() {
   const [notice, setNotice] = useState('')
   const router = useRouter()
 
-  const roles = [
-    { id:'buyer' as Role, icon:'🛒', title:'I want to order food', sub:'Browse and order from home cooks', color:'#1A6ECC', bg:'#EBF2FD' },
-    { id:'seller' as Role, icon:'👩‍🍳', title:'I want to sell food', sub:'List my home cooking and earn', color:'#C8006A', bg:'#FFE8F4' },
-    { id:'driver' as Role, icon:'🚴', title:'I want to deliver food', sub:'Earn per drop, flexible hours', color:'#2DA84E', bg:'#E4F6EA' },
+  const roles: { id: Role; icon: string; title: string; sub: string; noun: string }[] = [
+    { id:'buyer',  icon:'🛒',  title:'Order food',   sub:'Browse and order from local home cooks', noun:'Buyer' },
+    { id:'seller', icon:'👩‍🍳', title:'Sell food',    sub:'List your home cooking and earn money',  noun:'Seller' },
+    { id:'driver', icon:'🚴',  title:'Deliver food', sub:'Earn per delivery, flexible hours',      noun:'Driver' },
   ]
+  const current = roles.find(r => r.id === role)!
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,102 +105,133 @@ function RegisterForm() {
     else router.push('/pending')
   }
 
+  const goToStep = (s: 1 | 2) => { setError(''); setNotice(''); setStep(s) }
+
+  const inputStyle: React.CSSProperties = { height:48, border:'1.5px solid #E0E0E0', borderRadius:10, padding:'0 14px', fontSize:14, color:'#1A1A1A', background:'#F8F0F4', width:'100%' }
+
   return (
-    <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:24, fontFamily:'Inter,system-ui,sans-serif' }}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0;} input:focus{border-color:#C8006A !important;outline:none;background:#fff !important;}`}</style>
-      <Link href="/" style={{ marginBottom:28 }}>
-        <Logo height={40} white/>
+    <div style={{ minHeight:'100vh', background:'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:20, fontFamily:'Inter,system-ui,sans-serif' }}>
+      <style>{`
+        *{box-sizing:border-box;margin:0;padding:0;}
+        input:focus{border-color:#C8006A !important;outline:none;background:#fff !important;}
+        @keyframes stepIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+        .step-anim { animation: stepIn 0.28s cubic-bezier(0.34,1.15,0.64,1) both; }
+        .role-card:hover { border-color:#C8006A !important; }
+        .primary-btn:hover { background:#A00055 !important; }
+      `}</style>
+      <Link href="/" style={{ marginBottom:24 }}>
+        <Logo height={38} white/>
       </Link>
-      <div style={{ background:'#fff', borderRadius:24, padding:'36px', width:'100%', maxWidth:480, boxShadow:'0 24px 80px rgba(0,0,0,0.25)' }}>
-        <div style={{ display:'flex', alignItems:'center', marginBottom:28 }}>
-          {['Choose role','Your details'].map((label,i) => (
-            <div key={i} style={{ display:'flex', alignItems:'center', flex:1 }}>
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
-                <div style={{ width:28, height:28, borderRadius:'50%', background:step>=i+1?'#C8006A':'#E0E0E0', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:step>=i+1?'#fff':'#1A1A1A' }}>{i+1}</div>
-                <span style={{ fontSize:10, color:step===i+1?'#C8006A':'#1A1A1A', fontWeight:600, whiteSpace:'nowrap' }}>{label}</span>
+      <div style={{ background:'#fff', borderRadius:24, padding:'32px 30px', width:'100%', maxWidth:480, boxShadow:'0 24px 80px rgba(0,0,0,0.25)' }}>
+
+        {/* Step indicator: 1 → 2 */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, marginBottom:26 }}>
+          {([{ n:1, l:'Role' }, { n:2, l:'Sign up' }] as const).map((s, i) => (
+            <div key={s.n} style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ width:26, height:26, borderRadius:'50%', background:step>=s.n?'#C8006A':'#E8E8E8', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:step>=s.n?'#fff':'#1A1A1A', transition:'background 0.2s' }}>{s.n}</div>
+                <span style={{ fontSize:12.5, fontWeight:700, color:step===s.n?'#C8006A':'#1A1A1A' }}>{s.l}</span>
               </div>
-              {i<1 && <div style={{ flex:1, height:2, background:step>1?'#C8006A':'#E0E0E0', margin:'0 8px', marginBottom:16 }}/>}
+              {i===0 && <span style={{ fontSize:16, color:step>1?'#C8006A':'#C8C8C8', fontWeight:700 }}>→</span>}
             </div>
           ))}
         </div>
+
         {error && <div style={{ background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#C8006A', fontWeight:600 }}>{error}</div>}
         {notice && (
           <div style={{ background:'#E4F6EA', border:'1.5px solid rgba(45,168,78,0.3)', borderRadius:10, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#1A7A36', fontWeight:600, lineHeight:1.5 }}>
             ✓ {notice} <Link href="/login" style={{ color:'#157A33', fontWeight:700, textDecoration:'underline' }}>Sign in →</Link>
           </div>
         )}
+
+        {/* STEP 1 — role selection only */}
         {step === 1 && (
-          <div>
-            <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:16 }}>Join meaLoyo</h1>
-            <OAuthButtons selectedRole={role} />
-            <div style={{ display:'flex', alignItems:'center', gap:12, margin:'20px 0' }}>
-              <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or sign up with email</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
+          <div key="step1" className="step-anim">
+            <h1 style={{ fontFamily:'Georgia,serif', fontSize:28, fontWeight:700, color:'#1A1A1A', marginBottom:6, letterSpacing:'-0.01em' }}>Join meaLoyo</h1>
+            <p style={{ fontSize:15, color:'#1A1A1A', marginBottom:22 }}>How do you want to use meaLoyo?</p>
+            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:24 }}>
+              {roles.map(r => {
+                const on = role === r.id
+                return (
+                  <button key={r.id} type="button" onClick={() => setRole(r.id)} className="role-card"
+                    style={{ display:'flex', alignItems:'center', gap:16, minHeight:80, padding:'0 18px', textAlign:'left', width:'100%', background:on?'#FFE8F4':'#fff', border:on?'2px solid #C8006A':'1.5px solid #E8E8E8', borderRadius:16, cursor:'pointer', transition:'all 0.15s' }}>
+                    <span style={{ fontSize:32, lineHeight:1, flexShrink:0 }}>{r.icon}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:16, fontWeight:700, color:on?'#C8006A':'#1A1A1A' }}>{r.title}</div>
+                      <div style={{ fontSize:13, color:'#1A1A1A', marginTop:3 }}>{r.sub}</div>
+                    </div>
+                    <div style={{ width:22, height:22, flexShrink:0, borderRadius:'50%', border:on?'2px solid #C8006A':'2px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      {on && <div style={{ width:11, height:11, borderRadius:'50%', background:'#C8006A' }}/>}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-            <p style={{ fontSize:14, color:'#1A1A1A', marginBottom:20 }}>How do you want to use meaLoyo?</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:24 }}>
-              {roles.map(r => (
-                <div key={r.id} onClick={() => setRole(r.id)} style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 16px', background:role===r.id?r.bg:'#F8F8F8', border:role===r.id?`2px solid ${r.color}`:'1.5px solid #E0E0E0', borderRadius:14, cursor:'pointer', transition:'all 0.14s' }}>
-                  <span style={{ fontSize:26 }}>{r.icon}</span>
-                  <div style={{ flex:1 }}><div style={{ fontSize:14, fontWeight:700, color:role===r.id?r.color:'#1A1A1A' }}>{r.title}</div><div style={{ fontSize:12, color:'#1A1A1A', marginTop:2 }}>{r.sub}</div></div>
-                  <div style={{ width:20, height:20, borderRadius:'50%', border:role===r.id?`2px solid ${r.color}`:'2px solid #E0E0E0', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                    {role===r.id && <div style={{ width:10, height:10, borderRadius:'50%', background:r.color }}/>}
-                  </div>
-                </div>
-              ))}
-            </div>
-            {(role==='seller'||role==='driver') && (
-              <div style={{ background:'#FFF8E0', border:'1.5px solid #F5D080', borderRadius:10, padding:'12px 14px', marginBottom:16, fontSize:12, color:'#8C5500', lineHeight:1.6 }}>
-                ⏳ <strong>Approval required</strong> — {role==='seller'?'Seller':'Driver'} accounts are reviewed before going live. You will be notified within 24–48 hours.
-              </div>
-            )}
-            <button onClick={() => setStep(2)} style={{ width:'100%', height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)' }}>Continue →</button>
+            <button onClick={() => goToStep(2)} className="primary-btn" style={{ width:'100%', height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s' }}>Continue →</button>
+            <p style={{ textAlign:'center', fontSize:13.5, color:'#1A1A1A', marginTop:20 }}>
+              Already have an account? <Link href="/login" style={{ color:'#C8006A', fontWeight:700 }}>Sign in →</Link>
+            </p>
           </div>
         )}
+
+        {/* STEP 2 — sign up method */}
         {step === 2 && (
-          <form onSubmit={handleRegister} style={{ display:'flex', flexDirection:'column', gap:14 }}>
-            <div>
-              <h1 style={{ fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#1A1A1A', marginBottom:4 }}>Your details</h1>
-              <p style={{ fontSize:14, color:'#1A1A1A', marginBottom:4 }}>
-                Registering as <span style={{ color:'#C8006A', fontWeight:700 }}>{role==='buyer'?'a Buyer':role==='seller'?'a Seller':'a Driver'}</span>
-                {' '}<button type="button" onClick={() => setStep(1)} style={{ background:'none', border:'none', color:'#1A1A1A', fontSize:12, cursor:'pointer', textDecoration:'underline' }}>change</button>
-              </p>
+          <div key="step2" className="step-anim">
+            {/* Back arrow + selected-role badge */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:18 }}>
+              <button type="button" onClick={() => goToStep(1)} aria-label="Back to role selection"
+                style={{ width:36, height:36, flexShrink:0, borderRadius:10, border:'1.5px solid #E8E8E8', background:'#fff', color:'#C8006A', fontSize:18, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>←</button>
+              <div style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:6, background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.2)', borderRadius:100, padding:'7px 14px' }}>
+                <span style={{ fontSize:13, fontWeight:700, color:'#C8006A' }}>Signing up as a {current.noun} {current.icon}</span>
+                <span style={{ fontSize:13, color:'#1A1A1A' }}>·</span>
+                <button type="button" onClick={() => goToStep(1)} style={{ background:'none', border:'none', color:'#C8006A', fontSize:13, fontWeight:700, cursor:'pointer', textDecoration:'underline', padding:0 }}>change</button>
+              </div>
             </div>
+
+            <h1 style={{ fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#1A1A1A', marginBottom:16, letterSpacing:'-0.01em' }}>Create your account</h1>
+
+            {(role==='seller'||role==='driver') && (
+              <div style={{ background:'#FFF8E0', border:'1.5px solid #F5D080', borderRadius:10, padding:'12px 14px', marginBottom:18, fontSize:12.5, color:'#8C5500', lineHeight:1.6 }}>
+                ⏳ Your account will need admin approval before going live. We&rsquo;ll email you within 24–48 hours.
+              </div>
+            )}
+
+            {/* Social sign up FIRST — OAuthButtons saves role + provider to localStorage before redirect */}
             <OAuthButtons selectedRole={role} />
-            <div style={{ display:'flex', alignItems:'center', gap:12, margin:'4px 0' }}>
-              <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12, color:'#1A1A1A' }}>or with email</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
+
+            <div style={{ display:'flex', alignItems:'center', gap:12, margin:'20px 0' }}>
+              <div style={{ flex:1, height:1, background:'#E8E8E8' }}/><span style={{ fontSize:12.5, color:'#1A1A1A' }}>or sign up with email</span><div style={{ flex:1, height:1, background:'#E8E8E8' }}/>
             </div>
-            {[
-              { label:'Full name', val:fullName, set:setFullName, type:'text', ph:'Your full name', toggle:null as null | { shown:boolean; set:(v:boolean)=>void } },
-              { label:'Email address', val:email, set:setEmail, type:'email', ph:'you@example.com', toggle:null },
-              { label:'Phone number', val:phone, set:setPhone, type:'tel', ph:'+44 7700 000000', toggle:null },
-              { label:'Password', val:password, set:setPassword, type:'password', ph:'Minimum 6 characters', toggle:{ shown:showPw, set:setShowPw } },
-              { label:'Confirm password', val:confirmPassword, set:setConfirmPassword, type:'password', ph:'Repeat your password', toggle:{ shown:showConfirm, set:setShowConfirm } },
-            ].map(f => {
-              const inputType = f.toggle ? (f.toggle.shown ? 'text' : 'password') : f.type
-              return (
-                <div key={f.label} style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                  <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>{f.label}</label>
-                  <div style={{ position:'relative' }}>
-                    <input type={inputType} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} required style={{ height:46, border:'1.5px solid #E0E0E0', borderRadius:10, padding:f.toggle ? '0 44px 0 14px' : '0 14px', fontSize:14, color:'#1A1A1A', background:'#F8F0F4', width:'100%' }}/>
-                    {f.toggle && <EyeToggle shown={f.toggle.shown} onClick={() => f.toggle!.set(!f.toggle!.shown)}/>}
+
+            {/* Email form */}
+            <form onSubmit={handleRegister} style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              {[
+                { label:'Full name', val:fullName, set:setFullName, type:'text', ph:'Your full name', toggle:null as null | { shown:boolean; set:(v:boolean)=>void } },
+                { label:'Email address', val:email, set:setEmail, type:'email', ph:'you@example.com', toggle:null },
+                { label:'Phone number', val:phone, set:setPhone, type:'tel', ph:'+44 7700 000000', toggle:null },
+                { label:'Password', val:password, set:setPassword, type:'password', ph:'Minimum 6 characters', toggle:{ shown:showPw, set:setShowPw } },
+                { label:'Confirm password', val:confirmPassword, set:setConfirmPassword, type:'password', ph:'Repeat your password', toggle:{ shown:showConfirm, set:setShowConfirm } },
+              ].map(f => {
+                const inputType = f.toggle ? (f.toggle.shown ? 'text' : 'password') : f.type
+                return (
+                  <div key={f.label} style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                    <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>{f.label}</label>
+                    <div style={{ position:'relative' }}>
+                      <input type={inputType} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.ph} required style={{ ...inputStyle, padding:f.toggle ? '0 44px 0 14px' : '0 14px' }}/>
+                      {f.toggle && <EyeToggle shown={f.toggle.shown} onClick={() => f.toggle!.set(!f.toggle!.shown)}/>}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-            <div style={{ display:'flex', gap:10, marginTop:4 }}>
-              <button type="button" onClick={() => setStep(1)} style={{ flex:1, height:48, background:'#F5F5F5', color:'#1A1A1A', border:'1.5px solid #E0E0E0', borderRadius:12, fontSize:14, fontWeight:600, cursor:'pointer' }}>← Back</button>
-              <button type="submit" disabled={loading} style={{ flex:2, height:48, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:loading?'not-allowed':'pointer', opacity:loading?0.8:1 }}>
-                {loading ? 'Creating account...' : 'Create account →'}
+                )
+              })}
+              <button type="submit" disabled={loading} className="primary-btn" style={{ width:'100%', height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:loading?'not-allowed':'pointer', opacity:loading?0.8:1, boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', marginTop:2 }}>
+                {loading ? 'Creating account…' : 'Create account →'}
               </button>
-            </div>
-            <p style={{ textAlign:'center', fontSize:12, color:'#1A1A1A', lineHeight:1.5 }}>
-              By creating an account you agree to our <Link href="/terms" style={{ color:'#C8006A', fontWeight:600 }}>Terms</Link> and <Link href="/privacy" style={{ color:'#C8006A', fontWeight:600 }}>Privacy Policy</Link>
-            </p>
-          </form>
+              <p style={{ textAlign:'center', fontSize:12, color:'#1A1A1A', lineHeight:1.5 }}>
+                By creating an account you agree to our <Link href="/terms" style={{ color:'#C8006A', fontWeight:600 }}>Terms</Link> and <Link href="/privacy" style={{ color:'#C8006A', fontWeight:600 }}>Privacy Policy</Link>
+              </p>
+            </form>
+          </div>
         )}
-        <p style={{ textAlign:'center', fontSize:13, color:'#1A1A1A', marginTop:20 }}>
-          Already have an account? <Link href="/login" style={{ color:'#C8006A', fontWeight:700 }}>Sign in →</Link>
-        </p>
       </div>
     </div>
   )
