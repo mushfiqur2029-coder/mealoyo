@@ -58,7 +58,8 @@ export default function CompleteProfile() {
       // ignoring a seller/driver selection. Read once, then clear it.
       const savedRole = localStorage.getItem('mealoyo-oauth-role')
       localStorage.removeItem('mealoyo-oauth-role')
-      if (savedRole === 'seller' || savedRole === 'driver') setRole(savedRole)
+      const pendingRole = savedRole === 'seller' || savedRole === 'driver' ? savedRole : null
+      if (pendingRole) setRole(pendingRole)
 
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.replace('/login'); return }
@@ -73,11 +74,14 @@ export default function CompleteProfile() {
       setEmailNeeded(isFacebook || !user.email)
       // A genuinely new OAuth user has a profile row but no role yet. Anyone who
       // already picked a role has finished setup — skip this screen and send
-      // them to their dashboard rather than making them fill it in again.
+      // them to their dashboard rather than making them fill it in again. The
+      // exception is a pending seller/driver registration: a new OAuth user's
+      // profile can default to buyer, so we must NOT shortcut them past role
+      // completion when they explicitly chose seller/driver.
       const { data: profile } = await supabase.from('profiles').select('role, status, phone, full_name').eq('id', user.id).maybeSingle()
       if (profile?.full_name) setFullName(prev => prev || profile.full_name || '')
       if (profile?.phone) setPhone(profile.phone)
-      if (profile?.role) {
+      if (profile?.role && !pendingRole) {
         router.replace(dashboardPathForProfile(profile as Profile))
         return
       }

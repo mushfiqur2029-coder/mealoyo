@@ -64,6 +64,18 @@ export default function AuthCallback() {
 
       if (typeof window !== 'undefined') localStorage.removeItem('mealoyo-oauth-provider')
 
+      // If the user chose to register as a seller/driver before the OAuth
+      // redirect (saved by OAuthButtons), always send them to complete-profile
+      // so that choice is actually applied. A brand-new OAuth user's profile can
+      // default to buyer, which would otherwise shortcut them straight to the
+      // buyer dashboard and silently discard their seller/driver selection.
+      // (complete-profile reads and clears mealoyo-oauth-role.)
+      const pendingRole = localStorage.getItem('mealoyo-oauth-role')
+      if (pendingRole === 'seller' || pendingRole === 'driver') {
+        router.replace('/auth/complete-profile')
+        return
+      }
+
       // Facebook signs users in without an email (we don't request it). Send them
       // to finish their profile, where they enter one — a missing email is never
       // an error here.
