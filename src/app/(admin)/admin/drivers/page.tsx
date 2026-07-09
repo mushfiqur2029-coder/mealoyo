@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
-import AdminDeleteUser from '@/components/AdminDeleteUser'
+import AdminDeleteModal from '@/components/AdminDeleteModal'
+import AdminSuspendModal from '@/components/AdminSuspendModal'
 import type { Profile } from '@/lib/types'
 
 // admin_get_all_orders returns flattened rows (names joined in the RPC).
@@ -48,6 +49,7 @@ const dark = `
   .nav-link:hover { color: var(--text-primary) !important; }
   .approve:hover { background: #009836 !important; }
   .reject:hover { background: #D97706 !important; }
+  .del-row:hover { background: rgba(220,38,38,0.12) !important; border-color: #DC2626 !important; }
   .urow:hover { background: var(--bg-card) !important; }
   .stat-card { transition: transform 0.18s, border-color 0.18s; }
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
@@ -72,6 +74,10 @@ export default function AdminDrivers() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [suspendTarget, setSuspendTarget] = useState<Profile | null>(null)
+  const [suspending, setSuspending] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -102,6 +108,28 @@ export default function AdminDrivers() {
     if (error) { alert('Could not update: ' + error.message); setBusyId(null); return }
     setDrivers(prev => prev.map(d => d.id === id ? { ...d, status } : d))
     setBusyId(null)
+  }
+
+  // Suspend via the portal confirmation modal (reactivate stays a direct click).
+  const confirmSuspend = async () => {
+    if (!suspendTarget) return
+    setSuspending(true)
+    const { error } = await supabase.rpc('admin_update_profile_status', { p_id: suspendTarget.id, p_status: 'suspended' })
+    if (error) { alert('Could not update: ' + error.message); setSuspending(false); return }
+    setDrivers(prev => prev.map(d => d.id === suspendTarget.id ? { ...d, status: 'suspended' } : d))
+    setSuspending(false)
+    setSuspendTarget(null)
+  }
+
+  // Permanently delete via the admin_delete_user RPC, then drop the row.
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const { error } = await supabase.rpc('admin_delete_user', { p_user_id: deleteTarget.id })
+    if (error) { alert('Could not delete: ' + error.message); setDeleting(false); return }
+    setDrivers(prev => prev.filter(d => d.id !== deleteTarget.id))
+    setDeleting(false)
+    setDeleteTarget(null)
   }
 
   // Approve every pending driver in one action.
@@ -250,9 +278,9 @@ export default function AdminDrivers() {
                   <button className="approve" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'active')} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>{d.status === 'pending' ? 'Approve' : 'Reactivate'}</button>
                 )}
                 {d.status !== 'suspended' && (
-                  <button className="reject action-btn" disabled={busyId === d.id} onClick={() => setStatus(d.id, 'suspended')} style={{height:34, padding:'0 14px', background:'#F59E0B', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>Suspend</button>
+                  <button className="reject action-btn" disabled={busyId === d.id} onClick={() => setSuspendTarget(d)} style={{height:34, padding:'0 14px', background:'#F59E0B', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === d.id ? 0.6 : 1}}>Suspend</button>
                 )}
-                <AdminDeleteUser user={d} onDeleted={id => setDrivers(prev => prev.filter(x => x.id !== id))} />
+                <button className="del-row action-btn" onClick={() => setDeleteTarget(d)} style={{height:34, padding:'0 14px', background:'transparent', color:'#DC2626', border:'1px solid rgba(220,38,38,0.55)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>Delete</button>
               </div>
             </div>
           ))}
@@ -293,6 +321,21 @@ export default function AdminDrivers() {
           </div>
         )
       })()}
+
+      <AdminSuspendModal
+        isOpen={!!suspendTarget}
+        userName={suspendTarget?.full_name || suspendTarget?.email || 'this user'}
+        onConfirm={confirmSuspend}
+        onCancel={() => { if (!suspending) setSuspendTarget(null) }}
+        isSuspending={suspending}
+      />
+      <AdminDeleteModal
+        isOpen={!!deleteTarget}
+        userName={deleteTarget?.full_name || deleteTarget?.email || 'this user'}
+        onConfirm={confirmDelete}
+        onCancel={() => { if (!deleting) setDeleteTarget(null) }}
+        isDeleting={deleting}
+      />
     </div>
   )
 }
