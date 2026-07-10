@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/lib/cartStore'
 import { supabase } from '@/lib/supabase'
-import { serviceFee as calcServiceFee, commission as calcCommission } from '@/lib/pricing'
+import { serviceFee as calcServiceFee } from '@/lib/pricing'
 
 export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const items = useCartStore((s) => s.items)
@@ -72,58 +72,24 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
       return
     }
     try {
-      // One order row per dish (per-seller accounting stays correct). The whole
-      // cart's service fee rides on the first order so displayed == charged.
-      const orderIds: string[] = []
-      for (let idx = 0; idx < items.length; idx++) {
-        const it = items[idx]
-        const lineSub = it.price * it.quantity
-        const comm = calcCommission(lineSub)
-        const svcForOrder = idx === 0 ? svc : 0
-        const { data: order, error: oErr } = await supabase
-          .from('orders')
-          .insert({
-            buyer_id: user.id,
-            seller_id: it.sellerId,
-            listing_id: it.listingId,
-            quantity: it.quantity,
-            total_amount: lineSub + svcForOrder,
-            delivery_fee: 0,
-            service_fee: svcForOrder,
-            platform_commission: comm,
-            seller_payout: lineSub - comm,
-            status: 'pending_payment',
-            payment_status: 'unpaid',
-            delivery_type: it.deliveryPref || 'collection',
-            delivery_address: null,
-            notes: null,
-          })
-          .select()
-          .single()
-        if (oErr || !order) throw new Error(oErr?.message || 'Could not create your order')
-        orderIds.push(order.id)
-      }
-
-      const res = await fetch('/api/checkout', {
+      // Order creation + pricing are fully server-side: we send only the items
+      // (which dish, how many, delivery preference). /api/orders/create-cart
+      // re-prices everything from the DB, persists one order per dish and returns
+      // a Stripe Checkout URL — nothing money-related is trusted from here.
+      const res = await fetch('/api/orders/create-cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderIds,
           items: items.map((it) => ({
             listingId: it.listingId,
-            name: it.listingName,
-            price: it.price,
             quantity: it.quantity,
-            imageUrl: it.imageUrl,
+            deliveryType: it.deliveryPref || 'collection',
           })),
-          serviceFee: svc,
-          buyerEmail: user.email,
-          buyerId: user.id,
         }),
       })
       const data = await res.json()
-      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start checkout')
-      window.location.assign(data.url)
+      if (!res.ok || !data.sessionUrl) throw new Error(data.error || 'Could not start checkout')
+      window.location.assign(data.sessionUrl)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Checkout failed. Please try again.')
       setLoading(false)
