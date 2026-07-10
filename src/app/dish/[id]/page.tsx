@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import CartButton from '@/components/CartButton'
-import { useCartStore } from '@/lib/cartStore'
 import { isValidUKPostcode, lookupPostcode, haversineDistance, deliveryFeeForDistance, serviceFee, FLAT_DELIVERY_FEE } from '@/lib/pricing'
 import { pointsToPounds, maxRedeemablePounds, poundsToPoints } from '@/lib/loyalty'
 import type { User, Listing, Profile } from '@/lib/types'
@@ -44,17 +43,13 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [cancelled, setCancelled] = useState(false)
-  const [added, setAdded] = useState(false)
+  const [ordering, setOrdering] = useState(false)
+  const [orderError, setOrderError] = useState('')
   const [isSaved, setIsSaved] = useState(false)
   const [savedRowId, setSavedRowId] = useState<string | null>(null)
   const [pointsBalance, setPointsBalance] = useState(0)
   const [applyPoints, setApplyPoints] = useState(false)
   const router = useRouter()
-
-  // Cart actions — checkout now runs through the shared cart panel.
-  const addItem = useCartStore((s) => s.addItem)
-  const clearCart = useCartStore((s) => s.clearCart)
-  const openCart = useCartStore((s) => s.openCart)
 
   // Buyer bounced back from a cancelled Stripe Checkout — restore the form and
   // let them know their unpaid order is still saved. Read from the URL directly
@@ -181,39 +176,42 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
 
   const clearSavedAddress = () => { setAddress(''); setBuyerPostcode(''); setUsingSaved(false) }
 
-  // Add this dish to the cart (with the chosen quantity + delivery preference)
-  // and slide the cart open. Actual payment happens from the cart panel. Fees
-  // and any loyalty redemption are settled there.
-  const addToCart = () => {
-    if (!listing || !seller) return
-    const item = {
-      listingId: listing.id,
-      listingName: listing.name,
-      sellerId: seller.id,
-      sellerName: seller.full_name || 'Home cook',
-      price: parseFloat(listing.price),
-      quantity,
-      imageUrl: listing.image_url,
-      cuisineEmoji: cuisineEmoji[listing.cuisine] || '🍽️',
-      deliveryOptions: Array.isArray(listing.delivery_options)
-        ? listing.delivery_options.map(String)
-        : typeof listing.delivery_options === 'string'
-        ? listing.delivery_options.split(',').map((s) => s.trim()).filter(Boolean)
-        : [],
-      deliveryPref: deliveryType,
+  // Place the order and go to payment. The client sends ONLY the inputs — the
+  // /api/orders/create route computes every price, fee, discount, commission and
+  // payout from the database, persists the order server-side, and returns a
+  // Stripe Checkout URL. Nothing money-related is trusted from here.
+  const placeOrder = async () => {
+    if (!listing || !seller || ordering) return
+    if (!user) { router.push('/login'); return }
+    if (deliveryType === 'delivery' && !address.trim()) {
+      setOrderError('Please enter your delivery address.')
+      return
     }
-    const res = addItem(item)
-    if (res.needsConfirm) {
-      const ok = window.confirm(
-        `Your cart has items from ${res.existingSellerName}. Start a new cart with this item?`,
-      )
-      if (!ok) return
-      clearCart()
-      addItem(item)
+    setOrderError('')
+    setOrdering(true)
+    try {
+      const subtotal = parseFloat(listing.price) * quantity
+      const pointsToRedeem = applyPoints ? poundsToPoints(maxRedeemablePounds(pointsBalance, subtotal)) : 0
+      const res = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId: listing.id,
+          quantity,
+          deliveryType,
+          deliveryAddress: address,
+          notes,
+          buyerPostcode,
+          pointsToRedeem,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.sessionUrl) throw new Error(data.error || 'Could not start checkout')
+      window.location.assign(data.sessionUrl)
+    } catch (e) {
+      setOrderError(e instanceof Error ? e.message : 'Checkout failed. Please try again.')
+      setOrdering(false)
     }
-    setAdded(true)
-    setTimeout(() => setAdded(false), 1500)
-    openCart()
   }
 
   const pageStyles = (
@@ -490,9 +488,12 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
       )}
 
       {/* CTA */}
-      <button onClick={addToCart} className="order-btn"
-        style={{width:'100%', height:52, background:added ? '#2DA84E' : '#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:'pointer', boxShadow:added ? '0 6px 20px rgba(45,168,78,0.3)' : '0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.16s'}}>
-        {added ? 'Added to cart ✓' : `Add to cart · £${totalAmount.toFixed(2)}`}
+      {orderError && (
+        <div style={{background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'10px 12px', marginBottom:12, fontSize:12.5, color:'#C8006A', fontWeight:600}}>{orderError}</div>
+      )}
+      <button onClick={placeOrder} disabled={ordering} className="order-btn"
+        style={{width:'100%', height:52, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:16, fontWeight:700, cursor:ordering ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', opacity:ordering ? 0.7 : 1, transition:'background 0.16s'}}>
+        {ordering ? 'Starting checkout…' : `Order & pay · £${grandTotal.toFixed(2)}`}
       </button>
 
       <p style={{textAlign:'center', fontSize:11, color:'var(--text-primary)', marginTop:12, lineHeight:1.5}}>🔒 Secured by Stripe · Buyer protection on every order</p>
@@ -664,8 +665,8 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
               <div style={{fontSize:11, color:'var(--text-primary)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.04em'}}>Total</div>
               <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', lineHeight:1}}>£{grandTotal.toFixed(2)}</div>
             </div>
-            <button onClick={addToCart} className="order-btn" style={{flex:1, height:50, background:added ? '#2DA84E' : '#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:added ? '0 6px 18px rgba(45,168,78,0.3)' : '0 6px 18px rgba(200,0,106,0.3)', transition:'background 0.16s'}}>
-              {added ? 'Added ✓' : 'Add to cart →'}
+            <button onClick={placeOrder} disabled={ordering} className="order-btn" style={{flex:1, height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:ordering ? 'not-allowed' : 'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.3)', opacity:ordering ? 0.7 : 1, transition:'background 0.16s'}}>
+              {ordering ? 'Starting…' : 'Order & pay →'}
             </button>
           </>
         )}

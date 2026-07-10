@@ -122,6 +122,19 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       continue
     }
 
+    // Store Stripe's authoritative charged total (pence) as a verification field,
+    // so the stored order amount can be reconciled against what was actually paid.
+    // Best-effort + separate update: if the column hasn't been added yet it must
+    // NOT break the critical paid/pending flip above. (Cart sessions have one
+    // amount for the whole cart, so only record it on single-item orders.)
+    if (session.amount_total != null && orderIds.length === 1) {
+      const { error: amtErr } = await supabaseAdmin
+        .from('orders')
+        .update({ stripe_amount_total: session.amount_total })
+        .eq('id', orderId)
+      if (amtErr) console.warn(`[webhook] could not store stripe_amount_total (run migration?):`, amtErr.message)
+    }
+
     // --- One-time side effects (only reached because stripe_session_id was null) ---
     const listingId = order.listing_id ?? session.metadata?.listingId
     if (listingId) await bumpOrderCount(listingId)
