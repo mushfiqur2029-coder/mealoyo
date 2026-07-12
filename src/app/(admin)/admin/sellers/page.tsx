@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import AdminDeleteModal from '@/components/AdminDeleteModal'
 import AdminSuspendModal from '@/components/AdminSuspendModal'
+import ListingDetailModal from '@/components/ListingDetailModal'
 import type { Profile, Listing } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -79,6 +80,7 @@ export default function AdminSellers() {
   const [modalBusyId, setModalBusyId] = useState<string | null>(null)
   const [noteEditId, setNoteEditId] = useState<string | null>(null)
   const [noteVal, setNoteVal] = useState('')
+  const [detailListing, setDetailListing] = useState<Listing | null>(null)
   const [modalMsg, setModalMsg] = useState<{ id: string; text: string } | null>(null)
   const router = useRouter()
 
@@ -162,6 +164,12 @@ export default function AdminSellers() {
     setAllListings(prev => prev.map(l => l.id === id ? { ...l, status, admin_note: appliedNote } : l))
     setNoteEditId(null); setNoteVal('')
     setModalMsg({ id, text: status === 'live' ? '✓ Set live' : status === 'suspended' ? '✓ Suspended' : '✓ Changes requested' })
+  }
+
+  // Patch a listing in place after an action taken inside the ListingDetailModal
+  // (which owns its own RPC call) so the seller list reflects it immediately.
+  const patchListing = (id: string, status: string, adminNote: string | null) => {
+    setAllListings(prev => prev.map(l => l.id === id ? { ...l, status, admin_note: adminNote } : l))
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/admin/login') }
@@ -377,6 +385,7 @@ export default function AdminSellers() {
 
                     {/* Actions + feedback */}
                     <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:11}}>
+                      <button className="view-btn" onClick={() => setDetailListing(l)} disabled={busy} style={{height:32, padding:'0 12px', background:'transparent', color:'#2563EB', border:'1px solid rgba(37,99,235,0.5)', borderRadius:7, fontSize:12, fontWeight:700, cursor:busy ? 'not-allowed' : 'pointer', opacity:busy ? 0.6 : 1}}>View</button>
                       {l.status !== 'live' && (
                         <button className="approve" onClick={() => updateListingStatus(l.id, 'live')} disabled={busy} style={{height:32, padding:'0 12px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:700, cursor:busy ? 'wait' : 'pointer', opacity:busy ? 0.6 : 1}}>Set Live</button>
                       )}
@@ -396,6 +405,17 @@ export default function AdminSellers() {
           </div>
         )
       })()}
+
+      <ListingDetailModal
+        key={detailListing?.id ?? 'none'}
+        listing={detailListing}
+        sellerName={viewSeller?.full_name || undefined}
+        sellerEmail={viewSeller?.email || undefined}
+        sellerPhone={viewSeller?.phone}
+        sellerPostcode={viewSeller?.postcode}
+        onClose={() => setDetailListing(null)}
+        onStatusChange={patchListing}
+      />
 
       <AdminSuspendModal
         isOpen={!!suspendTarget}
