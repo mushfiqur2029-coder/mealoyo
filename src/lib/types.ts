@@ -51,6 +51,8 @@ export interface Listing {
   delivery_options: string[] | string | null
   delivery_radius_miles: number | null
   allergens: string[] | null
+  admin_note: string | null
+  admin_reviewed_at: string | null
   created_at: string
   profiles?: Pick<Profile, 'full_name'> | null
 }

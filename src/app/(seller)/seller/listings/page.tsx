@@ -290,6 +290,17 @@ export default function SellerListings() {
                       )}
                     </div>
 
+                    {/* Admin change request — shown while the listing sits in pending */}
+                    {l.status === 'pending' && l.admin_note && (
+                      <div style={{background:'#FFF4E0', border:'1.5px solid rgba(184,115,10,0.3)', borderRadius:12, padding:'11px 13px', marginBottom:14}}>
+                        <div style={{display:'flex', alignItems:'center', gap:6, fontSize:11, fontWeight:800, color:'#B8730A', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:5}}>
+                          <span>📝</span> Changes requested by our team
+                        </div>
+                        <p style={{fontSize:13, color:'var(--text-primary)', lineHeight:1.5}}>{l.admin_note}</p>
+                        <div style={{fontSize:11.5, color:'#B8730A', marginTop:7, fontWeight:600}}>Edit this dish to resolve it — it&apos;ll be reviewed again once you save.</div>
+                      </div>
+                    )}
+
                     {/* Footer: price + actions */}
                     <div style={{marginTop:'auto', paddingTop:14, borderTop:'1px solid var(--bg-secondary)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:10}}>
                       <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>£{parseFloat(l.price || '0').toFixed(2)}</div>
