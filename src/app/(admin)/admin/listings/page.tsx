@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import ListingDetailModal from '@/components/ListingDetailModal'
 import type { Profile, Listing } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -67,7 +68,7 @@ const dark = `
   @media (max-width: 640px) { .lstats { grid-template-columns: 1fr 1fr !important; } .search { width: 100% !important; } .lgrid { grid-template-columns: 1fr !important; } }
 `
 
-type SellerInfo = { name: string; email: string }
+type SellerInfo = { name: string; email: string; phone: string | null; postcode: string | null }
 
 export default function AdminListings() {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -81,6 +82,7 @@ export default function AdminListings() {
   const [changeTarget, setChangeTarget] = useState<Listing | null>(null)
   const [changeNote, setChangeNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [detailTarget, setDetailTarget] = useState<Listing | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -96,7 +98,7 @@ export default function AdminListings() {
 
       const { data: sellerRows } = await supabase.rpc('admin_get_profiles_by_role', { p_role: 'seller' })
       const map: Record<string, SellerInfo> = {}
-      for (const s of (sellerRows || []) as Profile[]) map[s.id] = { name: s.full_name || 'Unknown', email: s.email || '' }
+      for (const s of (sellerRows || []) as Profile[]) map[s.id] = { name: s.full_name || 'Unknown', email: s.email || '', phone: s.phone, postcode: s.postcode }
       setSellers(map)
 
       setLoading(false)
@@ -124,6 +126,12 @@ export default function AdminListings() {
     setSubmitting(false)
     setChangeTarget(null)
     setChangeNote('')
+  }
+
+  // Patch a row in place after the detail modal runs an action (the modal owns
+  // the RPC call and its own busy/success state).
+  const applyStatusChange = (id: string, status: string, adminNote: string | null) => {
+    setListings(prev => prev.map(l => l.id === id ? { ...l, status, admin_note: adminNote } : l))
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/admin/login') }
@@ -298,7 +306,7 @@ export default function AdminListings() {
                       {l.status !== 'suspended' && (
                         <button className="suspend" disabled={busyId === l.id} onClick={() => setStatus(l.id, 'suspended')} style={{height:34, padding:'0 14px', background:'#DC2626', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === l.id ? 0.6 : 1}}>Suspend</button>
                       )}
-                      <a href={`/dish/${l.id}`} target="_blank" rel="noopener noreferrer" className="view-btn" style={{height:34, padding:'0 14px', display:'inline-flex', alignItems:'center', background:'transparent', color:'#2563EB', border:'1px solid rgba(37,99,235,0.5)', borderRadius:8, fontSize:12.5, fontWeight:700, transition:'all 0.12s'}}>View</a>
+                      <button className="view-btn" onClick={() => setDetailTarget(l)} style={{height:34, padding:'0 14px', display:'inline-flex', alignItems:'center', background:'transparent', color:'#2563EB', border:'1px solid rgba(37,99,235,0.5)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View</button>
                     </div>
                   </div>
                 </div>
@@ -334,6 +342,18 @@ export default function AdminListings() {
           </div>
         </div>
       )}
+
+      {/* Full listing detail (replaces sending admins to /dish/[id]) */}
+      <ListingDetailModal
+        key={detailTarget?.id ?? 'none'}
+        listing={detailTarget}
+        sellerName={detailTarget ? sellers[detailTarget.seller_id]?.name : undefined}
+        sellerEmail={detailTarget ? sellers[detailTarget.seller_id]?.email : undefined}
+        sellerPhone={detailTarget ? sellers[detailTarget.seller_id]?.phone : undefined}
+        sellerPostcode={detailTarget ? sellers[detailTarget.seller_id]?.postcode : undefined}
+        onClose={() => setDetailTarget(null)}
+        onStatusChange={applyStatusChange}
+      />
     </div>
   )
 }

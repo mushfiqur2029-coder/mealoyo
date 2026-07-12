@@ -8,6 +8,12 @@ import AdminDeleteModal from '@/components/AdminDeleteModal'
 import AdminSuspendModal from '@/components/AdminSuspendModal'
 import type { Profile, Listing } from '@/lib/types'
 
+const cuisineEmoji: Record<string, string> = {
+  'Bangladeshi':'🍛','Pakistani':'🫕','Indian':'🥘','Caribbean':'🍗',
+  'Middle Eastern':'🧆','West African':'🫘','Turkish':'🥙','Sri Lankan':'🍚',
+  'Afghan':'🥟','East African':'🍲','Chinese':'🥡','Other':'🍽️',
+}
+
 const NAV = [
   { l:'Dashboard', h:'/admin/dashboard' },
   { l:'Sellers', h:'/admin/sellers' },
@@ -69,6 +75,11 @@ export default function AdminSellers() {
   const [deleting, setDeleting] = useState(false)
   const [suspendTarget, setSuspendTarget] = useState<Profile | null>(null)
   const [suspending, setSuspending] = useState(false)
+  // Per-listing moderation inside the "View listings" modal.
+  const [modalBusyId, setModalBusyId] = useState<string | null>(null)
+  const [noteEditId, setNoteEditId] = useState<string | null>(null)
+  const [noteVal, setNoteVal] = useState('')
+  const [modalMsg, setModalMsg] = useState<{ id: string; text: string } | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -139,6 +150,18 @@ export default function AdminSellers() {
     setSellers(prev => prev.map(s => ids.includes(s.id) ? { ...s, status: 'active' } : s))
     setBulkBusy(false)
     if (failed) alert(`${failed} could not be approved. Refresh and try again.`)
+  }
+
+  // Moderate a single listing from inside the seller's "View listings" modal.
+  const updateListingStatus = async (id: string, status: 'live' | 'pending' | 'suspended', note?: string) => {
+    setModalBusyId(id); setModalMsg(null)
+    const { error } = await supabase.rpc('admin_update_listing_status', { p_id: id, p_status: status, p_note: note ?? null })
+    setModalBusyId(null)
+    if (error) { alert('Could not update: ' + error.message); return }
+    const appliedNote = status === 'pending' ? (note ?? null) : null
+    setAllListings(prev => prev.map(l => l.id === id ? { ...l, status, admin_note: appliedNote } : l))
+    setNoteEditId(null); setNoteVal('')
+    setModalMsg({ id, text: status === 'live' ? '✓ Set live' : status === 'suspended' ? '✓ Suspended' : '✓ Changes requested' })
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/admin/login') }
@@ -274,7 +297,7 @@ export default function AdminSellers() {
                 </div>
               </div>
               <div className="action-row" style={{display:'flex', gap:8, flexShrink:0, flexWrap:'wrap'}}>
-                <button className="view-btn action-btn" onClick={() => setViewSeller(s)} style={{height:34, padding:'0 14px', background:'transparent', color:'#2563EB', border:'1px solid rgba(37,99,235,0.5)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View listings</button>
+                <button className="view-btn action-btn" onClick={() => { setViewSeller(s); setNoteEditId(null); setNoteVal(''); setModalMsg(null) }} style={{height:34, padding:'0 14px', background:'transparent', color:'#2563EB', border:'1px solid rgba(37,99,235,0.5)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View listings</button>
                 {s.status !== 'active' && (
                   <button className="approve" disabled={busyId === s.id} onClick={() => setStatus(s.id, 'active')} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === s.id ? 0.6 : 1}}>{s.status === 'pending' ? 'Approve' : 'Reactivate'}</button>
                 )}
@@ -292,32 +315,82 @@ export default function AdminSellers() {
         const sl = allListings.filter(l => l.seller_id === viewSeller.id)
         const lColor = (s: string) => s === 'live' ? '#34D399' : s === 'pending' ? '#FBBF24' : s === 'suspended' ? '#FF8A8A' : 'var(--text-secondary)'
         const lBg = (s: string) => s === 'live' ? 'rgba(52,211,153,0.14)' : s === 'pending' ? 'rgba(251,191,36,0.14)' : s === 'suspended' ? 'rgba(255,138,138,0.14)' : 'var(--border-subtle)'
+        const closeView = () => { if (modalBusyId) return; setViewSeller(null); setNoteEditId(null); setNoteVal(''); setModalMsg(null) }
         return (
-          <div onClick={() => setViewSeller(null)} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-            <div onClick={e => e.stopPropagation()} style={{background:'var(--bg-card)', border:'1px solid var(--border-subtle)', borderRadius:18, width:'100%', maxWidth:620, maxHeight:'82vh', display:'flex', flexDirection:'column', overflow:'hidden'}}>
+          <div onClick={closeView} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', backdropFilter:'blur(4px)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+            <div onClick={e => e.stopPropagation()} style={{background:'var(--bg-card)', border:'1px solid var(--border-subtle)', borderRadius:18, width:'100%', maxWidth:620, maxHeight:'85vh', display:'flex', flexDirection:'column', overflow:'hidden'}}>
               <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border-subtle)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12}}>
                 <div style={{minWidth:0}}>
-                  <h2 style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{viewSeller.full_name || 'Seller'}&rsquo;s listings</h2>
+                  <h2 style={{fontFamily:'Georgia,serif', fontSize:19, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>Listings for {viewSeller.full_name || 'Seller'}</h2>
                   <p style={{fontSize:12.5, color:'var(--text-secondary)', marginTop:2}}>{sl.length} {sl.length === 1 ? 'listing' : 'listings'} · all statuses</p>
                 </div>
-                <button onClick={() => setViewSeller(null)} style={{width:34, height:34, flexShrink:0, borderRadius:8, border:'1px solid var(--border-subtle)', background:'transparent', color:'var(--text-secondary)', fontSize:18, cursor:'pointer', lineHeight:1}}>×</button>
+                <button onClick={closeView} style={{width:34, height:34, flexShrink:0, borderRadius:8, border:'1px solid var(--border-subtle)', background:'transparent', color:'var(--text-secondary)', fontSize:18, cursor:'pointer', lineHeight:1}}>×</button>
               </div>
-              <div style={{overflowY:'auto', padding:'8px 0'}}>
+              <div style={{overflowY:'auto', padding:'6px 0'}}>
                 {sl.length === 0 ? (
                   <div style={{padding:'44px', textAlign:'center', color:'var(--text-secondary)', fontSize:14}}>This seller has no listings yet.</div>
-                ) : sl.map(l => (
-                  <div key={l.id} style={{display:'flex', alignItems:'center', gap:14, padding:'12px 24px'}}>
-                    <div style={{width:52, height:52, borderRadius:12, background:'var(--bg-card)', flexShrink:0, overflow:'hidden'}}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      {l.image_url && <img src={l.image_url} alt={l.name} style={{width:'100%', height:'100%', objectFit:'cover'}} />}
+                ) : sl.map((l, i) => {
+                  const busy = modalBusyId === l.id
+                  return (
+                  <div key={l.id} style={{padding:'14px 24px', borderBottom:i < sl.length - 1 ? '1px solid var(--border-subtle)' : 'none'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:14}}>
+                      <div style={{width:52, height:52, borderRadius:12, background:'var(--bg-page)', flexShrink:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26}}>
+                        {l.image_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={l.image_url} alt={l.name} style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                        ) : (cuisineEmoji[l.cuisine] || '🍽️')}
+                      </div>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:2}}>
+                          <span style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</span>
+                          <span style={{background:lBg(l.status), color:lColor(l.status), padding:'3px 11px', borderRadius:20, fontSize:11, fontWeight:700, textTransform:'capitalize', flexShrink:0}}>{l.status}</span>
+                        </div>
+                        <div style={{fontSize:12, color:'var(--text-secondary)'}}>{l.cuisine} · £{parseFloat(l.price || '0').toFixed(2)} · {l.order_count || 0} orders</div>
+                      </div>
                     </div>
-                    <div style={{flex:1, minWidth:0}}>
-                      <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.name}</div>
-                      <div style={{fontSize:12, color:'var(--text-secondary)'}}>{l.cuisine} · £{parseFloat(l.price || '0').toFixed(2)} · {l.order_count || 0} orders</div>
+
+                    {/* Existing change request */}
+                    {l.status === 'pending' && l.admin_note && (
+                      <div style={{background:'rgba(251,191,36,0.1)', border:'1px solid rgba(251,191,36,0.3)', borderRadius:10, padding:'8px 11px', marginTop:10}}>
+                        <div style={{fontSize:10, fontWeight:700, color:'#FBBF24', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:3}}>Changes requested</div>
+                        <div style={{fontSize:12, color:'var(--text-primary)', lineHeight:1.45}}>{l.admin_note}</div>
+                      </div>
+                    )}
+
+                    {/* Inline note editor */}
+                    {noteEditId === l.id && (
+                      <div style={{marginTop:10}}>
+                        <textarea
+                          value={noteVal}
+                          onChange={e => setNoteVal(e.target.value)}
+                          autoFocus
+                          rows={2}
+                          placeholder="What needs to be changed?"
+                          style={{width:'100%', padding:'9px 11px', border:'1px solid var(--border-subtle)', borderRadius:9, fontSize:12.5, color:'var(--text-primary)', background:'var(--bg-page)', outline:'none', resize:'vertical', lineHeight:1.5, fontFamily:'Inter,system-ui,sans-serif'}}
+                        />
+                        <div style={{display:'flex', gap:8, marginTop:7}}>
+                          <button onClick={() => updateListingStatus(l.id, 'pending', noteVal.trim())} disabled={!noteVal.trim() || busy} style={{height:34, padding:'0 14px', background:'#F59E0B', color:'#fff', border:'none', borderRadius:8, fontSize:12, fontWeight:700, cursor:!noteVal.trim() || busy ? 'not-allowed' : 'pointer', opacity:!noteVal.trim() || busy ? 0.55 : 1}}>{busy ? 'Sending…' : 'Send request'}</button>
+                          <button onClick={() => { setNoteEditId(null); setNoteVal('') }} disabled={busy} style={{height:34, padding:'0 12px', background:'transparent', color:'var(--text-secondary)', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer'}}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Actions + feedback */}
+                    <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:11}}>
+                      {l.status !== 'live' && (
+                        <button className="approve" onClick={() => updateListingStatus(l.id, 'live')} disabled={busy} style={{height:32, padding:'0 12px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:700, cursor:busy ? 'wait' : 'pointer', opacity:busy ? 0.6 : 1}}>Set Live</button>
+                      )}
+                      {noteEditId !== l.id && (
+                        <button className="reject" onClick={() => { setNoteEditId(l.id); setNoteVal(l.admin_note || ''); setModalMsg(null) }} disabled={busy} style={{height:32, padding:'0 12px', background:'#F59E0B', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:700, cursor:busy ? 'wait' : 'pointer', opacity:busy ? 0.6 : 1}}>Request changes</button>
+                      )}
+                      {l.status !== 'suspended' && (
+                        <button onClick={() => updateListingStatus(l.id, 'suspended')} disabled={busy} style={{height:32, padding:'0 12px', background:'#DC2626', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:700, cursor:busy ? 'wait' : 'pointer', opacity:busy ? 0.6 : 1}}>Suspend</button>
+                      )}
+                      {modalMsg?.id === l.id && <span style={{fontSize:12, fontWeight:700, color:'#34D399'}}>{modalMsg.text}</span>}
                     </div>
-                    <span style={{background:lBg(l.status), color:lColor(l.status), padding:'3px 11px', borderRadius:20, fontSize:11, fontWeight:700, textTransform:'capitalize', flexShrink:0}}>{l.status}</span>
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
