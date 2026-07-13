@@ -73,6 +73,7 @@ export interface Order {
   delivery_type: string | null
   delivery_address: string | null
   collection_code: string | null
+  collection_code_expires_at: string | null
   notes: string | null
   payment_status?: string | null
   stripe_payment_id?: string | null

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
@@ -45,6 +45,12 @@ export default function SellerOrders() {
   const [filter, setFilter] = useState('all')
   const [sellerId, setSellerId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [collectionOrder, setCollectionOrder] = useState<Order | null>(null)
+  const [collectionDigits, setCollectionDigits] = useState<string[]>(['', '', '', '', '', ''])
+  const [collectionGenerating, setCollectionGenerating] = useState(false)
+  const [collectionVerifying, setCollectionVerifying] = useState(false)
+  const [collectionError, setCollectionError] = useState('')
+  const digitRefs = useRef<Array<HTMLInputElement | null>>([])
   const router = useRouter()
 
   useEffect(() => {
@@ -141,6 +147,85 @@ export default function SellerOrders() {
       if (step.next === 'delivered') await supabase.rpc('award_loyalty_points', { p_order_id: order.id })
     }
     setUpdatingId(null)
+  }
+
+  // Stable ref-setters — one per input slot — so the JSX ref callback doesn't
+  // rebuild on every render.
+  const digitRefSetters = useMemo(
+    () => Array.from({ length: 6 }, (_, i) => (el: HTMLInputElement | null) => { digitRefs.current[i] = el }),
+    []
+  )
+
+  // Focus the first digit once the modal opens and the code has been generated.
+  useEffect(() => {
+    if (collectionOrder && !collectionGenerating) digitRefs.current[0]?.focus()
+  }, [collectionOrder, collectionGenerating])
+
+  // Collection code flow: for a ready + collection order, generate a code on
+  // the DB (which the buyer sees live via realtime) then open the verify modal.
+  const openCollection = async (order: Order) => {
+    setCollectionOrder(order)
+    setCollectionDigits(['', '', '', '', '', ''])
+    setCollectionError('')
+    setCollectionGenerating(true)
+    await supabase.rpc('generate_collection_code', { p_order_id: order.id })
+    setCollectionGenerating(false)
+  }
+
+  const closeCollection = () => {
+    setCollectionOrder(null)
+    setCollectionDigits(['', '', '', '', '', ''])
+    setCollectionError('')
+  }
+
+  const setDigit = (i: number, v: string) => {
+    const d = v.replace(/\D/g, '').slice(-1)
+    setCollectionDigits(prev => {
+      const next = [...prev]
+      next[i] = d
+      return next
+    })
+    if (d && i < 5) digitRefs.current[i + 1]?.focus()
+  }
+
+  const digitKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !collectionDigits[i] && i > 0) {
+      digitRefs.current[i - 1]?.focus()
+    } else if (e.key === 'ArrowLeft' && i > 0) {
+      digitRefs.current[i - 1]?.focus()
+    } else if (e.key === 'ArrowRight' && i < 5) {
+      digitRefs.current[i + 1]?.focus()
+    }
+  }
+
+  const digitPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!txt) return
+    e.preventDefault()
+    const next = ['', '', '', '', '', '']
+    for (let i = 0; i < txt.length; i++) next[i] = txt[i]
+    setCollectionDigits(next)
+    const focusIdx = Math.min(txt.length, 5)
+    digitRefs.current[focusIdx]?.focus()
+  }
+
+  const submitCollection = async () => {
+    if (!collectionOrder) return
+    const code = collectionDigits.join('')
+    if (code.length !== 6) { setCollectionError('Enter the full 6-digit code'); return }
+    setCollectionError('')
+    setCollectionVerifying(true)
+    const { data, error } = await supabase.rpc('verify_collection_code', { p_order_id: collectionOrder.id, p_code: code })
+    setCollectionVerifying(false)
+    if (error) { setCollectionError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
+    if (data === true) {
+      setOrders(prev => prev.map(o => o.id === collectionOrder.id ? { ...o, status: 'delivered', collection_code: null, collection_code_expires_at: null } : o))
+      closeCollection()
+    } else {
+      setCollectionError('Incorrect code, please try again')
+      setCollectionDigits(['', '', '', '', '', ''])
+      digitRefs.current[0]?.focus()
+    }
   }
 
   const statusColor = (s: string) => s === 'delivered' ? '#2DA84E' : s === 'cooking' ? '#B8730A' : s === 'ready' ? '#C8006A' : s === 'cancelled' ? '#C0392B' : '#1A6ECC'
@@ -372,11 +457,16 @@ export default function SellerOrders() {
                         </div>
                       </div>
                     </div>
-                    {step ? (
-                      <button onClick={() => advanceStatus(o)} disabled={updatingId === o.id} className="advance-btn" style={{flexShrink:0, height:46, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:13, fontWeight:700, cursor:updatingId === o.id ? 'not-allowed' : 'pointer', opacity:updatingId === o.id ? 0.7 : 1, boxShadow:'0 4px 14px rgba(200,0,106,0.28)', whiteSpace:'nowrap'}}>
-                        {updatingId === o.id ? 'Updating...' : step.label}
-                      </button>
-                    ) : (
+                    {step ? (() => {
+                      const isCollectionConfirm = o.status === 'ready' && o.delivery_type === 'collection'
+                      const label = isCollectionConfirm ? 'Confirm collection' : step.label
+                      const handler = () => isCollectionConfirm ? openCollection(o) : advanceStatus(o)
+                      return (
+                        <button onClick={handler} disabled={updatingId === o.id} className="advance-btn" style={{flexShrink:0, height:46, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:13, fontWeight:700, cursor:updatingId === o.id ? 'not-allowed' : 'pointer', opacity:updatingId === o.id ? 0.7 : 1, boxShadow:'0 4px 14px rgba(200,0,106,0.28)', whiteSpace:'nowrap'}}>
+                          {updatingId === o.id ? 'Updating...' : label}
+                        </button>
+                      )
+                    })() : (
                       <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:o.status === 'cancelled' ? '#FDECEA' : '#E4F6EA', color:o.status === 'cancelled' ? '#C0392B' : '#2DA84E', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
                         {o.status === 'cancelled' ? '✕ Cancelled' : '✓ Completed'}
                       </span>
@@ -388,6 +478,52 @@ export default function SellerOrders() {
           </div>
         )}
       </div>
+
+      {/* ── COLLECTION CODE MODAL ── */}
+      {collectionOrder && (
+        <div role="dialog" aria-modal="true" onClick={closeCollection} style={{position:'fixed', inset:0, background:'rgba(26,26,26,0.55)', backdropFilter:'blur(4px)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, width:'100%', maxWidth:460, boxShadow:'0 24px 68px rgba(0,0,0,0.3)', padding:'28px 28px 26px'}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Confirm collection</h2>
+              <button onClick={closeCollection} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'var(--bg-card)', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
+            </div>
+            <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.6, marginBottom:22}}>Ask the buyer for their <strong style={{color:'#C8006A'}}>6-digit collection code</strong> and enter it below to confirm the handover.</p>
+
+            <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16}}>
+              {collectionDigits.map((d, i) => (
+                <input
+                  key={i}
+                  ref={digitRefSetters[i]}
+                  value={d}
+                  onChange={e => setDigit(i, e.target.value)}
+                  onKeyDown={e => digitKeyDown(i, e)}
+                  onPaste={digitPaste}
+                  onFocus={e => e.currentTarget.select()}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={1}
+                  disabled={collectionGenerating || collectionVerifying}
+                  aria-label={`Digit ${i + 1}`}
+                  style={{width:48, height:60, borderRadius:12, border:collectionError ? '2px solid #C0392B' : '2px solid rgba(200,0,106,0.28)', background:'var(--bg-card)', fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#C8006A', textAlign:'center', outline:'none', letterSpacing:'-0.02em', boxShadow:'0 2px 8px rgba(200,0,106,0.08)'}}
+                />
+              ))}
+            </div>
+
+            {collectionGenerating && (
+              <div style={{textAlign:'center', fontSize:12.5, color:'var(--text-primary)', fontWeight:600, marginBottom:14, opacity:0.75}}>Generating code for the buyer…</div>
+            )}
+            {collectionError && (
+              <div role="alert" style={{background:'#FDECEA', border:'1px solid rgba(192,57,43,0.24)', borderRadius:10, padding:'10px 12px', fontSize:13, color:'#C0392B', fontWeight:600, marginBottom:14, textAlign:'center'}}>{collectionError}</div>
+            )}
+
+            <button onClick={submitCollection} disabled={collectionGenerating || collectionVerifying || collectionDigits.some(d => !d)} className="advance-btn" style={{width:'100%', height:50, background:collectionGenerating || collectionVerifying || collectionDigits.some(d => !d) ? '#E7D6E0' : '#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:collectionGenerating || collectionVerifying || collectionDigits.some(d => !d) ? 'not-allowed' : 'pointer', boxShadow:collectionGenerating || collectionVerifying || collectionDigits.some(d => !d) ? 'none' : '0 6px 18px rgba(200,0,106,0.28)'}}>
+              {collectionVerifying ? 'Verifying…' : 'Confirm'}
+            </button>
+
+            <p style={{fontSize:11.5, color:'var(--text-primary)', textAlign:'center', marginTop:12, opacity:0.6, lineHeight:1.5}}>The code is shown on the buyer&apos;s order page and expires in 30 minutes.</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
