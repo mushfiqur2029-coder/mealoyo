@@ -87,20 +87,25 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         .single()
       if (!listing) { setNotFound(true); setLoading(false); return }
       setListing(listing)
-      // The seller's postcode powers the distance-based delivery quote, but it's a
-      // profiles column that anon (and possibly other buyers) aren't granted to
-      // read — unlike full_name. Fetch it best-effort: a permission failure returns
-      // null and the quote simply falls back to the flat delivery fee. Previously
-      // it was requested inside the combined query above, so a denial errored the
-      // whole fetch and surfaced to the buyer as "Dish not found".
-      const { data: sellerPc } = await supabase
-        .from('profiles').select('postcode').eq('id', listing.seller_id).maybeSingle()
-      setSeller({ id: listing.seller_id, full_name: listing.profiles?.full_name ?? null, postcode: sellerPc?.postcode ?? null })
-      const { count } = await supabase
-        .from('orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('seller_id', listing.seller_id)
-      setOrderCount(count ?? 0)
+      // The seller's postcode powers the distance-based delivery quote, but the
+      // postcode column isn't granted for direct reads (that would expose every
+      // user's postcode). Fetch it best-effort via a definer RPC that exposes
+      // only a seller's postcode; a failure returns null and the quote falls back
+      // to the flat delivery fee.
+      const { data: sellerPc } = await supabase.rpc('get_seller_postcode', { p_seller_id: listing.seller_id })
+      setSeller({ id: listing.seller_id, full_name: listing.profiles?.full_name ?? null, postcode: typeof sellerPc === 'string' ? sellerPc : null })
+      // Cook's lifetime order count — a nice-to-have trust stat. The exact count
+      // over the orders table has been flaky (503s), so it's best-effort: any
+      // failure just leaves the stat at 0 and never blocks the page.
+      try {
+        const { count } = await supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('seller_id', listing.seller_id)
+        setOrderCount(count ?? 0)
+      } catch {
+        setOrderCount(0)
+      }
       if (user) {
         const { data: savedRow } = await supabase.from('saved_listings').select('id').eq('buyer_id', user.id).eq('listing_id', id).maybeSingle()
         if (savedRow) { setIsSaved(true); setSavedRowId(savedRow.id) }
@@ -109,7 +114,9 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
         const { data: balance } = await supabase.rpc('get_points_balance', { p_buyer_id: user.id })
         setPointsBalance(typeof balance === 'number' ? balance : 0)
         // Pull the buyer's saved delivery address so we can auto-fill checkout.
-        const { data: profileRow } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode').eq('id', user.id).maybeSingle()
+        // Address columns aren't granted for direct reads post-lockdown, so use
+        // the definer RPC that returns the caller's own full row.
+        const { data: profileRow } = await supabase.rpc('get_my_profile_full')
         if (profileRow?.address_line1) {
           const full = [profileRow.address_line1, profileRow.address_line2, profileRow.city, profileRow.postcode].filter(Boolean).join(', ')
           setSavedAddress(full)

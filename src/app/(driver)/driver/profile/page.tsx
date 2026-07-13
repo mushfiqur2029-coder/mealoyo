@@ -86,8 +86,10 @@ export default function DriverProfile() {
       setPhone(p?.phone || '')
       setEmail(p?.email || user.email || '')
       setStatus(p?.status || '')
-      // Address columns aren't part of the get_my_profile RPC, so read directly.
-      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode, avatar_url, bank_account_name, bank_sort_code, bank_account_number').eq('id', user.id).maybeSingle()
+      // Address + bank columns aren't part of the get_my_profile RPC, and aren't
+      // granted for direct reads post-lockdown, so read the caller's own full row
+      // via the definer RPC.
+      const { data: row } = await supabase.rpc('get_my_profile_full')
       setAddr1(row?.address_line1 || '')
       setAddr2(row?.address_line2 || '')
       setCity(row?.city || '')

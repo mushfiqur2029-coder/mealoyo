@@ -66,7 +66,9 @@ export default function DriverEarnings() {
       if (!user) { router.push('/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
-      const { data: bank } = await supabase.from('profiles').select('bank_account_name, bank_sort_code, bank_account_number').eq('id', user.id).maybeSingle()
+      // Bank columns aren't granted for direct reads post-lockdown — read the
+      // caller's own full row via the definer RPC.
+      const { data: bank } = await supabase.rpc('get_my_profile_full')
       setBank({ name: bank?.bank_account_name ?? null, sort: bank?.bank_sort_code ?? null, acct: bank?.bank_account_number ?? null })
       setBankSaved(!!(bank?.bank_account_name && bank?.bank_sort_code && bank?.bank_account_number))
       const { data } = await supabase

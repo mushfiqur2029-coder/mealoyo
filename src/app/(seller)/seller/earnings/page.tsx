@@ -61,9 +61,10 @@ export default function SellerEarnings() {
       if (!user) { router.push('/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
-      // Bank details aren't part of get_my_profile — read them directly to know
-      // whether a withdrawal can be requested.
-      const { data: bank } = await supabase.from('profiles').select('bank_account_name, bank_sort_code, bank_account_number').eq('id', user.id).maybeSingle()
+      // Bank details aren't part of get_my_profile and aren't granted for direct
+      // reads post-lockdown — read the caller's own full row via the definer RPC
+      // to know whether a withdrawal can be requested.
+      const { data: bank } = await supabase.rpc('get_my_profile_full')
       setBank({ name: bank?.bank_account_name ?? null, sort: bank?.bank_sort_code ?? null, acct: bank?.bank_account_number ?? null })
       setBankSaved(!!(bank?.bank_account_name && bank?.bank_sort_code && bank?.bank_account_number))
       const { data } = await supabase

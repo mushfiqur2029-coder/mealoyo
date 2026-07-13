@@ -78,7 +78,9 @@ export default function CompleteProfile() {
       // exception is a pending seller/driver registration: a new OAuth user's
       // profile can default to buyer, so we must NOT shortcut them past role
       // completion when they explicitly chose seller/driver.
-      const { data: profile } = await supabase.from('profiles').select('role, status, phone, full_name').eq('id', user.id).maybeSingle()
+      // role/status/phone aren't granted for direct reads post-lockdown; the
+      // get_my_profile RPC returns all of these identity columns for the caller.
+      const { data: profile } = await supabase.rpc('get_my_profile')
       if (profile?.full_name) setFullName(prev => prev || profile.full_name || '')
       if (profile?.phone) setPhone(profile.phone)
       if (profile?.role && !pendingRole) {

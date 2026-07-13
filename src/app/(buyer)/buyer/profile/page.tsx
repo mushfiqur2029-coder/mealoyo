@@ -57,8 +57,9 @@ export default function BuyerProfile() {
       setEmail(p?.email || user.email || '')
       setStatus(p?.status || 'active')
       // Address columns aren't part of the get_my_profile RPC's fixed column
-      // list, so read them straight from the row (own-row select).
-      const { data: row } = await supabase.from('profiles').select('address_line1, address_line2, city, postcode, avatar_url').eq('id', user.id).maybeSingle()
+      // list, and aren't granted for direct reads post-lockdown, so read the
+      // caller's own full row via the definer RPC.
+      const { data: row } = await supabase.rpc('get_my_profile_full')
       setAddr1(row?.address_line1 || '')
       setAddr2(row?.address_line2 || '')
       setCity(row?.city || '')

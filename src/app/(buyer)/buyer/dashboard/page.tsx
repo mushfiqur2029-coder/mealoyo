@@ -52,7 +52,10 @@ export default function BuyerDashboard() {
       setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
-      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url, referral_code').eq('id', user.id).maybeSingle()
+      // referral_code isn't granted for direct reads post-lockdown (which also
+      // fails the bundled avatar_url), so read the caller's own full row via the
+      // definer RPC.
+      const { data: avatarRow } = await supabase.rpc('get_my_profile_full')
       setAvatarUrl(avatarRow?.avatar_url || null)
       setReferralCode(avatarRow?.referral_code || null)
       // Credit a referrer captured from a ?ref= link on registration. Runs once,
