@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { useCartStore } from '@/lib/cartStore'
 import type { Profile, Order } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -38,6 +39,15 @@ export default function BuyerOrders() {
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+
+  // Stripe multi-item Checkout returns here with ?payment=success. Clear the
+  // cart — those items are now real orders. Runs once on mount so it fires
+  // regardless of whether Stripe or the buyer typed the URL manually.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('payment') === 'success') {
+      useCartStore.getState().clearCart()
+    }
+  }, [])
 
   useEffect(() => {
     const getData = async () => {

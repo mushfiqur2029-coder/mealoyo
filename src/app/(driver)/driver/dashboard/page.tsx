@@ -1,10 +1,11 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
+import { haversineDistance, lookupPostcode, isValidUKPostcode } from '@/lib/pricing'
 import type { Profile, Order } from '@/lib/types'
 
 const NAV = [
@@ -13,6 +14,26 @@ const NAV = [
   { l:'History', h:'/driver/history' },
   { l:'Profile', h:'/driver/profile' },
 ]
+
+// Rows returned by get_available_delivery_jobs — kept flat by the RPC.
+interface AvailableJob {
+  order_id: string
+  listing_name: string
+  seller_name: string
+  seller_address: string | null
+  seller_postcode: string | null
+  delivery_address: string | null
+  buyer_postcode: string | null
+  total_amount: string
+  delivery_fee: string
+  created_at: string
+}
+
+interface ActiveDelivery extends AvailableJob {
+  status: string
+  pickup_code: string | null
+  delivery_code: string | null
+}
 
 const dark = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -24,7 +45,6 @@ const dark = `
   ::-webkit-scrollbar { width: 0; height: 0; } * { scrollbar-width: none; -ms-overflow-style: none; }
   a { text-decoration: none; color: inherit; }
   button { font-family: Inter, system-ui, sans-serif; }
-  /* Map-inspired grid backdrop over near-black. */
   .map-bg { background-color: var(--bg-page); background-image:
     linear-gradient(rgba(200,0,106,0.05) 1px, transparent 1px),
     linear-gradient(90deg, rgba(200,0,106,0.05) 1px, transparent 1px),
@@ -35,12 +55,12 @@ const dark = `
   .nav-link:hover { color: var(--text-primary) !important; }
   .stat-card { transition: transform 0.18s, border-color 0.18s; }
   .stat-card:hover { transform: translateY(-2px); border-color: rgba(200,0,106,0.4) !important; }
-  .job:hover { border-color: rgba(200,0,106,0.5) !important; background: rgba(200,0,106,0.07) !important; transform: translateY(-2px); }
+  .job { transition: transform 0.18s cubic-bezier(0.34,1.2,0.64,1), border-color 0.18s, background 0.18s; }
+  .job:hover { border-color: rgba(200,0,106,0.5) !important; }
   .accept:hover { background: #2DA84E !important; transform: translateY(-1px); }
   .prim:hover { background: #A00055 !important; }
   .signout:hover { background: rgba(200,0,106,0.15) !important; color: var(--text-primary) !important; border-color: rgba(200,0,106,0.4) !important; }
   @media (max-width: 900px) { .nav-links { display: none !important; } .two-col { grid-template-columns: 1fr !important; } .col-right { position: static !important; } }
-  /* Stats: horizontal scroll strip on mobile, grid on desktop. */
   @media (max-width: 640px) {
     .dstats { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px; padding-bottom: 4px; }
     .dstats > * { flex: 0 0 42%; scroll-snap-align: start; }
@@ -51,11 +71,51 @@ const dark = `
 export default function DriverDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [orders, setOrders] = useState<Order[]>([])
+  const [historyOrders, setHistoryOrders] = useState<Order[]>([])
+  const [jobs, setJobs] = useState<AvailableJob[]>([])
+  const [active, setActive] = useState<ActiveDelivery[]>([])
   const [online, setOnline] = useState(true)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [acceptingId, setAcceptingId] = useState<string | null>(null)
+  const [acceptError, setAcceptError] = useState('')
+  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null)
+  // Handshake modals
+  const [pickupOrderId, setPickupOrderId] = useState<string | null>(null)
+  const [pickupDigits, setPickupDigits] = useState<string[]>(['', '', '', '', '', ''])
+  const [pickupVerifying, setPickupVerifying] = useState(false)
+  const [pickupError, setPickupError] = useState('')
+  const [deliverOrderId, setDeliverOrderId] = useState<string | null>(null)
+  const [deliverCode, setDeliverCode] = useState<string>('')
+  const [deliverDigits, setDeliverDigits] = useState<string[]>(['', '', '', '', '', ''])
+  const [deliverGenerating, setDeliverGenerating] = useState(false)
+  const [deliverVerifying, setDeliverVerifying] = useState(false)
+  const [deliverError, setDeliverError] = useState('')
+  const pickupRefs = useRef<Array<HTMLInputElement | null>>([])
+  const deliverRefs = useRef<Array<HTMLInputElement | null>>([])
   const router = useRouter()
+
+  // Stable ref-setters so React's rules-of-refs don't complain about creating
+  // callback refs during render.
+  const pickupRefSetters = useMemo(
+    () => Array.from({ length: 6 }, (_, i) => (el: HTMLInputElement | null) => { pickupRefs.current[i] = el }),
+    [],
+  )
+  const deliverRefSetters = useMemo(
+    () => Array.from({ length: 6 }, (_, i) => (el: HTMLInputElement | null) => { deliverRefs.current[i] = el }),
+    [],
+  )
+
+  // Fetch order + job feeds. Extracted so a poll / realtime / refresh button can
+  // reuse it without duplicating query logic.
+  const loadFeeds = useCallback(async () => {
+    const [{ data: available }, { data: mine }] = await Promise.all([
+      supabase.rpc('get_available_delivery_jobs'),
+      supabase.rpc('get_my_active_deliveries'),
+    ])
+    setJobs(((available as AvailableJob[] | null) || []))
+    setActive(((mine as ActiveDelivery[] | null) || []))
+  }, [])
 
   useEffect(() => {
     const getData = async () => {
@@ -66,28 +126,171 @@ export default function DriverDashboard() {
       const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
       setAvatarUrl(avatarRow?.avatar_url || null)
       const { data } = await supabase.from('orders').select('*, listings(name,cuisine)').eq('driver_id', user.id).eq('status', 'delivered').order('created_at', { ascending: false })
-      setOrders(data || [])
+      setHistoryOrders(data || [])
+      await loadFeeds()
       setLoading(false)
     }
     getData()
-  }, [router])
+  }, [router, loadFeeds])
 
-  // Live dispatch isn't built yet, so there are no real jobs to fetch. The
-  // refresh re-checks for newly available work (currently always none) without
-  // ever showing fake jobs.
-  const refreshJobs = async () => {
-    setRefreshing(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data } = await supabase.from('orders').select('*, listings(name,cuisine)').eq('driver_id', user.id).eq('status', 'delivered').order('created_at', { ascending: false })
-      setOrders(data || [])
+  // 30-second poll for new jobs while online. Cheap: RPC returns just the
+  // available/active rows, filtered server-side.
+  useEffect(() => {
+    if (!online) return
+    const t = setInterval(loadFeeds, 30000)
+    return () => clearInterval(t)
+  }, [online, loadFeeds])
+
+  // Realtime: any change to a ready-delivery order that isn't yet assigned
+  // could be a new job for us. Broad filter (INSERT+UPDATE), and we just
+  // re-fetch — the RPC's `where` clauses do the real filtering.
+  useEffect(() => {
+    const channel = supabase
+      .channel('driver-dispatch')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { loadFeeds() })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [loadFeeds])
+
+  // Best-effort browser geolocation → distance estimates on job cards. Fire
+  // once on mount; ignore denial.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 },
+    )
+  }, [])
+
+  const refreshJobs = async () => { setRefreshing(true); await loadFeeds(); setRefreshing(false) }
+
+  const acceptJob = async (jobId: string) => {
+    setAcceptingId(jobId); setAcceptError('')
+    const { error } = await supabase.rpc('accept_delivery_job', { p_order_id: jobId })
+    setAcceptingId(null)
+    if (error) {
+      setAcceptError(error.message.includes('no longer available') ? 'Job just taken by another driver' : (error.message.replace(/^.*?:\s*/, '') || 'Could not accept job'))
+      await loadFeeds()
+      return
     }
-    setRefreshing(false)
+    await loadFeeds()
+  }
+
+  // ── PICKUP CODE ENTRY (driver keys in what seller shows) ──
+  const openPickup = (orderId: string) => {
+    setPickupOrderId(orderId); setPickupDigits(['', '', '', '', '', '']); setPickupError('')
+    setTimeout(() => pickupRefs.current[0]?.focus(), 60)
+  }
+  const closePickup = () => { setPickupOrderId(null); setPickupDigits(['', '', '', '', '', '']); setPickupError('') }
+  const setPickupDigit = (i: number, v: string) => {
+    const d = v.replace(/\D/g, '').slice(-1)
+    setPickupDigits(p => { const n = [...p]; n[i] = d; return n })
+    if (d && i < 5) pickupRefs.current[i + 1]?.focus()
+  }
+  const pickupKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !pickupDigits[i] && i > 0) pickupRefs.current[i - 1]?.focus()
+    else if (e.key === 'ArrowLeft' && i > 0) pickupRefs.current[i - 1]?.focus()
+    else if (e.key === 'ArrowRight' && i < 5) pickupRefs.current[i + 1]?.focus()
+  }
+  const pickupPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!txt) return
+    e.preventDefault()
+    const next = ['', '', '', '', '', '']
+    for (let i = 0; i < txt.length; i++) next[i] = txt[i]
+    setPickupDigits(next)
+    pickupRefs.current[Math.min(txt.length, 5)]?.focus()
+  }
+  const submitPickup = async () => {
+    if (!pickupOrderId) return
+    const code = pickupDigits.join('')
+    if (code.length !== 6) { setPickupError('Enter the full 6-digit code'); return }
+    setPickupVerifying(true); setPickupError('')
+    const { data, error } = await supabase.rpc('verify_pickup_code', { p_order_id: pickupOrderId, p_code: code })
+    setPickupVerifying(false)
+    if (error) { setPickupError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
+    if (data === true) { await loadFeeds(); closePickup() }
+    else {
+      setPickupError('Incorrect code, please try again')
+      setPickupDigits(['', '', '', '', '', ''])
+      pickupRefs.current[0]?.focus()
+    }
+  }
+
+  // ── DELIVERY CODE (driver generates then verifies what buyer shows) ──
+  const openDeliver = async (orderId: string) => {
+    setDeliverOrderId(orderId); setDeliverDigits(['', '', '', '', '', '']); setDeliverError(''); setDeliverCode('')
+    setDeliverGenerating(true)
+    const { data, error } = await supabase.rpc('generate_delivery_code', { p_order_id: orderId })
+    setDeliverGenerating(false)
+    if (error) { setDeliverError(error.message.replace(/^.*?:\s*/, '') || 'Could not generate code'); return }
+    setDeliverCode(typeof data === 'string' ? data : '')
+    setTimeout(() => deliverRefs.current[0]?.focus(), 60)
+  }
+  const closeDeliver = () => { setDeliverOrderId(null); setDeliverDigits(['', '', '', '', '', '']); setDeliverError(''); setDeliverCode('') }
+  const setDeliverDigit = (i: number, v: string) => {
+    const d = v.replace(/\D/g, '').slice(-1)
+    setDeliverDigits(p => { const n = [...p]; n[i] = d; return n })
+    if (d && i < 5) deliverRefs.current[i + 1]?.focus()
+  }
+  const deliverKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !deliverDigits[i] && i > 0) deliverRefs.current[i - 1]?.focus()
+    else if (e.key === 'ArrowLeft' && i > 0) deliverRefs.current[i - 1]?.focus()
+    else if (e.key === 'ArrowRight' && i < 5) deliverRefs.current[i + 1]?.focus()
+  }
+  const deliverPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!txt) return
+    e.preventDefault()
+    const next = ['', '', '', '', '', '']
+    for (let i = 0; i < txt.length; i++) next[i] = txt[i]
+    setDeliverDigits(next)
+    deliverRefs.current[Math.min(txt.length, 5)]?.focus()
+  }
+  const submitDeliver = async () => {
+    if (!deliverOrderId) return
+    const code = deliverDigits.join('')
+    if (code.length !== 6) { setDeliverError('Enter the full 6-digit code'); return }
+    setDeliverVerifying(true); setDeliverError('')
+    const { data, error } = await supabase.rpc('verify_delivery_code', { p_order_id: deliverOrderId, p_code: code })
+    setDeliverVerifying(false)
+    if (error) { setDeliverError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
+    if (data === true) { await loadFeeds(); closeDeliver() }
+    else {
+      setDeliverError('Incorrect code, please try again')
+      setDeliverDigits(['', '', '', '', '', ''])
+      deliverRefs.current[0]?.focus()
+    }
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
-  // Compact toggle used in the nav; the prominent hero pill shares the same state.
+  // ── DERIVED (earnings summary uses delivered history) ──
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0)
+  const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - 6); startOfWeek.setHours(0, 0, 0, 0)
+  const todayOrders = historyOrders.filter(o => new Date(o.created_at) >= startOfToday)
+  const weekOrders = historyOrders.filter(o => new Date(o.created_at) >= startOfWeek)
+  const fee = (o: Order) => parseFloat(o.delivery_fee || '0')
+  const todayPay = todayOrders.reduce((s, o) => s + fee(o), 0)
+  const weekPay = weekOrders.reduce((s, o) => s + fee(o), 0)
+  const totalPay = historyOrders.reduce((s, o) => s + fee(o), 0)
+  const firstName = profile?.full_name?.split(' ')[0] || 'Driver'
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+
+  const stats = [
+    { icon:'📦', value:String(active.length), label:'Active now' },
+    { icon:'📅', value:String(todayOrders.length), label:'Drops today' },
+    { icon:'🗓️', value:String(weekOrders.length), label:'This week' },
+    { icon:'🟢', value:online ? 'Online' : 'Offline', label:'Status', color:online ? '#34D399' : 'var(--text-secondary)' },
+  ]
+  const heroFigs = [
+    { label:"Today's pay", value:todayPay, hl:true },
+    { label:'This week', value:weekPay, hl:false },
+    { label:'All time', value:totalPay, hl:false },
+  ]
+
   const toggle = (
     <button onClick={() => setOnline(o => !o)} aria-label="Toggle availability" style={{display:'flex', alignItems:'center', gap:9, height:36, padding:'0 6px 0 12px', borderRadius:100, border:`1px solid ${online ? 'rgba(52,211,153,0.4)' : 'var(--border-subtle)'}`, background:online ? 'rgba(52,211,153,0.12)' : 'var(--bg-card)', cursor:'pointer', transition:'all 0.2s'}}>
       <span style={{fontSize:12, fontWeight:700, color:online ? '#34D399' : 'var(--text-secondary)'}}>{online ? 'Online' : 'Offline'}</span>
@@ -124,9 +327,7 @@ export default function DriverDashboard() {
         <div className="skelD" style={{height:15, width:220, borderRadius:6, marginBottom:26}}/>
         <div className="skelD" style={{height:150, borderRadius:20, marginBottom:20}}/>
         <div className="dstats" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24}}>{Array.from({length:4}).map((_, i) => <div key={i} className="skelD" style={{height:104, borderRadius:16}}/>)}</div>
-        <div className="two-col" style={{display:'grid', gridTemplateColumns:'minmax(0,1.6fr) minmax(0,340px)', gap:20}}>
-          <div className="skelD" style={{height:340, borderRadius:18}}/><div className="skelD" style={{height:280, borderRadius:18}}/>
-        </div>
+        <div className="skelD" style={{height:340, borderRadius:18}}/>
       </div>
     </div>
   )
@@ -143,42 +344,24 @@ export default function DriverDashboard() {
     </div>
   )
 
-  // ── DERIVED ──
-  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0)
-  const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - 6); startOfWeek.setHours(0, 0, 0, 0)
-  const todayOrders = orders.filter(o => new Date(o.created_at) >= startOfToday)
-  const weekOrders = orders.filter(o => new Date(o.created_at) >= startOfWeek)
-  const fee = (o: Order) => parseFloat(o.delivery_fee || '0')
-  const todayPay = todayOrders.reduce((s, o) => s + fee(o), 0)
-  const weekPay = weekOrders.reduce((s, o) => s + fee(o), 0)
-  const totalPay = orders.reduce((s, o) => s + fee(o), 0)
-  const firstName = profile?.full_name?.split(' ')[0] || 'Driver'
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-
-  const stats = [
-    { icon:'📦', value:String(todayOrders.length), label:'Drops today', color:'var(--text-primary)' },
-    { icon:'🗓️', value:String(weekOrders.length), label:'This week', color:'var(--text-primary)' },
-    { icon:'🚴', value:String(orders.length), label:'Total drops', color:'var(--text-primary)' },
-    { icon:'🟢', value:online ? 'Online' : 'Offline', label:'Status', color:online ? '#34D399' : 'var(--text-secondary)' },
-  ]
-
-  const heroFigs = [
-    { label:"Today's pay", value:todayPay, hl:true },
-    { label:'This week', value:weekPay, hl:false },
-    { label:'All time', value:totalPay, hl:false },
-  ]
-
   return (
     <div className="map-bg" style={{minHeight:'100vh', fontFamily:'Inter,system-ui,sans-serif'}}>
       <style>{dark}</style>{nav}
       <div style={{maxWidth:1200, margin:'0 auto', padding:'28px 20px 72px'}}>
 
-        {/* Greeting + prominent online pill */}
+        {/* Greeting + online pill */}
         <div className="fade-up" style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, flexWrap:'wrap', marginBottom:22}}>
           <div>
             <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,32px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 🚴</h1>
-            <p style={{fontSize:14, color:'var(--text-secondary)'}}>{online ? "You're online — jobs near you will surface below." : "You're offline. Go online to start receiving jobs."}</p>
+            <p style={{fontSize:14, color:'var(--text-secondary)'}}>
+              {online
+                ? active.length > 0
+                  ? `${active.length} active ${active.length === 1 ? 'delivery' : 'deliveries'} · ${jobs.length} new ${jobs.length === 1 ? 'job' : 'jobs'} nearby`
+                  : jobs.length > 0
+                    ? `${jobs.length} delivery ${jobs.length === 1 ? 'job' : 'jobs'} available now`
+                    : "You're online — new jobs will surface below."
+                : "You're offline. Go online to start receiving jobs."}
+            </p>
           </div>
           <button onClick={() => setOnline(o => !o)} style={{display:'flex', alignItems:'center', gap:12, height:52, padding:'0 10px 0 20px', borderRadius:100, border:`1.5px solid ${online ? 'rgba(52,211,153,0.5)' : 'rgba(255,255,255,0.16)'}`, background:online ? 'rgba(52,211,153,0.14)' : 'var(--bg-card)', cursor:'pointer', transition:'all 0.2s'}}>
             <span style={{display:'flex', flexDirection:'column', alignItems:'flex-start', lineHeight:1.15}}>
@@ -214,66 +397,246 @@ export default function DriverDashboard() {
           {stats.map((s, i) => (
             <div key={i} className="stat-card" style={{background:'var(--bg-card)', borderRadius:16, padding:'18px', border:'1px solid var(--border-subtle)'}}>
               <div style={{fontSize:19, marginBottom:9}}>{s.icon}</div>
-              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,25px)', fontWeight:700, color:s.color, letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:'clamp(20px,2.4vw,25px)', fontWeight:700, color:s.color || 'var(--text-primary)', letterSpacing:'-0.02em', lineHeight:1}}>{s.value}</div>
               <div style={{fontSize:11, color:'var(--text-secondary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginTop:6}}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        <div className="two-col" style={{display:'grid', gridTemplateColumns:'minmax(0,1.6fr) minmax(0,340px)', gap:20, alignItems:'start'}}>
-
-          {/* Available jobs */}
-          <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
+        {/* My active deliveries (only if I have any) */}
+        {active.length > 0 && (
+          <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden', marginBottom:20}}>
             <div style={{padding:'18px 20px', borderBottom:'1px solid var(--bg-secondary)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Available jobs near you</h2>
-              {online && (
-                <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:32, padding:'0 14px', background:'rgba(200,0,106,0.16)', color:'var(--text-primary)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:8, fontSize:12, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.14s'}}>
-                  <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Refreshing…' : 'Refresh'}
-                </button>
-              )}
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>My active deliveries · <span style={{color:'#C8006A'}}>{active.length}</span></h2>
             </div>
-            {!online ? (
-              <div style={{padding:'48px 24px', textAlign:'center'}}>
-                <div style={{fontSize:40, marginBottom:12}}>🌙</div>
-                <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6}}>You&apos;re offline. Flip the switch to go online and see jobs.</p>
-              </div>
-            ) : (
-              <div style={{padding:'40px 24px 44px', textAlign:'center'}}>
-                {/* Pickup → dropoff visual (the shape live jobs will take) */}
-                <div style={{display:'flex', alignItems:'center', justifyContent:'center', gap:12, marginBottom:20, opacity:0.5}}>
-                  <div style={{width:44, height:44, borderRadius:12, background:'rgba(200,0,106,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20}}>🍲</div>
-                  <div style={{flex:'0 0 70px', height:2, borderTop:'2px dashed rgba(255,255,255,0.25)'}}/>
-                  <div style={{width:44, height:44, borderRadius:12, background:'rgba(52,211,153,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20}}>🏠</div>
-                </div>
-                <h3 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No jobs available right now</h3>
-                <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, maxWidth:360, margin:'0 auto 18px'}}>You&apos;re online and ready. New delivery jobs — with distance, estimated pay and pickup/drop-off — will appear here the moment nearby buyers order.</p>
-                <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:44, padding:'0 22px', background:'rgba(52,211,153,0.18)', color:'#34D399', border:'1px solid rgba(52,211,153,0.35)', borderRadius:10, fontSize:14, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'inline-flex', alignItems:'center', gap:8, transition:'all 0.14s'}}>
-                  <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Checking…' : 'Check for jobs'}
-                </button>
-              </div>
-            )}
+            <div style={{padding:'12px 16px 16px', display:'flex', flexDirection:'column', gap:12}}>
+              {active.map(a => {
+                const atSeller = a.status === 'ready' // driver needs to collect from cook
+                const atBuyer = a.status === 'picked_up' // driver at buyer, needs to hand over
+                return (
+                  <div key={a.order_id} className="job" style={{background:'var(--bg-page)', border:'1px solid var(--border-subtle)', borderRadius:14, padding:'16px 18px'}}>
+                    <div style={{display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap'}}>
+                      <div style={{flex:1, minWidth:0}}>
+                        <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>{a.listing_name}</div>
+                        <div style={{fontSize:12, color:'var(--text-secondary)', lineHeight:1.55}}>
+                          <div>🍲 Pickup: <strong style={{color:'var(--text-primary)'}}>{a.seller_name}</strong> · {a.seller_address || '—'}{a.seller_postcode ? ` · ${a.seller_postcode}` : ''}</div>
+                          <div>🏠 Drop-off: {a.delivery_address || '—'}</div>
+                        </div>
+                      </div>
+                      <div style={{textAlign:'right', flexShrink:0}}>
+                        <div style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{parseFloat(a.delivery_fee || '0').toFixed(2)}</div>
+                        <div style={{fontSize:10, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:3, fontWeight:700}}>You earn</div>
+                      </div>
+                    </div>
+                    <div style={{display:'flex', gap:10, alignItems:'center', marginTop:14, flexWrap:'wrap'}}>
+                      <span style={{background: atSeller ? 'rgba(24,110,204,0.16)' : 'rgba(122,63,176,0.16)', color: atSeller ? '#5AA3FA' : '#B389E8', padding:'5px 12px', borderRadius:100, fontSize:11.5, fontWeight:700}}>
+                        {atSeller ? '↳ Collect from cook' : '↳ Deliver to buyer'}
+                      </span>
+                      {atSeller && (
+                        <button onClick={() => openPickup(a.order_id)} className="accept" style={{marginLeft:'auto', height:40, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 12px rgba(200,0,106,0.28)'}}>
+                          Enter pickup code
+                        </button>
+                      )}
+                      {atBuyer && (
+                        <button onClick={() => openDeliver(a.order_id)} className="accept" style={{marginLeft:'auto', height:40, padding:'0 18px', background:'#34D399', color:'#0A1F14', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 12px rgba(52,211,153,0.28)'}}>
+                          Confirm delivery
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Available jobs */}
+        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
+          <div style={{padding:'18px 20px', borderBottom:'1px solid var(--bg-secondary)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Available jobs near you {jobs.length > 0 && <span style={{color:'#C8006A'}}>· {jobs.length}</span>}</h2>
+            <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:32, padding:'0 14px', background:'rgba(200,0,106,0.16)', color:'var(--text-primary)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:8, fontSize:12, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.14s'}}>
+              <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
           </div>
 
-          {/* Quick links (sticky) */}
-          <div className="col-right fade-up" style={{position:'sticky', top:84, display:'flex', flexDirection:'column', gap:16, minWidth:0}}>
-            <div style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
-              {[
-                { l:'My earnings', s:'Payouts & balance', i:'💷', h:'/driver/earnings' },
-                { l:'Delivery history', s:'Past drops', i:'🗂️', h:'/driver/history' },
-                { l:'Profile & bank', s:'Details & payout account', i:'⚙️', h:'/driver/profile' },
-              ].map((a, i, arr) => (
-                <Link key={i} href={a.h} className="job" style={{display:'flex', alignItems:'center', gap:13, padding:'14px 18px', borderBottom:i < arr.length - 1 ? '1px solid var(--bg-secondary)' : 'none', transition:'all 0.14s'}}>
-                  <div style={{width:38, height:38, borderRadius:10, background:'rgba(200,0,106,0.16)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, flexShrink:0}}>{a.i}</div>
-                  <div style={{flex:1, minWidth:0}}>
-                    <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)'}}>{a.l}</div>
-                    <div style={{fontSize:12, color:'var(--text-secondary)', marginTop:1}}>{a.s}</div>
-                  </div>
-                  <span style={{fontSize:16, color:'#C8006A', flexShrink:0}}>→</span>
-                </Link>
+          {acceptError && (
+            <div role="alert" style={{margin:'14px 20px 0', background:'rgba(200,0,106,0.14)', border:'1px solid rgba(200,0,106,0.4)', borderRadius:10, padding:'10px 14px', fontSize:13, color:'#FF8AC4', fontWeight:700}}>{acceptError}</div>
+          )}
+
+          {!online ? (
+            <div style={{padding:'48px 24px', textAlign:'center'}}>
+              <div style={{fontSize:40, marginBottom:12}}>🌙</div>
+              <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6}}>You&apos;re offline. Flip the switch to see jobs.</p>
+            </div>
+          ) : jobs.length === 0 ? (
+            <div style={{padding:'44px 24px', textAlign:'center'}}>
+              <div style={{fontSize:40, marginBottom:12}}>📭</div>
+              <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No delivery jobs available right now</h3>
+              <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, maxWidth:360, margin:'0 auto'}}>You&apos;ll be notified the moment a nearby cook marks a delivery order ready.</p>
+            </div>
+          ) : (
+            <div style={{padding:'12px 16px 16px', display:'flex', flexDirection:'column', gap:12}}>
+              {jobs.map(j => (
+                <JobCard
+                  key={j.order_id}
+                  job={j}
+                  myLocation={myLocation}
+                  onAccept={() => acceptJob(j.order_id)}
+                  accepting={acceptingId === j.order_id}
+                />
               ))}
             </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* ── PICKUP CODE ENTRY MODAL ── */}
+      {pickupOrderId && (
+        <div role="dialog" aria-modal="true" onClick={closePickup} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(4px)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, width:'100%', maxWidth:460, boxShadow:'0 24px 68px rgba(0,0,0,0.5)', padding:'28px 28px 26px', border:'1px solid var(--border-subtle)'}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Pickup code</h2>
+              <button onClick={closePickup} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
+            </div>
+            <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:22}}>Ask the cook for their <strong style={{color:'#C8006A'}}>6-digit pickup code</strong> and enter it below.</p>
+            <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16}}>
+              {pickupDigits.map((d, i) => (
+                <input
+                  key={i}
+                  ref={pickupRefSetters[i]}
+                  value={d}
+                  onChange={e => setPickupDigit(i, e.target.value)}
+                  onKeyDown={e => pickupKeyDown(i, e)}
+                  onPaste={pickupPaste}
+                  onFocus={e => e.currentTarget.select()}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={1}
+                  disabled={pickupVerifying}
+                  aria-label={`Digit ${i + 1}`}
+                  style={{width:48, height:60, borderRadius:12, border:pickupError ? '2px solid #C0392B' : '2px solid rgba(200,0,106,0.35)', background:'var(--bg-page)', fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#C8006A', textAlign:'center', outline:'none', letterSpacing:'-0.02em'}}
+                />
+              ))}
+            </div>
+            {pickupError && <div role="alert" style={{background:'rgba(192,57,43,0.14)', border:'1px solid rgba(192,57,43,0.35)', borderRadius:10, padding:'10px 12px', fontSize:13, color:'#FF8A8A', fontWeight:600, marginBottom:14, textAlign:'center'}}>{pickupError}</div>}
+            <button onClick={submitPickup} disabled={pickupVerifying || pickupDigits.some(d => !d)} className="prim" style={{width:'100%', height:50, background:pickupVerifying || pickupDigits.some(d => !d) ? '#4A2A38' : '#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:pickupVerifying || pickupDigits.some(d => !d) ? 'not-allowed' : 'pointer'}}>
+              {pickupVerifying ? 'Verifying…' : 'Confirm pickup'}
+            </button>
           </div>
         </div>
+      )}
+
+      {/* ── DELIVERY CODE MODAL (generate then verify) ── */}
+      {deliverOrderId && (
+        <div role="dialog" aria-modal="true" onClick={closeDeliver} style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', backdropFilter:'blur(4px)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, width:'100%', maxWidth:460, boxShadow:'0 24px 68px rgba(0,0,0,0.5)', padding:'28px 28px 26px', border:'1px solid var(--border-subtle)'}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Confirm delivery</h2>
+              <button onClick={closeDeliver} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
+            </div>
+            <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:18}}>
+              A <strong style={{color:'#C8006A'}}>6-digit code</strong> has been sent to the buyer&apos;s app. Ask them to read it out to you and enter it below.
+            </p>
+            {deliverGenerating && <div style={{fontSize:12, color:'var(--text-secondary)', textAlign:'center', marginBottom:14, fontWeight:600}}>Sending code to buyer…</div>}
+            {deliverCode && (
+              <div style={{fontSize:12, color:'var(--text-secondary)', textAlign:'center', marginBottom:14, fontWeight:600, opacity:0.7}}>(Buyer&apos;s copy — for your reference only: {deliverCode})</div>
+            )}
+            <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16}}>
+              {deliverDigits.map((d, i) => (
+                <input
+                  key={i}
+                  ref={deliverRefSetters[i]}
+                  value={d}
+                  onChange={e => setDeliverDigit(i, e.target.value)}
+                  onKeyDown={e => deliverKeyDown(i, e)}
+                  onPaste={deliverPaste}
+                  onFocus={e => e.currentTarget.select()}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={1}
+                  disabled={deliverVerifying || deliverGenerating}
+                  aria-label={`Digit ${i + 1}`}
+                  style={{width:48, height:60, borderRadius:12, border:deliverError ? '2px solid #C0392B' : '2px solid rgba(52,211,153,0.4)', background:'var(--bg-page)', fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#34D399', textAlign:'center', outline:'none', letterSpacing:'-0.02em'}}
+                />
+              ))}
+            </div>
+            {deliverError && <div role="alert" style={{background:'rgba(192,57,43,0.14)', border:'1px solid rgba(192,57,43,0.35)', borderRadius:10, padding:'10px 12px', fontSize:13, color:'#FF8A8A', fontWeight:600, marginBottom:14, textAlign:'center'}}>{deliverError}</div>}
+            <button onClick={submitDeliver} disabled={deliverVerifying || deliverGenerating || deliverDigits.some(d => !d)} className="accept" style={{width:'100%', height:50, background:deliverVerifying || deliverGenerating || deliverDigits.some(d => !d) ? '#264130' : '#34D399', color:'#0A1F14', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:deliverVerifying || deliverGenerating || deliverDigits.some(d => !d) ? 'not-allowed' : 'pointer'}}>
+              {deliverVerifying ? 'Verifying…' : 'Confirm delivered'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// One job card. Kept as a small component so the distance calc can look up the
+// seller's postcode async without re-rendering the whole list.
+function JobCard({ job, myLocation, onAccept, accepting }: {
+  job: AvailableJob
+  myLocation: { lat: number; lng: number } | null
+  onAccept: () => void
+  accepting: boolean
+}) {
+  const [distance, setDistance] = useState<number | null>(null)
+  // "now" snapshot for the placed-ago label — refreshed once a minute so the
+  // label doesn't drift, but never read directly during render (React 19's
+  // rules-of-purity forbids Date.now() at render time).
+  const [now, setNow] = useState<number | null>(null)
+  useEffect(() => {
+    // Kick the first read on the next frame so React 19's rules-of-effects
+    // don't flag a synchronous setState inside the effect body.
+    const raf = requestAnimationFrame(() => setNow(Date.now()))
+    const t = setInterval(() => setNow(Date.now()), 60000)
+    return () => { cancelAnimationFrame(raf); clearInterval(t) }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      if (!myLocation || !job.seller_postcode || !isValidUKPostcode(job.seller_postcode)) return
+      const sellerLoc = await lookupPostcode(job.seller_postcode)
+      if (!alive || !sellerLoc) return
+      setDistance(haversineDistance(myLocation.lat, myLocation.lng, sellerLoc.latitude, sellerLoc.longitude))
+    })()
+    return () => { alive = false }
+  }, [myLocation, job.seller_postcode])
+
+  const placedAgo = (() => {
+    if (now === null) return 'just now'
+    const mins = Math.max(1, Math.round((now - new Date(job.created_at).getTime()) / 60000))
+    if (mins < 60) return `${mins} min ago`
+    const hrs = Math.round(mins / 60)
+    return `${hrs}h ago`
+  })()
+
+  return (
+    <div className="job" style={{background:'var(--bg-page)', border:'1px solid var(--border-subtle)', borderRadius:14, padding:'16px 18px'}}>
+      <div style={{display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap'}}>
+        <div style={{flex:1, minWidth:0}}>
+          <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap'}}>
+            <span style={{fontSize:15, fontWeight:700, color:'var(--text-primary)'}}>{job.listing_name}</span>
+            <span style={{background:'rgba(200,0,106,0.16)', color:'#FF8AC4', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:100}}>{placedAgo}</span>
+            {distance !== null && (
+              <span style={{background:'rgba(52,211,153,0.14)', color:'#34D399', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:100}}>~{distance.toFixed(1)} mi away</span>
+            )}
+          </div>
+          <div style={{fontSize:12, color:'var(--text-secondary)', lineHeight:1.6}}>
+            <div>🍲 <strong style={{color:'var(--text-primary)'}}>{job.seller_name}</strong> · {job.seller_address || '—'}{job.seller_postcode ? ` · ${job.seller_postcode}` : ''}</div>
+            <div>🏠 To: {job.delivery_address || '—'}</div>
+          </div>
+        </div>
+        <div style={{textAlign:'right', flexShrink:0}}>
+          <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{parseFloat(job.delivery_fee || '0').toFixed(2)}</div>
+          <div style={{fontSize:10, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:3, fontWeight:700}}>You earn</div>
+        </div>
+      </div>
+      <div style={{marginTop:14, display:'flex', justifyContent:'flex-end'}}>
+        <button onClick={onAccept} disabled={accepting} className="accept" style={{height:42, padding:'0 22px', background:'#34D399', color:'#0A1F14', border:'none', borderRadius:11, fontSize:14, fontWeight:800, cursor:accepting ? 'wait' : 'pointer', boxShadow:'0 4px 14px rgba(52,211,153,0.28)', opacity:accepting ? 0.7 : 1}}>
+          {accepting ? 'Accepting…' : 'Accept job →'}
+        </button>
       </div>
     </div>
   )

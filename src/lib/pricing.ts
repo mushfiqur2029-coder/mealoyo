@@ -88,3 +88,57 @@ export async function lookupPostcode(pc: string): Promise<{ latitude: number; lo
     return null
   }
 }
+
+// Extended postcodes.io lookup returning administrative fields we use to
+// auto-fill address forms (city). postcodes.io has no street-level data —
+// address_line1/2 must still be typed manually.
+export interface PostcodeAddress {
+  postcode: string
+  city: string | null
+  region: string | null
+  country: string | null
+  latitude: number
+  longitude: number
+}
+export async function lookupPostcodeAddress(pc: string): Promise<PostcodeAddress | null> {
+  try {
+    const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc.trim())}`)
+    if (!res.ok) return null
+    const json = await res.json()
+    if (json?.status !== 200 || !json?.result) return null
+    const r = json.result
+    if (typeof r.latitude !== 'number' || typeof r.longitude !== 'number') return null
+    return {
+      postcode: r.postcode,
+      city: r.admin_district ?? r.admin_ward ?? r.parish ?? null,
+      region: r.region ?? null,
+      country: r.country ?? null,
+      latitude: r.latitude,
+      longitude: r.longitude,
+    }
+  } catch {
+    return null
+  }
+}
+
+// Reverse geocode a coordinate to the nearest postcode. Used by the "use my
+// location" button on delivery / profile forms.
+export async function reverseGeocodePostcode(lat: number, lng: number): Promise<PostcodeAddress | null> {
+  try {
+    const res = await fetch(`https://api.postcodes.io/postcodes?lon=${lng}&lat=${lat}`)
+    if (!res.ok) return null
+    const json = await res.json()
+    if (json?.status !== 200 || !Array.isArray(json?.result) || !json.result.length) return null
+    const r = json.result[0]
+    return {
+      postcode: r.postcode,
+      city: r.admin_district ?? r.admin_ward ?? r.parish ?? null,
+      region: r.region ?? null,
+      country: r.country ?? null,
+      latitude: r.latitude,
+      longitude: r.longitude,
+    }
+  } catch {
+    return null
+  }
+}

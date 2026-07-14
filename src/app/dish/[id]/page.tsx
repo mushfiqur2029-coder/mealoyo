@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import CartButton from '@/components/CartButton'
+import PostcodeLookup from '@/components/PostcodeLookup'
 import { isValidUKPostcode, lookupPostcode, haversineDistance, deliveryFeeForDistance, serviceFee, FLAT_DELIVERY_FEE } from '@/lib/pricing'
 import { pointsToPounds, maxRedeemablePounds, poundsToPoints } from '@/lib/loyalty'
 import type { User, Listing, Profile } from '@/lib/types'
@@ -417,6 +418,16 @@ export default function DishPage({ params }: { params: Promise<{ id: string }> }
           <label style={{fontSize:11, fontWeight:700, color:'var(--text-primary)', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:6}}>Delivery postcode</label>
           <input value={buyerPostcode} onChange={e => setBuyerPostcode(e.target.value)} placeholder="e.g. E3 4SS" autoCapitalize="characters"
             style={{width:'100%', height:42, border:'1.5px solid var(--border-subtle)', borderRadius:10, padding:'0 14px', fontSize:14, color:'var(--text-primary)', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif', outline:'none', textTransform:'uppercase'}}/>
+          <PostcodeLookup
+            postcode={buyerPostcode}
+            onResolved={({ postcode: pc, city }) => {
+              setBuyerPostcode(pc.toUpperCase())
+              // If the buyer hasn't typed a full address yet, seed the city so the
+              // delivery textarea isn't blank on first use of "Use my location".
+              if (!address.trim() && city) setAddress(city)
+            }}
+            compact
+          />
           {/* Live distance/fee feedback */}
           {quote.status === 'checking' && <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.7, marginTop:7}}>Checking distance…</p>}
           {quote.status === 'invalid' && <p style={{fontSize:12, color:'#C8006A', fontWeight:600, marginTop:7}}>Enter a valid UK postcode.</p>}

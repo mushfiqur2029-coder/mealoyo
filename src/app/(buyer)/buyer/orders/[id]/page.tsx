@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { useCartStore } from '@/lib/cartStore'
 import type { Order, Listing, Profile } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -62,9 +63,11 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const router = useRouter()
 
   // Celebrate a fresh Stripe payment when Checkout redirects back with
-  // ?payment=success. Read from the URL directly to avoid a Suspense boundary.
+  // ?payment=success. Also clear the cart — the checkout that produced this
+  // order has finished, so anything left in the local cart is stale.
   useEffect(() => {
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('payment') === 'success') {
+      useCartStore.getState().clearCart()
       const id = requestAnimationFrame(() => setPaymentSuccess(true))
       return () => cancelAnimationFrame(id)
     }
@@ -109,12 +112,14 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
     getData()
   }, [id, router])
 
-  // Ticker for the collection-code expiry countdown.
+  // Ticker for whichever handover-code countdown is currently visible.
   useEffect(() => {
-    if (order?.status !== 'ready' || order?.delivery_type !== 'collection' || !order?.collection_code_expires_at) return
+    const collectionActive = order?.status === 'ready' && order?.delivery_type === 'collection' && !!order?.collection_code_expires_at
+    const deliveryActive = order?.status === 'picked_up' && order?.delivery_type === 'delivery' && !!order?.delivery_code_expires_at
+    if (!collectionActive && !deliveryActive) return
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
-  }, [order?.status, order?.delivery_type, order?.collection_code_expires_at])
+  }, [order?.status, order?.delivery_type, order?.collection_code_expires_at, order?.delivery_code_expires_at])
 
   // ── REALTIME: live status updates from the seller, no refresh needed ──
   useEffect(() => {
@@ -271,6 +276,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const subtotal = total - deliveryFee - serviceFeeAmt
   const isDelivery = order.delivery_type === 'delivery'
   const showCollectionCode = order.status === 'ready' && order.delivery_type === 'collection'
+  const showDeliveryCode = order.status === 'picked_up' && order.delivery_type === 'delivery'
 
   return (
     <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -336,6 +342,47 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
           {/* ── LEFT COLUMN ── */}
           <div className="fade-up">
+
+            {/* Delivery code — delivery-only, shown once the driver has picked up */}
+            {showDeliveryCode && (() => {
+              const code = order.delivery_code
+              const expiresMs = order.delivery_code_expires_at ? new Date(order.delivery_code_expires_at).getTime() - now : 0
+              const expired = code && expiresMs <= 0
+              const totalSec = Math.max(0, Math.floor(expiresMs / 1000))
+              const mm = Math.floor(totalSec / 60).toString().padStart(2, '0')
+              const ss = (totalSec % 60).toString().padStart(2, '0')
+              return (
+                <div style={{background:'linear-gradient(135deg,#FFF0F8 0%,#FFE8F4 100%)', borderRadius:20, padding:'26px 24px', marginBottom:16, border:'1.5px solid rgba(200,0,106,0.22)', boxShadow:'0 6px 22px rgba(200,0,106,0.14)'}}>
+                  <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:14}}>
+                    <span style={{width:38, height:38, borderRadius:11, background:'#C8006A', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0}}>🛵</span>
+                    <div>
+                      <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.01em'}}>Your driver is on the way!</div>
+                      <div style={{fontSize:13, color:'#8B0047', fontWeight:600, marginTop:2}}>Show this code to your driver to confirm delivery</div>
+                    </div>
+                  </div>
+
+                  {code ? (
+                    <>
+                      <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:14, flexWrap:'wrap'}}>
+                        {code.split('').map((d, i) => (
+                          <span key={i} style={{width:52, height:64, borderRadius:12, background:'var(--bg-card)', border:'2px solid rgba(200,0,106,0.3)', boxShadow:'0 2px 10px rgba(200,0,106,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>{d}</span>
+                        ))}
+                      </div>
+                      <div style={{textAlign:'center', fontSize:13, fontWeight:700, color:expired ? '#C0392B' : '#8B0047'}}>
+                        {expired ? '⚠ Code expired — ask the driver to generate a new one' : `Code expires in ${mm}:${ss}`}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{textAlign:'center', padding:'22px 8px'}}>
+                      <div style={{display:'inline-flex', alignItems:'center', gap:8, background:'rgba(255,255,255,0.65)', border:'1.5px solid rgba(200,0,106,0.2)', borderRadius:100, padding:'10px 18px', fontSize:13.5, fontWeight:700, color:'#8B0047'}}>
+                        <span style={{display:'inline-block', width:8, height:8, borderRadius:'50%', background:'#C8006A', animation:'pulseDot 1.6s ease-out infinite'}}/>
+                        Waiting for driver to generate your delivery code…
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Collection code — pickup-only, shown once the cook marks the order ready */}
             {showCollectionCode && (() => {

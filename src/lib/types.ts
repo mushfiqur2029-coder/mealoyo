@@ -74,6 +74,10 @@ export interface Order {
   delivery_address: string | null
   collection_code: string | null
   collection_code_expires_at: string | null
+  pickup_code: string | null
+  pickup_code_expires_at: string | null
+  delivery_code: string | null
+  delivery_code_expires_at: string | null
   notes: string | null
   payment_status?: string | null
   stripe_payment_id?: string | null

@@ -7,6 +7,7 @@ import Logo from '@/components/Logo'
 import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
 import ThemeToggle from '@/components/ThemeToggle'
+import PostcodeLookup from '@/components/PostcodeLookup'
 import { isValidUKPostcode, formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
@@ -299,6 +300,13 @@ export default function SellerProfile() {
           <div>
             <label style={labelStyle}>Postcode *</label>
             <input value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. E3 4SS" autoCapitalize="characters" style={{...inputStyle, textTransform:'uppercase'}}/>
+            <PostcodeLookup
+              postcode={postcode}
+              onResolved={({ postcode: pc, city: c }) => {
+                setPostcode(pc.toUpperCase())
+                if (c) setCity(c)
+              }}
+            />
             <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6, marginTop:6}}>Your postcode is used to calculate delivery distance for buyers.</p>
           </div>
           <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>

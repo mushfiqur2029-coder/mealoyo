@@ -16,9 +16,11 @@ function normalizeDelivery(d: Listing['delivery_options']): string[] {
 }
 
 /**
- * Add-to-cart button for listing cards. Lives inside a card-wide <Link>, so it
- * stops propagation. Handles the cross-seller confirm and shows a brief
- * "Added ✓" state. `compact` renders a smaller pill for the browse rails.
+ * Card-level add-to-cart control. Sits inside a card-wide <Link> so all events
+ * stop propagation. After the first add it flashes "Added ✓" for 1.5s and then
+ * morphs into a compact [− qty +] stepper reflecting the live cart quantity —
+ * so buyers can adjust without opening the cart panel. Cross-seller adds still
+ * fire the confirm-and-clear flow the store exposes.
  */
 export default function AddToCartButton({
   l,
@@ -29,6 +31,9 @@ export default function AddToCartButton({
 }) {
   const addItem = useCartStore((s) => s.addItem)
   const clearCart = useCartStore((s) => s.clearCart)
+  const updateQuantity = useCartStore((s) => s.updateQuantity)
+  const inCart = useCartStore((s) => s.items.find((i) => i.listingId === l.id))
+  const currentQty = inCart?.quantity ?? 0
   const [added, setAdded] = useState(false)
 
   const buildItem = () => ({
@@ -48,9 +53,10 @@ export default function AddToCartButton({
     setTimeout(() => setAdded(false), 1500)
   }
 
+  const stop = (e: React.MouseEvent | React.TouchEvent) => { e.preventDefault(); e.stopPropagation() }
+
   const onAdd = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+    stop(e)
     const item = buildItem()
     const res = addItem(item)
     if (res.needsConfirm) {
@@ -64,13 +70,103 @@ export default function AddToCartButton({
     flashAdded()
   }
 
+  const dec = (e: React.MouseEvent) => { stop(e); updateQuantity(l.id, currentQty - 1) }
+  const inc = (e: React.MouseEvent) => { stop(e); updateQuantity(l.id, currentQty + 1) }
+
+  const height = compact ? 36 : 34
+  const width = compact ? '100%' : undefined
+
+  // Post-add stepper: shown when the item is in the cart AND we've cleared the
+  // "Added ✓" flash. Same footprint as the add button.
+  if (currentQty > 0 && !added) {
+    return (
+      <div
+        onClick={stop}
+        role="group"
+        aria-label={`${l.name} quantity`}
+        style={{
+          height,
+          width,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 4,
+          padding: '0 4px',
+          background: '#FFE8F4',
+          border: '1.5px solid rgba(200,0,106,0.28)',
+          borderRadius: 9,
+          boxShadow: '0 4px 12px rgba(200,0,106,0.18)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={dec}
+          aria-label="Decrease quantity"
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            border: 'none',
+            background: 'transparent',
+            fontSize: 18,
+            fontWeight: 800,
+            color: '#C8006A',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            lineHeight: 1,
+          }}
+        >
+          −
+        </button>
+        <span
+          aria-live="polite"
+          style={{
+            fontFamily: 'Georgia,serif',
+            fontSize: 15,
+            fontWeight: 700,
+            color: '#C8006A',
+            minWidth: 20,
+            textAlign: 'center',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {currentQty}
+        </span>
+        <button
+          type="button"
+          onClick={inc}
+          aria-label="Increase quantity"
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            border: 'none',
+            background: '#C8006A',
+            color: '#fff',
+            fontSize: 16,
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            lineHeight: 1,
+          }}
+        >
+          +
+        </button>
+      </div>
+    )
+  }
+
   return (
     <button
       onClick={onAdd}
       className="order-btn"
       style={{
-        height: compact ? 36 : 34,
-        width: compact ? '100%' : undefined,
+        height,
+        width,
         padding: compact ? '0' : '0 16px',
         background: added ? '#2DA84E' : '#C8006A',
         color: '#fff',

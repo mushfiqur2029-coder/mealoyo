@@ -50,6 +50,11 @@ export default function SellerOrders() {
   const [collectionGenerating, setCollectionGenerating] = useState(false)
   const [collectionVerifying, setCollectionVerifying] = useState(false)
   const [collectionError, setCollectionError] = useState('')
+  // Pickup handshake — seller generates and SHOWS a code to the driver.
+  const [pickupOrder, setPickupOrder] = useState<Order | null>(null)
+  const [pickupCode, setPickupCode] = useState<string>('')
+  const [pickupGenerating, setPickupGenerating] = useState(false)
+  const [pickupError, setPickupError] = useState('')
   const digitRefs = useRef<Array<HTMLInputElement | null>>([])
   const router = useRouter()
 
@@ -177,6 +182,20 @@ export default function SellerOrders() {
     setCollectionDigits(['', '', '', '', '', ''])
     setCollectionError('')
   }
+
+  // Pickup code flow (seller side): for a ready + delivery order with a driver
+  // assigned, generate the code the driver will key into their own app.
+  const openPickup = async (order: Order) => {
+    setPickupOrder(order)
+    setPickupCode('')
+    setPickupError('')
+    setPickupGenerating(true)
+    const { data, error } = await supabase.rpc('generate_pickup_code', { p_order_id: order.id })
+    setPickupGenerating(false)
+    if (error) { setPickupError(error.message.replace(/^.*?:\s*/, '') || 'Could not generate code'); return }
+    setPickupCode(typeof data === 'string' ? data : '')
+  }
+  const closePickup = () => { setPickupOrder(null); setPickupCode(''); setPickupError('') }
 
   const setDigit = (i: number, v: string) => {
     const d = v.replace(/\D/g, '').slice(-1)
@@ -459,8 +478,28 @@ export default function SellerOrders() {
                     </div>
                     {step ? (() => {
                       const isCollectionConfirm = o.status === 'ready' && o.delivery_type === 'collection'
-                      const label = isCollectionConfirm ? 'Confirm collection' : step.label
-                      const handler = () => isCollectionConfirm ? openCollection(o) : advanceStatus(o)
+                      // Ready + delivery: if a driver is assigned, seller shows a
+                      // pickup code to them. If no driver yet, the button is idle
+                      // (dispatch handles assignment).
+                      const isDeliveryReady = o.status === 'ready' && o.delivery_type === 'delivery'
+                      const isPickupHandoff = isDeliveryReady && !!o.driver_id
+                      const waitingForDriver = isDeliveryReady && !o.driver_id
+                      let label = step.label
+                      let handler = () => advanceStatus(o)
+                      if (isCollectionConfirm) { label = 'Confirm collection'; handler = () => openCollection(o) }
+                      else if (isPickupHandoff) { label = 'Show pickup code'; handler = () => openPickup(o) }
+                      // Delivery + status=picked_up: driver owns the drop, so
+                      // seller has nothing to do — hide the advance button.
+                      if (o.delivery_type === 'delivery' && o.status === 'picked_up') return (
+                        <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:'#F2EAFA', color:'#7A3FB0', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
+                          🚴 Driver has it
+                        </span>
+                      )
+                      if (waitingForDriver) return (
+                        <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:'#EBF2FD', color:'#1A6ECC', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
+                          ⏳ Waiting for driver
+                        </span>
+                      )
                       return (
                         <button onClick={handler} disabled={updatingId === o.id} className="advance-btn" style={{flexShrink:0, height:46, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:13, fontWeight:700, cursor:updatingId === o.id ? 'not-allowed' : 'pointer', opacity:updatingId === o.id ? 0.7 : 1, boxShadow:'0 4px 14px rgba(200,0,106,0.28)', whiteSpace:'nowrap'}}>
                           {updatingId === o.id ? 'Updating...' : label}
@@ -521,6 +560,36 @@ export default function SellerOrders() {
             </button>
 
             <p style={{fontSize:11.5, color:'var(--text-primary)', textAlign:'center', marginTop:12, opacity:0.6, lineHeight:1.5}}>The code is shown on the buyer&apos;s order page and expires in 30 minutes.</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── PICKUP CODE MODAL (delivery orders) ── */}
+      {pickupOrder && (
+        <div role="dialog" aria-modal="true" onClick={closePickup} style={{position:'fixed', inset:0, background:'rgba(26,26,26,0.55)', backdropFilter:'blur(4px)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
+          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, width:'100%', maxWidth:460, boxShadow:'0 24px 68px rgba(0,0,0,0.3)', padding:'28px 28px 26px'}}>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Pickup code</h2>
+              <button onClick={closePickup} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'var(--bg-card)', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
+            </div>
+            <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.6, marginBottom:22}}>Show this code to the driver. They&apos;ll key it into their app to confirm they&apos;ve picked up the order.</p>
+
+            {pickupError ? (
+              <div role="alert" style={{background:'#FDECEA', border:'1px solid rgba(192,57,43,0.24)', borderRadius:10, padding:'10px 12px', fontSize:13, color:'#C0392B', fontWeight:600, marginBottom:14, textAlign:'center'}}>{pickupError}</div>
+            ) : pickupGenerating || !pickupCode ? (
+              <div style={{textAlign:'center', padding:'26px 8px', fontSize:13, color:'var(--text-primary)', fontWeight:600, opacity:0.75}}>Generating code…</div>
+            ) : (
+              <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16, flexWrap:'wrap'}}>
+                {pickupCode.split('').map((d, i) => (
+                  <span key={i} style={{width:52, height:64, borderRadius:12, background:'var(--bg-page)', border:'2px solid rgba(200,0,106,0.3)', boxShadow:'0 2px 10px rgba(200,0,106,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>{d}</span>
+                ))}
+              </div>
+            )}
+
+            <button onClick={closePickup} className="advance-btn" style={{width:'100%', height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:'pointer', boxShadow:'0 6px 18px rgba(200,0,106,0.28)'}}>
+              Done
+            </button>
+            <p style={{fontSize:11.5, color:'var(--text-primary)', textAlign:'center', marginTop:12, opacity:0.6, lineHeight:1.5}}>Code expires in 2 hours. Regenerate anytime by tapping “Show pickup code” again.</p>
           </div>
         </div>
       )}

@@ -7,6 +7,7 @@ import Logo from '@/components/Logo'
 import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
 import ThemeToggle from '@/components/ThemeToggle'
+import PostcodeLookup from '@/components/PostcodeLookup'
 import { formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
@@ -275,6 +276,14 @@ export default function DriverProfile() {
                 <div>
                   <label style={labelStyle}>Postcode</label>
                   <input value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="E3 4SS" autoCapitalize="characters" style={{...inputStyle, textTransform:'uppercase'}}/>
+                  <PostcodeLookup
+                    postcode={postcode}
+                    onResolved={({ postcode: pc, city: c }) => {
+                      setPostcode(pc.toUpperCase())
+                      if (c) setCity(c)
+                    }}
+                    dark
+                  />
                 </div>
               </div>
             </div>
