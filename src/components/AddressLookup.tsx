@@ -150,11 +150,21 @@ export default function AddressLookup({
       postcode: a.postcode,
     })
     setPostcode(a.postcode)
+    lastFetchedRef.current = a.postcode.toUpperCase()
+    // Free lookup returns city + postcode only, no street. When the row lacks
+    // a full line1 we open the manual house/street fields with the city and
+    // postcode pre-filled instead of pretending the address is "confirmed".
+    if (!a.address_line1) {
+      setSelectedLabel(null)
+      setStatus('idle')
+      setManual(true)
+      return
+    }
+    // Legacy path: a real full street address was picked → show the green
+    // "Address confirmed" chip.
     setSelectedLabel(a.label)
     setStatus('selected')
     setManual(false)
-    // Remember what's now confirmed so a re-render doesn't re-fetch it.
-    lastFetchedRef.current = a.postcode.toUpperCase()
   }
 
   const clearSelection = () => {
@@ -322,24 +332,37 @@ export default function AddressLookup({
           {/* ── DROPDOWN — results / empty / error ── */}
           {showDropdown && (
             <div role="listbox" style={dropdown}>
-              {status === 'ready' && results && results.map((a, i) => (
-                <div
-                  key={`${a.postcode}-${i}`}
-                  className="addrl-row"
-                  role="option"
-                  aria-selected={false}
-                  tabIndex={0}
-                  onClick={() => pick(a)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(a) } }}
-                  style={{ ...rowStyle, borderBottom: i < results.length - 1 ? '1px solid #F5F0F3' : 'none' }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C8006A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label}</span>
-                </div>
-              ))}
+              {status === 'ready' && results && results.map((a, i) => {
+                // Free lookup returns a single row with the postcode + city
+                // but no street. Render that row with a short "Use this
+                // postcode →" hint so the buyer knows the next step is the
+                // manual house/street form.
+                const isPostcodeConfirm = !a.address_line1
+                return (
+                  <div
+                    key={`${a.postcode}-${i}`}
+                    className="addrl-row"
+                    role="option"
+                    aria-selected={false}
+                    tabIndex={0}
+                    onClick={() => pick(a)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(a) } }}
+                    style={{ ...rowStyle, minHeight: isPostcodeConfirm ? 60 : rowStyle.minHeight, borderBottom: i < results.length - 1 ? '1px solid #F5F0F3' : 'none' }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C8006A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label}</div>
+                      {isPostcodeConfirm && (
+                        <div style={{ fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>Use this postcode → enter your house number & street</div>
+                      )}
+                    </div>
+                    <span aria-hidden="true" style={{ color: '#C8006A', fontSize: 18, flexShrink: 0 }}>›</span>
+                  </div>
+                )
+              })}
               {status === 'empty' && (
                 <div style={{ padding: '18px 16px', fontSize: 13.5, color: '#1A1A1A' }}>
-                  No addresses found for this postcode.
+                  We couldn&apos;t find that postcode. Please check it, or enter your address manually below.
                 </div>
               )}
               {status === 'error' && (() => {
@@ -377,9 +400,9 @@ export default function AddressLookup({
           {/* ── SUB-HINT below the input ── */}
           {!showDropdown && (
             <p style={{ fontSize: 12, color: '#1A1A1A', opacity: 0.7, marginTop: 8, lineHeight: 1.5 }}>
-              {status === 'loading' ? 'Looking up addresses…' :
+              {status === 'loading' ? 'Checking your postcode…' :
                 looksValid ? 'Waiting for you to finish typing…' :
-                'We\'ll show your address list as soon as you enter a valid UK postcode.'}
+                'Enter your UK postcode — we\'ll confirm it and ask for your house number & street name.'}
             </p>
           )}
         </>

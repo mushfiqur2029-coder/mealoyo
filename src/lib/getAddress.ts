@@ -1,60 +1,45 @@
-// getAddress.io UK postcode → street-level address lookup.
+// UK postcode lookup — free, no API key required.
 //
-// postcodes.io only returns coordinates + admin_district (city). getAddress.io
-// gives us the actual list of addresses at a given postcode. We authenticate
-// with a domain token (NEXT_PUBLIC_GETADDRESS_DOMAIN_TOKEN) — this is the
-// browser-safe credential getAddress.io issues per allowed origin, so the
-// dashboard rejects requests from anywhere but our domains. The token is
-// still passed in the same `api-key` query parameter the endpoint expects.
+// Royal Mail's Postcode Address File (PAF) is licensed data. Every UK service
+// that returns a LIST of street addresses per postcode (getAddress.io,
+// Ideal Postcodes, Loqate, PostcodeAnywhere) pays for PAF and passes on the
+// cost. There is no free equivalent — doogal.co.uk removed their address
+// endpoint years ago, and Nominatim only returns one centroid match per
+// postcode.
 //
-// Endpoint (with expand=true, so each address arrives as a structured object
-// rather than a formatted string):
-//   https://api.getaddress.io/find/{postcode}?api-key={domainToken}&expand=true
+// So instead of pretending to have a dropdown of street-level addresses, we
+// validate the postcode with postcodes.io (which gives us the confirmed
+// postcode + city / admin_district) and hand the buyer a pre-filled manual
+// form for their house number and street name. It's Deliveroo-shaped: enter
+// postcode, then enter your address.
+//
+// This module keeps the same AddressResult shape and findAddressesByPostcode
+// signature the UI expects, so no wiring changes are needed elsewhere. When
+// the postcode is valid we return exactly one AddressResult with the city +
+// postcode filled and an empty address_line1 (the buyer's cue to type it).
 
-// One address returned by getAddress.io — trimmed to the fields we actually
-// use. See https://documentation.getaddress.io/ for the full shape.
-interface RawExpandedAddress {
-  line_1?: string
-  line_2?: string
-  line_3?: string
-  line_4?: string
-  building_number?: string
-  sub_building_name?: string
-  building_name?: string
-  thoroughfare?: string
-  premise?: string
-  locality?: string
-  town_or_city?: string
-  county?: string
-  formatted_address?: string[]
-}
-
-interface RawFindResponse {
-  postcode?: string
-  latitude?: number
-  longitude?: number
-  addresses?: RawExpandedAddress[]
-}
-
-// The normalised shape the UI consumes.
+// The normalised shape the UI consumes. Kept identical to the previous
+// implementation so the components don't need to change.
 export interface AddressResult {
   address_line1: string
   address_line2: string
   city: string
   postcode: string
-  // Human label for the dropdown row — e.g.
-  //   "3 Sheringham Drive, Barking, IG11 9AL".
+  // Human label for the picker row — with no street data we just show
+  //   "RM8 2AR — Barking and Dagenham".
   label: string
 }
 
-// A typed error the caller can react to. `.kind` lets the UI pick between
-// "we're offline, try manual entry" and "that postcode has no listings".
+// A typed error the caller can react to. The union is kept wide to match the
+// old paid-API contract so AddressLookup's error branches still typecheck —
+// but in this free-lookup implementation we only ever throw 'unavailable',
+// 'notfound', or 'misconfigured'.
 export type LookupErrorKind =
-  | 'unauthorized'   // 401/403 — key rejected or domain not allowed
-  | 'exhausted'      // 429 — daily plan limit
-  | 'unavailable'    // 404-with-empty-body, 5xx, network — service down
-  | 'notfound'       // genuine "no addresses for this postcode"
-  | 'misconfigured'  // NEXT_PUBLIC_GETADDRESS_API_KEY is missing at runtime
+  | 'unavailable'
+  | 'notfound'
+  | 'misconfigured'
+  | 'unauthorized'
+  | 'exhausted'
 
 export class AddressLookupError extends Error {
   kind: LookupErrorKind
@@ -67,90 +52,66 @@ export class AddressLookupError extends Error {
   }
 }
 
-// Best-effort formatter for the dropdown label. getAddress.io returns
-// premise/thoroughfare/town/etc. as separate fields; we pick the tidiest
-// combination so it reads like a normal UK postal address.
-function toAddressResult(pc: string, a: RawExpandedAddress): AddressResult {
-  // address_line1: prefer line_1 (it already combines number + street), else
-  // build it from premise + thoroughfare.
-  const line1 =
-    (a.line_1 && a.line_1.trim()) ||
-    [a.premise || a.building_number || a.sub_building_name, a.thoroughfare]
-      .filter(Boolean)
-      .join(' ')
-      .trim()
-  // address_line2: building name or sub-building name if line_1 didn't already
-  // capture it, or the next filled line from formatted_address.
-  const line2 =
-    (a.line_2 && a.line_2.trim()) ||
-    (a.building_name && a.building_name.trim()) ||
-    ''
-  const city =
-    (a.town_or_city && a.town_or_city.trim()) ||
-    (a.locality && a.locality.trim()) ||
-    (a.county && a.county.trim()) ||
-    ''
-  const postcode = pc.toUpperCase()
-  const label = [line1, city, postcode].filter(Boolean).join(', ')
-  return { address_line1: line1, address_line2: line2, city, postcode, label }
+// Loose postcodes.io response shape — we only touch a handful of fields.
+interface PostcodesIoResponse {
+  status?: number
+  error?: string
+  result?: {
+    postcode?: string
+    admin_district?: string | null
+    admin_ward?: string | null
+    parish?: string | null
+    country?: string | null
+  } | null
 }
 
-// Runtime lookup. Throws AddressLookupError with a specific `.kind` so the UI
-// can pick the right fallback message; the caller catches and translates.
+// Runtime lookup. Throws AddressLookupError with a specific `.kind` on
+// service failures; returns an empty array only when postcodes.io explicitly
+// says the postcode doesn't exist (404 with body).
 export async function findAddressesByPostcode(rawPostcode: string): Promise<AddressResult[]> {
-  const raw = process.env.NEXT_PUBLIC_GETADDRESS_DOMAIN_TOKEN
-  const token = raw ? raw.trim() : undefined
-  if (!token) throw new AddressLookupError('misconfigured', 'Address lookup is not configured')
-  const pc = rawPostcode.trim().toUpperCase()
+  const pc = rawPostcode.trim()
   if (!pc) return []
-  // Strip whitespace inside the postcode too — the API accepts either form but
-  // "RM82AR" is what the docs use and it avoids a redirect.
-  const spaceless = pc.replace(/\s+/g, '')
-  const url = `https://api.getaddress.io/find/${encodeURIComponent(spaceless)}?api-key=${encodeURIComponent(token)}&expand=true`
+  const url = `https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`
 
   let res: Response
   try {
     res = await fetch(url)
   } catch {
-    throw new AddressLookupError('unavailable', 'Address lookup is temporarily unavailable')
+    throw new AddressLookupError('unavailable', 'Postcode lookup is temporarily unavailable')
   }
 
-  const contentLength = res.headers.get('content-length')
-
-  // 401/403 → the token is rejected (bad token, or domain mismatch).
-  if (res.status === 401 || res.status === 403) {
-    throw new AddressLookupError('unauthorized', 'Address lookup token was rejected', res.status)
-  }
-  // 429 → the plan's daily/monthly quota is exhausted.
-  if (res.status === 429) {
-    throw new AddressLookupError('exhausted', 'Address lookup daily limit reached', 429)
-  }
-
-  // 404 — could be a genuine "postcode has no addresses" OR the service
-  // returning 404 with content-length: 0 when the token/plan is bad. Real
-  // "not found" from getAddress.io returns a JSON body with a Message; a
-  // plan/token failure returns 0 bytes.
-  if (res.status === 404) {
-    // Empty body → treat as unavailable so the UI shows a "try manual entry"
-    // message instead of the misleading "no addresses found for this postcode".
-    if (contentLength === '0') {
-      throw new AddressLookupError('unavailable', 'Address lookup is temporarily unavailable (empty 404)', 404)
-    }
-    // Otherwise it really is "no addresses for that postcode".
-    return []
-  }
-
-  if (!res.ok) {
-    throw new AddressLookupError('unavailable', `Address lookup failed (${res.status})`, res.status)
-  }
-
-  let data: RawFindResponse
+  // postcodes.io returns a proper JSON body on both 200 and 404, so we always
+  // parse — no risk of getting an empty response like getAddress.io gave us.
+  let data: PostcodesIoResponse | null = null
   try {
-    data = (await res.json()) as RawFindResponse
+    data = (await res.json()) as PostcodesIoResponse
   } catch {
-    throw new AddressLookupError('unavailable', 'Address lookup returned unreadable data')
+    throw new AddressLookupError('unavailable', 'Postcode lookup returned unreadable data')
   }
-  const postcode = (data.postcode || pc).toUpperCase()
-  const list = Array.isArray(data.addresses) ? data.addresses : []
-  return list.map((a) => toAddressResult(postcode, a))
+
+  if (res.status === 404) return []
+  if (!res.ok || !data?.result) {
+    throw new AddressLookupError('unavailable', `Postcode lookup failed (${res.status})`, res.status)
+  }
+
+  const r = data.result
+  const postcode = (r.postcode || pc).toUpperCase()
+  const city =
+    (r.admin_district && r.admin_district.trim()) ||
+    (r.admin_ward && r.admin_ward.trim()) ||
+    (r.parish && r.parish.trim()) ||
+    ''
+  const label = city ? `${postcode} — ${city}` : postcode
+
+  // Exactly one result: the confirmed postcode + city. address_line1 stays
+  // empty so the UI knows to open the manual house/street fields.
+  return [
+    {
+      address_line1: '',
+      address_line2: '',
+      city,
+      postcode,
+      label,
+    },
+  ]
 }
