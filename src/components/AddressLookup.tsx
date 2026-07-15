@@ -3,12 +3,11 @@ import { useEffect, useRef, useState } from 'react'
 import {
   autocompleteAddresses,
   getAddressDetails,
-  resolveUKPostcodeAsPrediction,
+  reverseGeocodeViaPlaces,
   AddressLookupError,
   type AddressPrediction,
   type LookupErrorKind,
 } from '@/lib/getAddress'
-import { isValidUKPostcode, reverseGeocodePostcode } from '@/lib/pricing'
 
 // Single-input address lookup — Google Places Autocomplete via server proxy.
 // The buyer types any part of their address ("42 Bak…", a postcode, a
@@ -91,14 +90,8 @@ export default function AddressLookup({
       setStatus('loading'); setErrorMsg(''); setErrorKind(null)
       lastQueriedRef.current = q
       try {
-        let list = await autocompleteAddresses(q, { signal: controller.signal })
+        const list = await autocompleteAddresses(q, { signal: controller.signal })
         if (controller.signal.aborted) return
-        // If Google returned nothing AND the input looks like a valid UK
-        // postcode, fall back to postcodes.io so the buyer isn't stuck.
-        if (list.length === 0 && isValidUKPostcode(q)) {
-          const fb = await resolveUKPostcodeAsPrediction(q)
-          if (fb) list = [fb]
-        }
         setPredictions(list)
         setStatus(list.length === 0 ? 'empty' : 'ready')
       } catch (e) {
@@ -131,24 +124,22 @@ export default function AddressLookup({
   const pick = async (p: AddressPrediction) => {
     setStatus('resolving')
     try {
-      const detail = await getAddressDetails(p)
+      const detail = await getAddressDetails(p.place_id)
       onChange({
         address_line1: detail.address_line1,
         address_line2: detail.address_line2,
         city: detail.city,
         postcode: detail.postcode,
       })
-      setQuery(detail.label || p.label)
+      const label = detail.formatted_address || p.description
+      setQuery(label)
       lastQueriedRef.current = null
-      // If we got no street from Google (postcode fallback), open manual fields
-      // pre-filled with city + postcode instead of the green chip.
+      // If Google returned no street (rare — e.g. a POI without street data),
+      // open the manual fields with whatever we do have (city + postcode).
       if (!detail.address_line1) {
-        setSelectedLabel(null)
-        setStatus('idle')
-        setManual(true)
-        return
+        setSelectedLabel(null); setStatus('idle'); setManual(true); return
       }
-      setSelectedLabel(detail.label || p.label)
+      setSelectedLabel(label)
       setStatus('selected')
       setManual(false)
     } catch (e) {
@@ -166,9 +157,8 @@ export default function AddressLookup({
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
-  // GPS button → reverse-geocode to a UK postcode, seed the input with it,
-  // and let the autocomplete effect pull addresses at that postcode. Cheap
-  // way to reuse existing plumbing.
+  // GPS button → reverse-geocode via Google to a postcode, seed the input,
+  // and let the autocomplete effect pull addresses at that postcode.
   const useMyLocation = () => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setStatus('error'); setErrorMsg('Location is not available on this device'); return
@@ -177,9 +167,16 @@ export default function AddressLookup({
     setStatus('gps'); setErrorMsg('')
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const r = await reverseGeocodePostcode(pos.coords.latitude, pos.coords.longitude)
-        if (!r) { setStatus('error'); setErrorMsg('Could not find your postcode from your location'); return }
-        setQuery(r.postcode.toUpperCase())
+        try {
+          const r = await reverseGeocodeViaPlaces(pos.coords.latitude, pos.coords.longitude)
+          if (!r?.postcode) { setStatus('error'); setErrorMsg('Could not find a postcode at your location'); return }
+          setQuery(r.postcode)
+        } catch (e) {
+          const kind: LookupErrorKind = e instanceof AddressLookupError ? e.kind : 'unavailable'
+          setErrorKind(kind); setStatus('error')
+          setErrorMsg('Could not fetch your location. Please enter your address manually.')
+          setManual(true)
+        }
       },
       (err) => {
         setStatus('error')
@@ -313,27 +310,31 @@ export default function AddressLookup({
               {status === 'resolving' && (
                 <div style={{ padding: '18px 16px', fontSize: 13.5, color: '#1A1A1A' }}>Loading full address…</div>
               )}
-              {status === 'ready' && predictions && predictions.map((p, i) => (
-                <div
-                  key={`${p.id}-${i}`}
-                  className="addrl-row"
-                  role="option"
-                  aria-selected={false}
-                  tabIndex={0}
-                  onClick={() => pick(p)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(p) } }}
-                  style={{ ...rowStyle, borderBottom: i < predictions.length - 1 ? '1px solid #F5F0F3' : 'none' }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C8006A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.main_text}</div>
-                    {p.secondary_text && (
-                      <div style={{ fontSize: 12.5, color: '#6B6B6B', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.secondary_text}</div>
-                    )}
+              {status === 'ready' && predictions && predictions.map((p, i) => {
+                const main = p.structured_formatting?.main_text || p.description
+                const secondary = p.structured_formatting?.secondary_text || ''
+                return (
+                  <div
+                    key={`${p.place_id}-${i}`}
+                    className="addrl-row"
+                    role="option"
+                    aria-selected={false}
+                    tabIndex={0}
+                    onClick={() => pick(p)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(p) } }}
+                    style={{ ...rowStyle, borderBottom: i < predictions.length - 1 ? '1px solid #F5F0F3' : 'none' }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C8006A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{main}</div>
+                      {secondary && (
+                        <div style={{ fontSize: 12.5, color: '#6B6B6B', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{secondary}</div>
+                      )}
+                    </div>
+                    <span aria-hidden="true" style={{ color: '#C8006A', fontSize: 18, flexShrink: 0 }}>›</span>
                   </div>
-                  <span aria-hidden="true" style={{ color: '#C8006A', fontSize: 18, flexShrink: 0 }}>›</span>
-                </div>
-              ))}
+                )
+              })}
               {status === 'empty' && (
                 <div style={{ padding: '18px 16px', fontSize: 13.5, color: '#1A1A1A' }}>
                   No addresses found. Try a different search, or enter your address manually below.

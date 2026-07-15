@@ -1,26 +1,20 @@
-// UK/international address lookup — Google Places Autocomplete via server proxy.
+// Address lookup — Google Places Autocomplete via server proxy.
 //
-// The browser never sees the Google Maps API key. All calls go through:
-//   /api/places/autocomplete → predictions as the buyer types
-//   /api/places/details      → structured address once they pick one
+// The browser never sees the Google Maps API key. Every call goes through:
+//   POST /api/places/autocomplete → predictions as the buyer types
+//   POST /api/places/details      → structured address once they pick one
+//   POST /api/places/geocode      → reverse-geocode GPS coords to a postcode
 //
-// Falls back to postcodes.io when Google returns nothing and the input looks
-// like a valid UK postcode — that keeps things working during any Google
-// outage / key issue, and gives us at least postcode + city so the buyer can
-// finish the address by hand.
+// No postcodes.io fallback: this build is 100% Google. If the Places API
+// misbehaves, the manual entry fields open automatically instead.
 
-import { isValidUKPostcode } from '@/lib/pricing'
-
-// A single row shown in the AddressLookup dropdown.
+// A single row shown in the AddressLookup dropdown. Matches the Google
+// prediction shape verbatim so the UI can render main_text bold + secondary
+// muted (Google's structured_formatting) or fall back to `description`.
 export interface AddressPrediction {
-  // Stable identifier we hand to /api/places/details on click. When the row
-  // came from the postcodes.io fallback we prefix it with `postcode:` so the
-  // component knows to skip the details round-trip and just use the postcode.
-  id: string
-  source: 'google' | 'postcode'
-  label: string          // full "3 Sheringham Drive, Barking, IG11 9AL"
-  main_text: string      // "3 Sheringham Drive"
-  secondary_text: string // "Barking, IG11 9AL, UK"
+  place_id: string
+  description: string
+  structured_formatting: { main_text: string; secondary_text: string }
 }
 
 // The finished address AddressLookup writes back to the parent form. Kept
@@ -31,7 +25,7 @@ export interface AddressResult {
   address_line2: string
   city: string
   postcode: string
-  label: string
+  formatted_address: string
 }
 
 // Typed error — the AddressLookup component switches error copy on this.
@@ -54,8 +48,8 @@ export class AddressLookupError extends Error {
 }
 
 // Per-tab session token — Google prices autocomplete + details cheaper when
-// they share one token. Regenerated each mount so a distinct visitor is billed
-// as one session, not many.
+// they share one token. Regenerated each mount so a distinct visitor is
+// billed as one session, not many.
 const sessionToken = (() => {
   try {
     return crypto.randomUUID()
@@ -64,24 +58,28 @@ const sessionToken = (() => {
   }
 })()
 
+// ── AUTOCOMPLETE ────────────────────────────────────────────────────────────
+
 interface AutocompleteResponse {
-  predictions?: Array<{ place_id: string; label: string; main_text: string; secondary_text: string }>
+  predictions?: AddressPrediction[]
   error?: string
 }
 
 // Fetch predictions for whatever the buyer has typed so far. Empty array =
 // no results (or too short an input); throws AddressLookupError on service
 // failure.
-export async function autocompleteAddresses(input: string, opts?: { country?: string; signal?: AbortSignal }): Promise<AddressPrediction[]> {
+export async function autocompleteAddresses(input: string, opts?: { signal?: AbortSignal }): Promise<AddressPrediction[]> {
   const q = input.trim()
   if (q.length < 3) return []
-  const params = new URLSearchParams({ input: q, sessiontoken: sessionToken })
-  // Empty country → international; default in the API route is 'gb'.
-  if (opts?.country !== undefined) params.set('country', opts.country)
 
   let res: Response
   try {
-    res = await fetch(`/api/places/autocomplete?${params.toString()}`, { signal: opts?.signal })
+    res = await fetch('/api/places/autocomplete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: q, sessionToken }),
+      signal: opts?.signal,
+    })
   } catch (e) {
     if ((e as { name?: string })?.name === 'AbortError') return []
     throw new AddressLookupError('unavailable', 'Address lookup is temporarily unavailable')
@@ -90,48 +88,29 @@ export async function autocompleteAddresses(input: string, opts?: { country?: st
   if (!res.ok) throw new AddressLookupError('unavailable', `Address lookup failed (${res.status})`, res.status)
 
   const data = (await res.json()) as AutocompleteResponse
-  const list = data.predictions ?? []
-  return list.map((p) => ({
-    id: p.place_id,
-    source: 'google' as const,
-    label: p.label,
-    main_text: p.main_text,
-    secondary_text: p.secondary_text,
-  }))
+  return data.predictions ?? []
 }
 
+// ── DETAILS ─────────────────────────────────────────────────────────────────
+
 interface DetailsResponse {
-  details?: {
-    address_line1: string
-    address_line2: string
-    city: string
-    postcode: string
-    country: string
-  }
+  address_line1?: string
+  address_line2?: string
+  city?: string
+  postcode?: string
+  formatted_address?: string
   error?: string
 }
 
-// Resolve a picked prediction to a full address. Handles both real Google
-// place_ids and the fallback `postcode:XXXX` synthetic ids we invent when
-// postcodes.io filled in for a Google zero-result.
-export async function getAddressDetails(prediction: AddressPrediction): Promise<AddressResult> {
-  if (prediction.source === 'postcode') {
-    // Synthetic id from resolveUKPostcodeAsPrediction — the label already
-    // contains the confirmed postcode + city. We return an AddressResult with
-    // empty address_line1 to signal "open manual fields for house + street".
-    const [postcode, city] = prediction.id.replace(/^postcode:/, '').split('|')
-    return {
-      address_line1: '',
-      address_line2: '',
-      city: city || '',
-      postcode: (postcode || '').toUpperCase(),
-      label: prediction.label,
-    }
-  }
-
+// Resolve a picked prediction to a full structured address.
+export async function getAddressDetails(placeId: string): Promise<AddressResult> {
   let res: Response
   try {
-    res = await fetch(`/api/places/details?place_id=${encodeURIComponent(prediction.id)}&sessiontoken=${encodeURIComponent(sessionToken)}`)
+    res = await fetch('/api/places/details', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ placeId, sessionToken }),
+    })
   } catch {
     throw new AddressLookupError('unavailable', 'Address details are temporarily unavailable')
   }
@@ -139,48 +118,43 @@ export async function getAddressDetails(prediction: AddressPrediction): Promise<
   if (!res.ok) throw new AddressLookupError('unavailable', `Address details failed (${res.status})`, res.status)
 
   const data = (await res.json()) as DetailsResponse
-  if (!data.details) throw new AddressLookupError('unavailable', 'Address details missing')
-  const d = data.details
   return {
-    address_line1: d.address_line1,
-    address_line2: d.address_line2,
-    city: d.city,
-    postcode: d.postcode,
-    label: prediction.label || [d.address_line1, d.city, d.postcode].filter(Boolean).join(', '),
+    address_line1: data.address_line1 ?? '',
+    address_line2: data.address_line2 ?? '',
+    city: data.city ?? '',
+    postcode: data.postcode ?? '',
+    formatted_address: data.formatted_address ?? '',
   }
 }
 
-// UK postcode → single-row fallback prediction. Called by AddressLookup when
-// Google returns nothing for what looks like a valid UK postcode. postcodes.io
-// is free, unlimited, and cross-origin-friendly so it works in the browser.
-interface PostcodesIoResult { postcode?: string; admin_district?: string | null; admin_ward?: string | null; parish?: string | null }
-interface PostcodesIoResponse { status?: number; result?: PostcodesIoResult | null }
+// ── REVERSE GEOCODE (GPS button) ────────────────────────────────────────────
 
-export async function resolveUKPostcodeAsPrediction(rawPostcode: string): Promise<AddressPrediction | null> {
-  const pc = rawPostcode.trim()
-  if (!pc || !isValidUKPostcode(pc)) return null
+interface GeocodeResponse {
+  postcode?: string
+  city?: string
+  formatted_address?: string
+  error?: string
+}
+
+// Reverse-geocode a lat/lng (from the browser's GPS button) into a postcode +
+// city. Returns null when Google can't find a postal_code at that point —
+// AddressLookup surfaces the graceful "couldn't find your postcode" message.
+export async function reverseGeocodeViaPlaces(lat: number, lng: number): Promise<GeocodeResponse | null> {
   let res: Response
   try {
-    res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`)
+    res = await fetch('/api/places/geocode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lat, lng }),
+    })
   } catch {
-    return null
+    throw new AddressLookupError('unavailable', 'Geocoding is temporarily unavailable')
   }
   if (res.status === 404) return null
-  if (!res.ok) return null
-  let data: PostcodesIoResponse
-  try { data = (await res.json()) as PostcodesIoResponse } catch { return null }
-  if (!data.result) return null
-  const postcode = (data.result.postcode || pc).toUpperCase()
-  const city =
-    (data.result.admin_district && data.result.admin_district.trim()) ||
-    (data.result.admin_ward && data.result.admin_ward.trim()) ||
-    (data.result.parish && data.result.parish.trim()) ||
-    ''
-  return {
-    id: `postcode:${postcode}|${city}`,
-    source: 'postcode',
-    label: city ? `${postcode} — ${city}` : postcode,
-    main_text: postcode,
-    secondary_text: city ? `${city} — use this postcode and enter your address` : 'Use this postcode and enter your address',
-  }
+  if (res.status === 503) throw new AddressLookupError('misconfigured', 'Address lookup is not configured')
+  if (!res.ok) throw new AddressLookupError('unavailable', `Geocoding failed (${res.status})`, res.status)
+
+  const data = (await res.json()) as GeocodeResponse
+  if (!data.postcode) return null
+  return data
 }
