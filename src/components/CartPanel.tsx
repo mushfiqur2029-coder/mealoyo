@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/lib/cartStore'
 import { supabase } from '@/lib/supabase'
-import PostcodeLookup from '@/components/PostcodeLookup'
+import AddressLookup, { type AddressValue } from '@/components/AddressLookup'
 import {
   serviceFee as calcServiceFee,
   isValidUKPostcode,
@@ -49,10 +49,9 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
 
   // ── Delivery/collection choice + address form (moved here from dish page) ──
   const [deliveryType, setDeliveryType] = useState<'collection' | 'delivery'>('collection')
-  const [houseNumber, setHouseNumber] = useState('')
-  const [streetName, setStreetName] = useState('')
-  const [addrCity, setAddrCity] = useState('')
-  const [buyerPostcode, setBuyerPostcode] = useState('')
+  // Whole address in one object — the AddressLookup component owns the postcode
+  // input, dropdown and manual fallback.
+  const [address, setAddress] = useState<AddressValue>({ address_line1: '', address_line2: '', city: '', postcode: '' })
   const [quote, setQuote] = useState<DeliveryQuote>({ status: 'idle' })
   const [seller, setSeller] = useState<SellerInfo | null>(null)
   const [savedLoaded, setSavedLoaded] = useState(false)
@@ -106,31 +105,30 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setSavedLoaded(true); return }
       const { data: row } = await supabase.rpc('get_my_profile_full')
-      if (row?.address_line1) {
-        const m = String(row.address_line1).trim().match(/^(\S+)\s+(.+)$/)
-        if (m) { setHouseNumber(m[1]); setStreetName(m[2]) }
-        else { setStreetName(String(row.address_line1).trim()) }
-      }
-      if (row?.city) setAddrCity(row.city)
-      if (row?.postcode) setBuyerPostcode(row.postcode)
+      setAddress({
+        address_line1: row?.address_line1 || '',
+        address_line2: row?.address_line2 || '',
+        city: row?.city || '',
+        postcode: row?.postcode || '',
+      })
       setSavedLoaded(true)
     })()
   }, [isOpen, savedLoaded])
 
   // Live distance quote. Fires when delivery is selected and the postcode +
-  // seller info are both ready.
+  // seller info are both ready. Debounced so we don't hit postcodes.io on
+  // every keystroke.
   useEffect(() => {
     let active = true
     const t = setTimeout(async () => {
       if (!active) return
       if (deliveryType !== 'delivery' || !seller) { setQuote({ status: 'idle' }); return }
-      // Smallest radius across the cart's listings (all from the same seller).
-      const radius = 5 // TODO if per-listing radius is needed we can pass it here; safe default
+      const radius = 5 // safe default; per-listing radius could be threaded through if we ever need it
       if (!seller.postcode || !isValidUKPostcode(seller.postcode)) {
         setQuote({ status: 'flat', fee: FLAT_DELIVERY_FEE })
         return
       }
-      const pc = buyerPostcode.trim()
+      const pc = address.postcode.trim()
       if (!pc) { setQuote({ status: 'idle' }); return }
       if (!isValidUKPostcode(pc)) { setQuote({ status: 'invalid' }); return }
       setQuote({ status: 'checking' })
@@ -143,9 +141,9 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
       console.log('[cart] distance quote', { pc, sellerPc: seller.postcode, distance, fee })
       if (fee === null) setQuote({ status: 'unavailable', distance })
       else setQuote({ status: 'ok', distance, fee })
-    }, 350)
+    }, 250)
     return () => { active = false; clearTimeout(t) }
-  }, [deliveryType, buyerPostcode, seller])
+  }, [deliveryType, address.postcode, seller])
 
   const deliveryFee: number =
     deliveryType === 'delivery'
@@ -169,9 +167,8 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
   const validateForCheckout = (): string | null => {
     if (!items.length) return 'Your cart is empty.'
     if (deliveryType === 'delivery') {
-      if (!buyerPostcode.trim() || !isValidUKPostcode(buyerPostcode)) return 'Please enter a valid UK postcode for delivery.'
-      if (!houseNumber.trim()) return 'Please enter your flat or house number.'
-      if (!streetName.trim()) return 'Please enter your street name.'
+      if (!address.postcode.trim() || !isValidUKPostcode(address.postcode)) return 'Please enter a valid UK postcode for delivery.'
+      if (!address.address_line1.trim()) return 'Please pick or enter your street address.'
       if (quote.status === 'unavailable') return "Sorry, this cook doesn't deliver to your area."
       if (quote.status === 'invalid' || quote.status === 'notfound') return 'Please enter a valid UK postcode.'
     }
@@ -191,14 +188,14 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
       return
     }
     try {
-      // Combine structured address fields into the single string the driver
-      // dispatch view expects. Postcode last so split_part(..., ' ', -1) still
-      // returns the buyer postcode.
+      // Combine into the single string the driver dispatch view expects.
+      // Postcode last so split_part(..., ' ', -1) still returns buyer postcode.
       const combined = deliveryType === 'delivery'
         ? [
-            [houseNumber.trim(), streetName.trim()].filter(Boolean).join(' '),
-            addrCity.trim(),
-            buyerPostcode.trim().toUpperCase(),
+            address.address_line1.trim(),
+            address.address_line2.trim(),
+            address.city.trim(),
+            address.postcode.trim().toUpperCase(),
           ].filter(Boolean).join(', ')
         : ''
 
@@ -209,7 +206,7 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
           items: items.map((it) => ({ listingId: it.listingId, quantity: it.quantity })),
           deliveryType,
           deliveryAddress: combined,
-          buyerPostcode: deliveryType === 'delivery' ? buyerPostcode.trim().toUpperCase() : '',
+          buyerPostcode: deliveryType === 'delivery' ? address.postcode.trim().toUpperCase() : '',
         }),
       })
       const data = await res.json()
@@ -453,48 +450,18 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
                 </div>
               )}
 
-              {/* ── DELIVERY ADDRESS FORM ── */}
+              {/* ── DELIVERY ADDRESS — postcode-first lookup, one input ── */}
               {deliveryType === 'delivery' && (
-                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1A1A1A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Postcode <span style={{ color: '#C0392B' }}>*</span></label>
-                    <input
-                      value={buyerPostcode}
-                      onChange={e => setBuyerPostcode(e.target.value)}
-                      placeholder="e.g. E3 4SS"
-                      autoCapitalize="characters"
-                      className="cart-input"
-                      style={{ width: '100%', height: 42, border: '1.5px solid #E0E0E0', borderRadius: 10, padding: '0 14px', fontSize: 14, color: '#1A1A1A', background: '#FAFAFA', textTransform: 'uppercase', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none' }}
-                    />
-                    <PostcodeLookup
-                      postcode={buyerPostcode}
-                      onResolved={({ postcode: pc, city }) => {
-                        setBuyerPostcode(pc.toUpperCase())
-                        if (city) setAddrCity(city)
-                      }}
-                      compact
-                    />
-                    {quote.status === 'checking' && <p style={{ fontSize: 12, color: '#1A1A1A', opacity: 0.7, marginTop: 7 }}>Checking distance…</p>}
-                    {quote.status === 'invalid' && <p style={{ fontSize: 12, color: '#C8006A', fontWeight: 600, marginTop: 7 }}>Enter a valid UK postcode.</p>}
-                    {quote.status === 'notfound' && <p style={{ fontSize: 12, color: '#C8006A', fontWeight: 600, marginTop: 7 }}>We couldn&apos;t find that postcode — please check it.</p>}
-                    {quote.status === 'ok' && <p style={{ fontSize: 13, color: '#C8006A', fontWeight: 700, marginTop: 7 }}>📍 {quote.distance.toFixed(1)} miles — £{quote.fee.toFixed(2)} delivery</p>}
-                    {quote.status === 'unavailable' && <p style={{ fontSize: 13, color: '#C0392B', fontWeight: 700, marginTop: 7 }}>Sorry, this cook doesn&apos;t deliver to your area ({quote.distance.toFixed(1)} mi).</p>}
-                    {quote.status === 'flat' && <p style={{ fontSize: 12, color: '#1A1A1A', opacity: 0.75, marginTop: 7 }}>Delivery fee confirmed at dispatch — approx £{quote.fee.toFixed(2)}.</p>}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10 }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1A1A1A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Flat/House # <span style={{ color: '#C0392B' }}>*</span></label>
-                      <input value={houseNumber} onChange={e => setHouseNumber(e.target.value)} placeholder="42" className="cart-input" style={{ width: '100%', height: 42, border: '1.5px solid #E0E0E0', borderRadius: 10, padding: '0 12px', fontSize: 14, color: '#1A1A1A', background: '#FAFAFA', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none' }}/>
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1A1A1A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Street name <span style={{ color: '#C0392B' }}>*</span></label>
-                      <input value={streetName} onChange={e => setStreetName(e.target.value)} placeholder="Baker Street" className="cart-input" style={{ width: '100%', height: 42, border: '1.5px solid #E0E0E0', borderRadius: 10, padding: '0 12px', fontSize: 14, color: '#1A1A1A', background: '#FAFAFA', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none' }}/>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1A1A1A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>City</label>
-                    <input value={addrCity} onChange={e => setAddrCity(e.target.value)} placeholder="Auto-fills from postcode" className="cart-input" style={{ width: '100%', height: 42, border: '1.5px solid #E0E0E0', borderRadius: 10, padding: '0 12px', fontSize: 14, color: '#1A1A1A', background: '#FAFAFA', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none' }}/>
-                  </div>
+                <div style={{ marginTop: 14 }}>
+                  <AddressLookup value={address} onChange={setAddress} compact/>
+                  {/* Live distance/fee feedback — driven by the debounced quote
+                      that fires as soon as the postcode changes. */}
+                  {quote.status === 'checking' && <p style={{ fontSize: 12, color: '#1A1A1A', opacity: 0.75, marginTop: 10 }}>Checking distance to cook…</p>}
+                  {quote.status === 'invalid' && <p style={{ fontSize: 12.5, color: '#C8006A', fontWeight: 600, marginTop: 10 }}>Enter a valid UK postcode.</p>}
+                  {quote.status === 'notfound' && <p style={{ fontSize: 12.5, color: '#C8006A', fontWeight: 600, marginTop: 10 }}>We couldn&apos;t find that postcode — please check it.</p>}
+                  {quote.status === 'ok' && <p style={{ fontSize: 13.5, color: '#C8006A', fontWeight: 700, marginTop: 10 }}>📍 {quote.distance.toFixed(1)} miles away — delivery £{quote.fee.toFixed(2)}</p>}
+                  {quote.status === 'unavailable' && <p style={{ fontSize: 13.5, color: '#C0392B', fontWeight: 700, marginTop: 10 }}>Sorry, this cook doesn&apos;t deliver to your area ({quote.distance.toFixed(1)} mi).</p>}
+                  {quote.status === 'flat' && <p style={{ fontSize: 12.5, color: '#1A1A1A', opacity: 0.8, marginTop: 10 }}>Delivery fee confirmed at dispatch — approx £{quote.fee.toFixed(2)}.</p>}
                 </div>
               )}
             </div>

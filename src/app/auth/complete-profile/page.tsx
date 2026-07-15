@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { dashboardPathForProfile } from '@/lib/authRedirect'
 import type { Profile } from '@/lib/types'
 import Logo from '@/components/Logo'
+import AddressLookup, { type AddressValue } from '@/components/AddressLookup'
 
 type Role = 'buyer' | 'seller' | 'driver'
 
@@ -43,6 +44,10 @@ export default function CompleteProfile() {
   const [emailNeeded, setEmailNeeded] = useState(false)
   const [existingEmail, setExistingEmail] = useState('')
   const [phone, setPhone] = useState('')
+  // One-shot address collection during signup so the buyer never sees an empty
+  // profile again. Optional at this step (buyers can still fill it later at
+  // checkout), but heavily encouraged by placement + copy.
+  const [address, setAddress] = useState<AddressValue>({ address_line1: '', address_line2: '', city: '', postcode: '' })
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [role, setRole] = useState<Role>('buyer')
@@ -129,6 +134,20 @@ export default function CompleteProfile() {
     })
     if (rpcError) { setError(rpcError.message); setLoading(false); return }
 
+    // Persist the address if the user picked one — best effort, doesn't block
+    // completion. Uses the same profile row the RPC just touched.
+    if (address.address_line1.trim() || address.postcode.trim()) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('profiles').update({
+          address_line1: address.address_line1.trim() || null,
+          address_line2: address.address_line2.trim() || null,
+          city: address.city.trim() || null,
+          postcode: address.postcode.trim().toUpperCase() || null,
+        }).eq('id', user.id)
+      }
+    }
+
     // Credit a referrer if this buyer arrived via a referral link.
     const ref = typeof window !== 'undefined' ? localStorage.getItem('mealoyo_ref') : null
     if (ref && role === 'buyer') {
@@ -187,6 +206,13 @@ export default function CompleteProfile() {
               <input type={showConfirm ? 'text' : 'password'} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat your password" required style={{ ...inputStyle, padding:'0 44px 0 14px' }}/>
               <EyeToggle shown={showConfirm} onClick={() => setShowConfirm(s => !s)}/>
             </div>
+          </div>
+
+          {/* Address — one postcode lookup fills the whole thing. Optional
+              here so it never blocks first sign-up. */}
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            <label style={{ fontSize:11, fontWeight:700, color:'#1A1A1A', textTransform:'uppercase', letterSpacing:'0.06em' }}>Delivery address <span style={{ fontWeight:500, textTransform:'none', letterSpacing:0, color:'#6B6B6B' }}>· optional, saves you time at checkout</span></label>
+            <AddressLookup value={address} onChange={setAddress}/>
           </div>
 
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>

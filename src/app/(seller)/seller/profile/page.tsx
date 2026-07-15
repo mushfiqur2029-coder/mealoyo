@@ -7,7 +7,7 @@ import Logo from '@/components/Logo'
 import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
 import ThemeToggle from '@/components/ThemeToggle'
-import PostcodeLookup from '@/components/PostcodeLookup'
+import AddressLookup, { type AddressValue } from '@/components/AddressLookup'
 import { isValidUKPostcode, formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
@@ -27,32 +27,18 @@ const reviewBadge = (
   <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:'#FFF4E0', color:'#B8730A', fontSize:9.5, fontWeight:800, padding:'2px 7px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em', verticalAlign:'middle', marginLeft:8 }}>⏳ Needs re-approval</span>
 )
 
-// Split a stored address_line1 back into house/flat number + street name so
-// legacy single-string values still populate the two new inputs.
-function splitLine1(v: string | null | undefined): { house: string; street: string } {
-  const s = (v || '').trim()
-  if (!s) return { house: '', street: '' }
-  const m = s.match(/^(\S+)\s+(.+)$/)
-  if (m) return { house: m[1], street: m[2] }
-  return { house: '', street: s }
-}
-
 export default function SellerProfile() {
   const [user, setUser] = useState<User | null>(null)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
-  // Split door/flat + street — combined into address_line1 on save so the
-  // schema doesn't need to change.
-  const [houseNumber, setHouseNumber] = useState('')
-  const [streetName, setStreetName] = useState('')
-  const [addr2, setAddr2] = useState('')
-  const [city, setCity] = useState('')
-  const [postcode, setPostcode] = useState('')
+  // Whole address in one state — AddressLookup handles the postcode search
+  // dropdown and manual fallback.
+  const [address, setAddress] = useState<AddressValue>({ address_line1: '', address_line2: '', city: '', postcode: '' })
   const [email, setEmail] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [status, setStatus] = useState('')
   // Snapshot of the sensitive fields as loaded, to detect real changes on save.
-  const [orig, setOrig] = useState({ fullName:'', houseNumber:'', streetName:'', addr2:'', city:'' })
+  const [orig, setOrig] = useState({ fullName:'', address_line1:'', address_line2:'', city:'' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -89,17 +75,18 @@ export default function SellerProfile() {
       // column list, and aren't granted for direct reads post-lockdown, so read
       // the caller's own full row via the definer RPC.
       const { data: row } = await supabase.rpc('get_my_profile_full')
-      const { house, street } = splitLine1(row?.address_line1)
-      setHouseNumber(house)
-      setStreetName(street)
-      setAddr2(row?.address_line2 || '')
-      setCity(row?.city || '')
-      setPostcode(row?.postcode || '')
+      const loadedAddress: AddressValue = {
+        address_line1: row?.address_line1 || '',
+        address_line2: row?.address_line2 || '',
+        city: row?.city || '',
+        postcode: row?.postcode || '',
+      }
+      setAddress(loadedAddress)
       setAvatarUrl(row?.avatar_url || null)
       setBankName(row?.bank_account_name || '')
       setSortCode(row?.bank_sort_code || '')
       setAccountNumber(row?.bank_account_number || '')
-      setOrig({ fullName: p?.full_name || '', houseNumber: house, streetName: street, addr2: row?.address_line2 || '', city: row?.city || '' })
+      setOrig({ fullName: p?.full_name || '', address_line1: loadedAddress.address_line1, address_line2: loadedAddress.address_line2, city: loadedAddress.city })
       setLoading(false)
     }
     getData()
@@ -108,8 +95,8 @@ export default function SellerProfile() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!fullName.trim()) { setError('Please enter your full name'); return }
-    if (!postcode.trim()) { setError('Please enter your postcode — buyers need it to calculate delivery distance'); return }
-    if (!isValidUKPostcode(postcode)) { setError('Please enter a valid UK postcode (e.g. E3 4SS)'); return }
+    if (!address.postcode.trim()) { setError('Please enter your postcode — buyers need it to calculate delivery distance'); return }
+    if (!isValidUKPostcode(address.postcode)) { setError('Please enter a valid UK postcode (e.g. E3 4SS)'); return }
     if (!user) return
     setSaving(true); setError(''); setSavedOk(false); setReapprovalNote(false)
 
@@ -117,20 +104,18 @@ export default function SellerProfile() {
     // changes. Phone + postcode can be updated freely.
     const sensitiveChanged =
       fullName.trim() !== orig.fullName.trim() ||
-      houseNumber.trim() !== orig.houseNumber.trim() ||
-      streetName.trim() !== orig.streetName.trim() ||
-      addr2.trim() !== orig.addr2.trim() ||
-      city.trim() !== orig.city.trim()
+      address.address_line1.trim() !== orig.address_line1.trim() ||
+      address.address_line2.trim() !== orig.address_line2.trim() ||
+      address.city.trim() !== orig.city.trim()
     const willReapprove = sensitiveChanged && status === 'active'
 
-    const combinedLine1 = [houseNumber.trim(), streetName.trim()].filter(Boolean).join(' ') || null
     const update: Record<string, string | null> = {
       full_name: fullName.trim(),
       phone: phone.trim(),
-      address_line1: combinedLine1,
-      address_line2: addr2.trim() || null,
-      city: city.trim() || null,
-      postcode: postcode.trim().toUpperCase(),
+      address_line1: address.address_line1.trim() || null,
+      address_line2: address.address_line2.trim() || null,
+      city: address.city.trim() || null,
+      postcode: address.postcode.trim().toUpperCase(),
     }
     if (willReapprove) update.status = 'pending'
 
@@ -146,7 +131,7 @@ export default function SellerProfile() {
       setSavedOk(true)
     }
     // Re-baseline so a second save of the same values doesn't re-trigger review.
-    setOrig({ fullName: fullName.trim(), houseNumber: houseNumber.trim(), streetName: streetName.trim(), addr2: addr2.trim(), city: city.trim() })
+    setOrig({ fullName: fullName.trim(), address_line1: address.address_line1.trim(), address_line2: address.address_line2.trim(), city: address.city.trim() })
     setSaving(false)
   }
 
@@ -270,7 +255,7 @@ export default function SellerProfile() {
 
         {/* Postcode required — highlight at the top when missing so distance
             quotes to buyers actually work. */}
-        {!postcode.trim() && (
+        {!address.postcode.trim() && (
           <div className="fade-up" role="alert" style={{display:'flex', alignItems:'flex-start', gap:12, background:'#FFF4E0', border:'2px solid #F5A623', borderRadius:14, padding:'14px 16px', marginBottom:18, fontSize:13.5, color:'#8C5500', lineHeight:1.55, boxShadow:'0 4px 14px rgba(245,166,35,0.16)'}}>
             <span style={{fontSize:20, flexShrink:0}}>⚠️</span>
             <div>
@@ -306,51 +291,12 @@ export default function SellerProfile() {
             <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={inputStyle}/>
           </div>
 
-          {/* Address */}
+          {/* Address — one postcode lookup, then pick from the dropdown. */}
           <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
             <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>Address{reviewBadge}</h4>
-            <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6, marginBottom:14}}>Where you cook from. Enter your postcode first and tap <strong>Find address</strong> to confirm it and auto-fill your city.</p>
-            <div style={{display:'flex', flexDirection:'column', gap:14}}>
-              <div>
-                <label style={labelStyle}>Postcode <span style={{color:'#C0392B', fontWeight:800}}>*</span></label>
-                <input
-                  value={postcode}
-                  onChange={e => setPostcode(e.target.value)}
-                  placeholder="e.g. E3 4SS"
-                  autoCapitalize="characters"
-                  required
-                  aria-required="true"
-                  style={{...inputStyle, textTransform:'uppercase', borderColor: postcode.trim() ? 'var(--border-subtle)' : '#F5A623'}}
-                />
-                <PostcodeLookup
-                  postcode={postcode}
-                  onResolved={({ postcode: pc, city: c }) => {
-                    setPostcode(pc.toUpperCase())
-                    if (c) setCity(c)
-                  }}
-                />
-                <p style={{fontSize:12, color:postcode.trim() ? 'var(--text-primary)' : '#8C5500', opacity:postcode.trim() ? 0.6 : 1, fontWeight:postcode.trim() ? 400 : 600, marginTop:6}}>Required — buyers use your postcode to calculate delivery distance.</p>
-              </div>
-              <div style={{display:'grid', gridTemplateColumns:'120px 1fr', gap:12}}>
-                <div>
-                  <label style={labelStyle}>Flat/House number <span style={{color:'#C0392B', fontWeight:800}}>*</span></label>
-                  <input value={houseNumber} onChange={e => setHouseNumber(e.target.value)} placeholder='e.g. 42' style={inputStyle}/>
-                </div>
-                <div>
-                  <label style={labelStyle}>Street name <span style={{color:'#C0392B', fontWeight:800}}>*</span></label>
-                  <input value={streetName} onChange={e => setStreetName(e.target.value)} placeholder='e.g. Baker Street' style={inputStyle}/>
-                </div>
-              </div>
-              <p style={{fontSize:11, color:'var(--text-primary)', opacity:0.6, marginTop:-6}}>Postcodes can&apos;t provide street names — please type these manually.</p>
-              <div>
-                <label style={labelStyle}>Building name or apartment (optional)</label>
-                <input value={addr2} onChange={e => setAddr2(e.target.value)} placeholder="Flat 3B, Riverside Court" style={inputStyle}/>
-              </div>
-              <div>
-                <label style={labelStyle}>City / Town</label>
-                <input value={city} onChange={e => setCity(e.target.value)} placeholder="Auto-fills from postcode" style={inputStyle}/>
-              </div>
-            </div>
+            <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6, marginBottom:14}}>Where you cook from — used for verification and dispatch. Type your postcode and pick your address from the list.</p>
+            <AddressLookup value={address} onChange={setAddress}/>
+            <p style={{fontSize:12, color:address.postcode.trim() ? 'var(--text-primary)' : '#8C5500', opacity:address.postcode.trim() ? 0.6 : 1, fontWeight:address.postcode.trim() ? 400 : 600, marginTop:10}}>Postcode is required — buyers use it to calculate delivery distance.</p>
           </div>
           <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
             <label style={{...labelStyle, display:'flex', alignItems:'center', gap:6}}>Email address <span style={{fontSize:12}}>🔒</span></label>
