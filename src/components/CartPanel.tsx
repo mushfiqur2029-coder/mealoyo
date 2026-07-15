@@ -6,7 +6,33 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCartStore } from '@/lib/cartStore'
 import { supabase } from '@/lib/supabase'
-import { serviceFee as calcServiceFee } from '@/lib/pricing'
+import PostcodeLookup from '@/components/PostcodeLookup'
+import {
+  serviceFee as calcServiceFee,
+  isValidUKPostcode,
+  lookupPostcode,
+  haversineDistance,
+  deliveryFeeForDistance,
+  FLAT_DELIVERY_FEE,
+} from '@/lib/pricing'
+
+type DeliveryQuote =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'ok'; distance: number; fee: number }
+  | { status: 'unavailable'; distance: number }
+  | { status: 'flat'; fee: number }
+  | { status: 'invalid' }
+  | { status: 'notfound' }
+
+// Seller info the cart panel needs for the delivery quote + collection card.
+interface SellerInfo {
+  id: string
+  full_name: string | null
+  postcode: string | null
+  address_line1: string | null
+  city: string | null
+}
 
 export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const items = useCartStore((s) => s.items)
@@ -21,47 +47,140 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
   const [dragY, setDragY] = useState(0)
   const startY = useRef<number | null>(null)
 
-  // Render into document.body via a portal. The panel is `position: fixed`, but
-  // the navs that host <CartButton> use `backdrop-filter`, which establishes a
-  // containing block and would otherwise trap the panel inside the ~66px nav
-  // (breaking the mobile bottom-sheet). Portalling to body keeps `fixed`
-  // relative to the viewport. Gated on mount so SSR and first client render match.
+  // ── Delivery/collection choice + address form (moved here from dish page) ──
+  const [deliveryType, setDeliveryType] = useState<'collection' | 'delivery'>('collection')
+  const [houseNumber, setHouseNumber] = useState('')
+  const [streetName, setStreetName] = useState('')
+  const [addrCity, setAddrCity] = useState('')
+  const [buyerPostcode, setBuyerPostcode] = useState('')
+  const [quote, setQuote] = useState<DeliveryQuote>({ status: 'idle' })
+  const [seller, setSeller] = useState<SellerInfo | null>(null)
+  const [savedLoaded, setSavedLoaded] = useState(false)
+
+  // Portal + body-scroll lock — same as before.
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     const id = requestAnimationFrame(() => setMounted(true))
     return () => cancelAnimationFrame(id)
   }, [])
 
-  // Lock the page behind the cart while it's open.
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden'
     else document.body.style.overflow = ''
-    return () => {
-      document.body.style.overflow = ''
-    }
+    return () => { document.body.style.overflow = '' }
   }, [isOpen])
 
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
   const svc = calcServiceFee(subtotal)
-  const total = subtotal + svc
   const sellerName = items[0]?.sellerName ?? null
+  const sellerId = items[0]?.sellerId ?? null
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    startY.current = e.touches[0].clientY
-  }
+  // Fetch seller postcode + collection address whenever the cart opens or the
+  // seller changes. Address comes from the definer RPC so it works despite the
+  // profiles column lockdown.
+  useEffect(() => {
+    if (!isOpen || !sellerId) return
+    let alive = true
+    ;(async () => {
+      const [{ data: pc }, { data: addrRow }] = await Promise.all([
+        supabase.rpc('get_seller_postcode', { p_seller_id: sellerId }),
+        supabase.rpc('get_seller_public_address', { p_seller_id: sellerId }),
+      ])
+      if (!alive) return
+      console.log('[cart] seller lookup', { sellerId, postcode: pc, addrRow })
+      setSeller({
+        id: sellerId,
+        full_name: sellerName,
+        postcode: typeof pc === 'string' ? pc : null,
+        address_line1: (addrRow?.[0]?.address_line1 as string | undefined) ?? null,
+        city: (addrRow?.[0]?.city as string | undefined) ?? null,
+      })
+    })()
+    return () => { alive = false }
+  }, [isOpen, sellerId, sellerName])
+
+  // Auto-fill from the buyer's saved profile the first time the cart opens.
+  useEffect(() => {
+    if (!isOpen || savedLoaded) return
+    ;(async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setSavedLoaded(true); return }
+      const { data: row } = await supabase.rpc('get_my_profile_full')
+      if (row?.address_line1) {
+        const m = String(row.address_line1).trim().match(/^(\S+)\s+(.+)$/)
+        if (m) { setHouseNumber(m[1]); setStreetName(m[2]) }
+        else { setStreetName(String(row.address_line1).trim()) }
+      }
+      if (row?.city) setAddrCity(row.city)
+      if (row?.postcode) setBuyerPostcode(row.postcode)
+      setSavedLoaded(true)
+    })()
+  }, [isOpen, savedLoaded])
+
+  // Live distance quote. Fires when delivery is selected and the postcode +
+  // seller info are both ready.
+  useEffect(() => {
+    let active = true
+    const t = setTimeout(async () => {
+      if (!active) return
+      if (deliveryType !== 'delivery' || !seller) { setQuote({ status: 'idle' }); return }
+      // Smallest radius across the cart's listings (all from the same seller).
+      const radius = 5 // TODO if per-listing radius is needed we can pass it here; safe default
+      if (!seller.postcode || !isValidUKPostcode(seller.postcode)) {
+        setQuote({ status: 'flat', fee: FLAT_DELIVERY_FEE })
+        return
+      }
+      const pc = buyerPostcode.trim()
+      if (!pc) { setQuote({ status: 'idle' }); return }
+      if (!isValidUKPostcode(pc)) { setQuote({ status: 'invalid' }); return }
+      setQuote({ status: 'checking' })
+      const [buyerLoc, sellerLoc] = await Promise.all([lookupPostcode(pc), lookupPostcode(seller.postcode)])
+      if (!active) return
+      if (!buyerLoc) { setQuote({ status: 'notfound' }); return }
+      if (!sellerLoc) { setQuote({ status: 'flat', fee: FLAT_DELIVERY_FEE }); return }
+      const distance = haversineDistance(buyerLoc.latitude, buyerLoc.longitude, sellerLoc.latitude, sellerLoc.longitude)
+      const fee = deliveryFeeForDistance(distance, radius)
+      console.log('[cart] distance quote', { pc, sellerPc: seller.postcode, distance, fee })
+      if (fee === null) setQuote({ status: 'unavailable', distance })
+      else setQuote({ status: 'ok', distance, fee })
+    }, 350)
+    return () => { active = false; clearTimeout(t) }
+  }, [deliveryType, buyerPostcode, seller])
+
+  const deliveryFee: number =
+    deliveryType === 'delivery'
+      ? quote.status === 'ok' || quote.status === 'flat' ? quote.fee : 0
+      : 0
+  const total = subtotal + svc + deliveryFee
+
+  const onTouchStart = (e: React.TouchEvent) => { startY.current = e.touches[0].clientY }
   const onTouchMove = (e: React.TouchEvent) => {
     if (startY.current === null) return
     const delta = e.touches[0].clientY - startY.current
-    if (delta > 0) setDragY(delta) // only track downward drags
+    if (delta > 0) setDragY(delta)
   }
   const onTouchEnd = () => {
-    if (dragY > 90) onClose() // dragged far enough → dismiss
+    if (dragY > 90) onClose()
     setDragY(0)
     startY.current = null
   }
 
+  // Client-side validation before the API takes over.
+  const validateForCheckout = (): string | null => {
+    if (!items.length) return 'Your cart is empty.'
+    if (deliveryType === 'delivery') {
+      if (!buyerPostcode.trim() || !isValidUKPostcode(buyerPostcode)) return 'Please enter a valid UK postcode for delivery.'
+      if (!houseNumber.trim()) return 'Please enter your flat or house number.'
+      if (!streetName.trim()) return 'Please enter your street name.'
+      if (quote.status === 'unavailable') return "Sorry, this cook doesn't deliver to your area."
+      if (quote.status === 'invalid' || quote.status === 'notfound') return 'Please enter a valid UK postcode.'
+    }
+    return null
+  }
+
   const handleCheckout = async () => {
-    if (!items.length) return
+    const problem = validateForCheckout()
+    if (problem) { setError(problem); return }
     setError('')
     setLoading(true)
     const {
@@ -72,19 +191,25 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
       return
     }
     try {
-      // Order creation + pricing are fully server-side: we send only the items
-      // (which dish, how many, delivery preference). /api/orders/create-cart
-      // re-prices everything from the DB, persists one order per dish and returns
-      // a Stripe Checkout URL — nothing money-related is trusted from here.
+      // Combine structured address fields into the single string the driver
+      // dispatch view expects. Postcode last so split_part(..., ' ', -1) still
+      // returns the buyer postcode.
+      const combined = deliveryType === 'delivery'
+        ? [
+            [houseNumber.trim(), streetName.trim()].filter(Boolean).join(' '),
+            addrCity.trim(),
+            buyerPostcode.trim().toUpperCase(),
+          ].filter(Boolean).join(', ')
+        : ''
+
       const res = await fetch('/api/orders/create-cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map((it) => ({
-            listingId: it.listingId,
-            quantity: it.quantity,
-            deliveryType: it.deliveryPref || 'collection',
-          })),
+          items: items.map((it) => ({ listingId: it.listingId, quantity: it.quantity })),
+          deliveryType,
+          deliveryAddress: combined,
+          buyerPostcode: deliveryType === 'delivery' ? buyerPostcode.trim().toUpperCase() : '',
         }),
       })
       const data = await res.json()
@@ -110,7 +235,7 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
         }
         .cart-backdrop.open { opacity: 1; visibility: visible; }
         .cart-panel {
-          position: fixed; top: 0; right: 0; height: 100vh; width: 380px; max-width: 100vw;
+          position: fixed; top: 0; right: 0; height: 100vh; width: 420px; max-width: 100vw;
           background: #fff; z-index: 1401; display: flex; flex-direction: column;
           box-shadow: -8px 0 40px rgba(0,0,0,0.18);
           transform: translateX(100%);
@@ -122,9 +247,11 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
         .cart-qty-btn:active { transform: scale(0.92); }
         .cart-checkout:hover { background: #A00055 !important; }
         .cart-remove:hover { color: #C8006A !important; }
+        .cart-input:focus { border-color: #C8006A !important; outline: none; background: #fff !important; }
+        .cart-dt-card { transition: all 0.16s cubic-bezier(0.34,1.2,0.64,1); cursor: pointer; }
         @media (max-width: 768px) {
           .cart-panel {
-            top: auto; bottom: 0; right: 0; left: 0; width: 100%; height: 85vh;
+            top: auto; bottom: 0; right: 0; left: 0; width: 100%; height: 92vh;
             border-radius: 20px 20px 0 0; box-shadow: 0 -8px 40px rgba(0,0,0,0.2);
             transform: translateY(100%);
             transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
@@ -268,6 +395,108 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
                   </div>
                 </div>
               ))}
+
+              {/* ── DELIVERY / COLLECTION CHOICE ── */}
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#1A1A1A', marginBottom: 10 }}>
+                  How do you want to receive your order?
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {([
+                    { type: 'collection' as const, icon: '📍', label: 'COLLECT FREE',
+                      sub: seller?.address_line1
+                        ? `Pick up from ${seller.full_name || 'the cook'} at ${[seller.address_line1, seller.city].filter(Boolean).join(', ')}`
+                        : `Pick up from ${seller?.full_name || 'the cook'} — full address after your order is confirmed` },
+                    { type: 'delivery' as const, icon: '🚴', label: 'DELIVERY',
+                      sub: quote.status === 'ok' ? `£${quote.fee.toFixed(2)} — ${quote.distance.toFixed(1)} mi to your door`
+                        : quote.status === 'unavailable' ? 'Outside cook delivery area'
+                        : quote.status === 'flat' ? 'Fee confirmed at dispatch — approx £3.99'
+                        : 'Fee based on distance — enter postcode below' },
+                  ]).map(opt => {
+                    const on = deliveryType === opt.type
+                    return (
+                      <div
+                        key={opt.type}
+                        className="cart-dt-card"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setDeliveryType(opt.type)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDeliveryType(opt.type) } }}
+                        style={{
+                          minHeight: 76, padding: '14px 16px',
+                          border: on ? '2px solid #C8006A' : '1.5px solid #E0E0E0',
+                          borderRadius: 14, background: on ? '#FFE8F4' : '#fff',
+                          display: 'flex', alignItems: 'center', gap: 14,
+                          boxShadow: on ? '0 4px 16px rgba(200,0,106,0.16)' : 'none',
+                        }}
+                      >
+                        <div style={{ fontSize: 30, flexShrink: 0 }}>{opt.icon}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 800, color: on ? '#C8006A' : '#1A1A1A', lineHeight: 1.25, letterSpacing: '0.02em' }}>{opt.label}</div>
+                          <div style={{ fontSize: 12.5, color: '#1A1A1A', opacity: 0.8, marginTop: 3, lineHeight: 1.4 }}>{opt.sub}</div>
+                        </div>
+                        <div aria-hidden="true" style={{ width: 22, height: 22, borderRadius: '50%', border: on ? '6px solid #C8006A' : '2px solid #E0E0E0', background: on ? '#fff' : 'transparent', flexShrink: 0, transition: 'all 0.16s' }}/>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* ── COLLECTION CONFIRMATION ── */}
+              {deliveryType === 'collection' && (
+                <div style={{ marginTop: 14, background: '#F0FBF3', border: '1px solid rgba(45,168,78,0.28)', borderRadius: 12, padding: '12px 14px', fontSize: 12.5, color: '#1A6030', lineHeight: 1.55 }}>
+                  {seller?.address_line1 ? (
+                    <>📍 <strong>Collect from:</strong> {[seller.address_line1, seller.city].filter(Boolean).join(', ')}. You&apos;ll receive the exact collection details when your order is ready.</>
+                  ) : (
+                    <>📍 You&apos;ll receive the exact collection address after your order is confirmed by the cook.</>
+                  )}
+                </div>
+              )}
+
+              {/* ── DELIVERY ADDRESS FORM ── */}
+              {deliveryType === 'delivery' && (
+                <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1A1A1A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Postcode <span style={{ color: '#C0392B' }}>*</span></label>
+                    <input
+                      value={buyerPostcode}
+                      onChange={e => setBuyerPostcode(e.target.value)}
+                      placeholder="e.g. E3 4SS"
+                      autoCapitalize="characters"
+                      className="cart-input"
+                      style={{ width: '100%', height: 42, border: '1.5px solid #E0E0E0', borderRadius: 10, padding: '0 14px', fontSize: 14, color: '#1A1A1A', background: '#FAFAFA', textTransform: 'uppercase', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none' }}
+                    />
+                    <PostcodeLookup
+                      postcode={buyerPostcode}
+                      onResolved={({ postcode: pc, city }) => {
+                        setBuyerPostcode(pc.toUpperCase())
+                        if (city) setAddrCity(city)
+                      }}
+                      compact
+                    />
+                    {quote.status === 'checking' && <p style={{ fontSize: 12, color: '#1A1A1A', opacity: 0.7, marginTop: 7 }}>Checking distance…</p>}
+                    {quote.status === 'invalid' && <p style={{ fontSize: 12, color: '#C8006A', fontWeight: 600, marginTop: 7 }}>Enter a valid UK postcode.</p>}
+                    {quote.status === 'notfound' && <p style={{ fontSize: 12, color: '#C8006A', fontWeight: 600, marginTop: 7 }}>We couldn&apos;t find that postcode — please check it.</p>}
+                    {quote.status === 'ok' && <p style={{ fontSize: 13, color: '#C8006A', fontWeight: 700, marginTop: 7 }}>📍 {quote.distance.toFixed(1)} miles — £{quote.fee.toFixed(2)} delivery</p>}
+                    {quote.status === 'unavailable' && <p style={{ fontSize: 13, color: '#C0392B', fontWeight: 700, marginTop: 7 }}>Sorry, this cook doesn&apos;t deliver to your area ({quote.distance.toFixed(1)} mi).</p>}
+                    {quote.status === 'flat' && <p style={{ fontSize: 12, color: '#1A1A1A', opacity: 0.75, marginTop: 7 }}>Delivery fee confirmed at dispatch — approx £{quote.fee.toFixed(2)}.</p>}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1A1A1A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Flat/House # <span style={{ color: '#C0392B' }}>*</span></label>
+                      <input value={houseNumber} onChange={e => setHouseNumber(e.target.value)} placeholder="42" className="cart-input" style={{ width: '100%', height: 42, border: '1.5px solid #E0E0E0', borderRadius: 10, padding: '0 12px', fontSize: 14, color: '#1A1A1A', background: '#FAFAFA', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none' }}/>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1A1A1A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Street name <span style={{ color: '#C0392B' }}>*</span></label>
+                      <input value={streetName} onChange={e => setStreetName(e.target.value)} placeholder="Baker Street" className="cart-input" style={{ width: '100%', height: 42, border: '1.5px solid #E0E0E0', borderRadius: 10, padding: '0 12px', fontSize: 14, color: '#1A1A1A', background: '#FAFAFA', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none' }}/>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: '#1A1A1A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>City</label>
+                    <input value={addrCity} onChange={e => setAddrCity(e.target.value)} placeholder="Auto-fills from postcode" className="cart-input" style={{ width: '100%', height: 42, border: '1.5px solid #E0E0E0', borderRadius: 10, padding: '0 12px', fontSize: 14, color: '#1A1A1A', background: '#FAFAFA', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none' }}/>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -285,8 +514,15 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
                 <span>Service fee</span>
                 <span style={{ fontWeight: 600 }}>£{svc.toFixed(2)}</span>
               </div>
-              <div style={{ fontSize: 12, color: '#1A1A1A', opacity: 0.7, marginBottom: 12 }}>
-                🚴 Delivery fee calculated at checkout
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13.5, color: '#1A1A1A', marginBottom: 7 }}>
+                <span>{deliveryType === 'delivery' ? 'Delivery fee' : 'Collection'}</span>
+                <span style={{ fontWeight: 600 }}>
+                  {deliveryType !== 'delivery'
+                    ? 'Free'
+                    : quote.status === 'ok' || quote.status === 'flat'
+                      ? `£${deliveryFee.toFixed(2)}`
+                      : '—'}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: '1px solid #F0F0F0', marginBottom: 14 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A' }}>Total</span>
@@ -294,11 +530,11 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
               </div>
               <button
                 onClick={handleCheckout}
-                disabled={loading}
+                disabled={loading || quote.status === 'unavailable'}
                 className="cart-checkout"
-                style={{ width: '100%', height: 52, background: '#C8006A', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 6px 20px rgba(200,0,106,0.3)', opacity: loading ? 0.6 : 1, transition: 'background 0.16s' }}
+                style={{ width: '100%', height: 52, background: '#C8006A', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: loading || quote.status === 'unavailable' ? 'not-allowed' : 'pointer', boxShadow: '0 6px 20px rgba(200,0,106,0.3)', opacity: loading || quote.status === 'unavailable' ? 0.6 : 1, transition: 'background 0.16s' }}
               >
-                {loading ? 'Starting checkout…' : `Checkout · £${total.toFixed(2)}`}
+                {loading ? 'Starting checkout…' : `Pay £${total.toFixed(2)}`}
               </button>
               <p style={{ textAlign: 'center', fontSize: 11, color: '#1A1A1A', opacity: 0.7, marginTop: 10 }}>
                 🔒 Secured by Stripe · Buyer protection on every order

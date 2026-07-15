@@ -44,18 +44,28 @@ const reviewBadge = (
   <span style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(184,115,10,0.18)', color:'#FBBF24', fontSize:9.5, fontWeight:800, padding:'2px 7px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em', verticalAlign:'middle', marginLeft:8 }}>⏳ Needs re-approval</span>
 )
 
+// Split a stored address_line1 back into house/flat number + street name.
+function splitLine1(v: string | null | undefined): { house: string; street: string } {
+  const s = (v || '').trim()
+  if (!s) return { house: '', street: '' }
+  const m = s.match(/^(\S+)\s+(.+)$/)
+  if (m) return { house: m[1], street: m[2] }
+  return { house: '', street: s }
+}
+
 export default function DriverProfile() {
   const [user, setUser] = useState<User | null>(null)
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
-  const [addr1, setAddr1] = useState('')
+  const [houseNumber, setHouseNumber] = useState('')
+  const [streetName, setStreetName] = useState('')
   const [addr2, setAddr2] = useState('')
   const [city, setCity] = useState('')
   const [postcode, setPostcode] = useState('')
   const [email, setEmail] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [status, setStatus] = useState('')
-  const [orig, setOrig] = useState({ fullName:'', addr1:'', addr2:'', city:'' })
+  const [orig, setOrig] = useState({ fullName:'', houseNumber:'', streetName:'', addr2:'', city:'' })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -91,7 +101,9 @@ export default function DriverProfile() {
       // granted for direct reads post-lockdown, so read the caller's own full row
       // via the definer RPC.
       const { data: row } = await supabase.rpc('get_my_profile_full')
-      setAddr1(row?.address_line1 || '')
+      const { house, street } = splitLine1(row?.address_line1)
+      setHouseNumber(house)
+      setStreetName(street)
       setAddr2(row?.address_line2 || '')
       setCity(row?.city || '')
       setPostcode(row?.postcode || '')
@@ -99,7 +111,7 @@ export default function DriverProfile() {
       setBankName(row?.bank_account_name || '')
       setSortCode(row?.bank_sort_code || '')
       setAccountNumber(row?.bank_account_number || '')
-      setOrig({ fullName: p?.full_name || '', addr1: row?.address_line1 || '', addr2: row?.address_line2 || '', city: row?.city || '' })
+      setOrig({ fullName: p?.full_name || '', houseNumber: house, streetName: street, addr2: row?.address_line2 || '', city: row?.city || '' })
       setLoading(false)
     }
     getData()
@@ -113,15 +125,17 @@ export default function DriverProfile() {
 
     const sensitiveChanged =
       fullName.trim() !== orig.fullName.trim() ||
-      addr1.trim() !== orig.addr1.trim() ||
+      houseNumber.trim() !== orig.houseNumber.trim() ||
+      streetName.trim() !== orig.streetName.trim() ||
       addr2.trim() !== orig.addr2.trim() ||
       city.trim() !== orig.city.trim()
     const willReapprove = sensitiveChanged && status === 'active'
 
+    const combinedLine1 = [houseNumber.trim(), streetName.trim()].filter(Boolean).join(' ') || null
     const update: Record<string, string | null> = {
       full_name: fullName.trim(),
       phone: phone.trim(),
-      address_line1: addr1.trim() || null,
+      address_line1: combinedLine1,
       address_line2: addr2.trim() || null,
       city: city.trim() || null,
       postcode: postcode.trim().toUpperCase() || null,
@@ -133,7 +147,7 @@ export default function DriverProfile() {
 
     if (willReapprove) { setStatus('pending'); setReapprovalNote(true) }
     else { setSavedOk(true) }
-    setOrig({ fullName: fullName.trim(), addr1: addr1.trim(), addr2: addr2.trim(), city: city.trim() })
+    setOrig({ fullName: fullName.trim(), houseNumber: houseNumber.trim(), streetName: streetName.trim(), addr2: addr2.trim(), city: city.trim() })
     setSaving(false)
   }
 
@@ -272,11 +286,17 @@ export default function DriverProfile() {
                   dark
                 />
               </div>
-              <div>
-                <label style={labelStyle}>Door/flat number and street name *</label>
-                <input value={addr1} onChange={e => setAddr1(e.target.value)} placeholder="e.g. 42 Baker Street" style={inputStyle}/>
-                <p style={{fontSize:11, color:'var(--text-secondary)', marginTop:6}}>We can&apos;t look up street names from a postcode — please type this manually.</p>
+              <div style={{display:'grid', gridTemplateColumns:'120px 1fr', gap:12}}>
+                <div>
+                  <label style={labelStyle}>Flat/House number <span style={{color:'#EF6A6A', fontWeight:800}}>*</span></label>
+                  <input value={houseNumber} onChange={e => setHouseNumber(e.target.value)} placeholder='e.g. 42' style={inputStyle}/>
+                </div>
+                <div>
+                  <label style={labelStyle}>Street name <span style={{color:'#EF6A6A', fontWeight:800}}>*</span></label>
+                  <input value={streetName} onChange={e => setStreetName(e.target.value)} placeholder='e.g. Baker Street' style={inputStyle}/>
+                </div>
               </div>
+              <p style={{fontSize:11, color:'var(--text-secondary)', marginTop:-6}}>Postcodes can&apos;t provide street names — please type these manually.</p>
               <div>
                 <label style={labelStyle}>Building name or apartment (optional)</label>
                 <input value={addr2} onChange={e => setAddr2(e.target.value)} placeholder="Flat 3B, Riverside Court" style={inputStyle}/>

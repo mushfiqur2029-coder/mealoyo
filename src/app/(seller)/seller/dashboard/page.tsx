@@ -34,6 +34,9 @@ const NAV = [
 export default function SellerDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  // Sourced from get_my_profile_full because postcode isn't in the base RPC.
+  // Powers the "please add your postcode" warning below.
+  const [sellerPostcode, setSellerPostcode] = useState<string | null>(null)
   const [listings, setListings] = useState<Listing[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [orderCount, setOrderCount] = useState(0)
@@ -55,6 +58,10 @@ export default function SellerDashboard() {
       setProfile(profile)
       const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
       setAvatarUrl(avatarRow?.avatar_url || null)
+      // Postcode isn't returned by get_my_profile — read it via the definer RPC
+      // so we can nag sellers who haven't set it.
+      const { data: fullProfile } = await supabase.rpc('get_my_profile_full')
+      setSellerPostcode(fullProfile?.postcode || null)
       const { data: listings } = await supabase.from('listings').select('*').eq('seller_id', user.id)
       setListings(listings || [])
       const { data: orders } = await supabase.from('orders').select('*, listings(name,cuisine), profiles:buyer_id(full_name)').eq('seller_id', user.id).neq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5)
@@ -296,6 +303,18 @@ export default function SellerDashboard() {
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,34px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 👋</h1>
           <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>{today}</p>
         </div>
+
+        {/* Missing-postcode nag — persistent link to profile so distance quotes
+            actually work for buyers. */}
+        {sellerPostcode !== null && !sellerPostcode && (
+          <Link href="/seller/profile" className="fade-up" style={{display:'flex', alignItems:'flex-start', gap:14, background:'#FFF4E0', border:'2px solid #F5A623', borderRadius:16, padding:'16px 18px', marginBottom:22, boxShadow:'0 4px 14px rgba(245,166,35,0.16)', textDecoration:'none'}}>
+            <span style={{fontSize:22, flexShrink:0}}>⚠️</span>
+            <div style={{flex:1}}>
+              <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:800, color:'#8C5500', marginBottom:2}}>Please add your postcode so buyers can calculate delivery distance</div>
+              <div style={{fontSize:13, color:'#8C5500', opacity:0.85, lineHeight:1.5}}>Without it, buyers see a flat &quot;fee at dispatch&quot; and you may lose orders. Tap to add it now →</div>
+            </div>
+          </Link>
+        )}
 
         {/* Top stats */}
         <div className="dash-grid fade-up" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24}}>

@@ -2,7 +2,16 @@ import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { createClient } from '@/lib/supabase-server'
-import { serviceFee as calcServiceFee, commission as calcCommission, sellerReceives } from '@/lib/pricing'
+import {
+  serviceFee as calcServiceFee,
+  commission as calcCommission,
+  sellerReceives,
+  lookupPostcode,
+  haversineDistance,
+  deliveryFeeForDistance,
+  isValidUKPostcode,
+  FLAT_DELIVERY_FEE,
+} from '@/lib/pricing'
 
 // Server-authoritative CART checkout. Mirrors /api/orders/create but for the
 // multi-item cart: the client sends only { items: [{ listingId, quantity,
@@ -27,7 +36,7 @@ function productData(name: string, description?: string | null, imageUrl?: strin
   return pd
 }
 
-type CartInput = { listingId?: string; quantity?: unknown; deliveryType?: string }
+type CartInput = { listingId?: string; quantity?: unknown }
 
 export async function POST(request: Request) {
   try {
@@ -36,6 +45,11 @@ export async function POST(request: Request) {
     if (items.length === 0) {
       return NextResponse.json({ error: 'Your cart is empty.' }, { status: 400 })
     }
+    // Cart-level checkout inputs: single delivery choice for the whole cart
+    // (Deliveroo-style — the buyer picks once, not per dish).
+    const deliveryType = body?.deliveryType === 'delivery' ? 'delivery' : 'collection'
+    const rawDeliveryAddress = typeof body?.deliveryAddress === 'string' ? body.deliveryAddress : ''
+    const rawBuyerPostcode = typeof body?.buyerPostcode === 'string' ? body.buyerPostcode : ''
 
     // 1. Authenticated buyer (from the session cookie).
     const supabase = await createClient()
@@ -75,12 +89,53 @@ export async function POST(request: Request) {
     }
     const { data: seller } = await supabaseAdmin
       .from('profiles')
-      .select('id, status')
+      .select('id, status, postcode')
       .eq('id', sellerId)
       .maybeSingle()
     if (!seller || seller.status !== 'active') {
       return NextResponse.json({ error: 'This cook is not accepting orders right now.' }, { status: 400 })
     }
+
+    // 3b. Delivery fee — computed server-side from postcode distance. The
+    // whole cart shares one delivery drop, so we quote once and put the entire
+    // fee on the first order row (like the service fee).
+    let deliveryFee = 0
+    if (deliveryType === 'delivery') {
+      // Use the smallest delivery_radius_miles across the cart's dishes (all
+      // from the same seller) as the constraint. If any dish is collection-only
+      // (radius=0), we bail out.
+      const { data: cartListings } = await supabaseAdmin
+        .from('listings')
+        .select('delivery_radius_miles')
+        .in('id', listingIds)
+      const radii = (cartListings || []).map(l => l.delivery_radius_miles ?? 3)
+      const radius = radii.length ? Math.min(...radii) : 3
+      if (radius <= 0) {
+        return NextResponse.json({ error: 'This cook offers collection only.' }, { status: 400 })
+      }
+      const sellerPc = typeof seller.postcode === 'string' ? seller.postcode.trim() : ''
+      const buyerPc = rawBuyerPostcode.trim()
+      if (!buyerPc || !isValidUKPostcode(buyerPc)) {
+        return NextResponse.json({ error: 'Please enter a valid UK postcode for delivery.' }, { status: 400 })
+      }
+      if (sellerPc && isValidUKPostcode(sellerPc)) {
+        const [sLoc, bLoc] = await Promise.all([lookupPostcode(sellerPc), lookupPostcode(buyerPc)])
+        if (sLoc && bLoc) {
+          const miles = haversineDistance(sLoc.latitude, sLoc.longitude, bLoc.latitude, bLoc.longitude)
+          const fee = deliveryFeeForDistance(miles, radius)
+          if (fee === null) {
+            return NextResponse.json({ error: 'Sorry, this cook doesn\'t deliver to your area.' }, { status: 400 })
+          }
+          deliveryFee = fee
+        } else {
+          deliveryFee = FLAT_DELIVERY_FEE
+        }
+      } else {
+        deliveryFee = FLAT_DELIVERY_FEE
+      }
+    }
+    const driverPayout = Math.round(deliveryFee * 0.8 * 100) / 100
+    const driverCommission = Math.round(deliveryFee * 0.2 * 100) / 100
 
     // 4. Price every line from the DB and build the per-dish order rows.
     const cartSubtotal = items.reduce((sum, it) => {
@@ -95,26 +150,30 @@ export async function POST(request: Request) {
       const qty = Math.max(1, Math.min(50, Math.floor(Number(it.quantity) || 1)))
       const lineSub = Math.round(parseFloat(l.price) * qty * 100) / 100
       const svcForOrder = idx === 0 ? svcFee : 0 // whole-cart service fee rides on the first order
-      // Cart flow doesn't quote per-item delivery fees (single-seller cart with a
-      // single dispatch), so delivery_fee stays 0 here and the driver split is 0
-      // to match. If we later add per-order delivery fees at cart checkout, this
-      // is where the 80/20 driver split would be computed.
+      // Whole-cart delivery fee + address ride on the first order row so
+      // dispatch has one drop to fulfil (like the service fee).
+      const feeForOrder = idx === 0 ? deliveryFee : 0
+      const payoutForOrder = idx === 0 ? driverPayout : 0
+      const commissionForOrder = idx === 0 ? driverCommission : 0
+      const addressForOrder = idx === 0 && deliveryType === 'delivery'
+        ? (rawDeliveryAddress.trim() || null)
+        : null
       return {
         buyer_id: user.id,
         seller_id: sellerId,
         listing_id: l.id,
         quantity: qty,
-        total_amount: Math.round((lineSub + svcForOrder) * 100) / 100,
-        delivery_fee: 0,
-        driver_payout: 0,
-        driver_commission: 0,
+        total_amount: Math.round((lineSub + svcForOrder + feeForOrder) * 100) / 100,
+        delivery_fee: feeForOrder,
+        driver_payout: payoutForOrder,
+        driver_commission: commissionForOrder,
         service_fee: svcForOrder,
         platform_commission: calcCommission(lineSub),
         seller_payout: sellerReceives(lineSub),
         status: 'pending_payment',
         payment_status: 'unpaid',
-        delivery_type: it.deliveryType === 'delivery' ? 'delivery' : 'collection',
-        delivery_address: null,
+        delivery_type: deliveryType,
+        delivery_address: addressForOrder,
         notes: null,
       }
     })
@@ -149,6 +208,12 @@ export async function POST(request: Request) {
         quantity: 1,
       })
     }
+    if (toPence(deliveryFee) > 0) {
+      line_items.push({
+        price_data: { currency: 'gbp', product_data: productData('Delivery fee'), unit_amount: toPence(deliveryFee) },
+        quantity: 1,
+      })
+    }
 
     const metadata: Record<string, string> = {
       orderIds: orderIds.join(','),
@@ -166,7 +231,7 @@ export async function POST(request: Request) {
       cancel_url: `${SITE_URL}/browse?cancelled=true`,
     })
 
-    const total = Math.round((cartSubtotal + svcFee) * 100) / 100
+    const total = Math.round((cartSubtotal + svcFee + deliveryFee) * 100) / 100
     return NextResponse.json({ orderIds, total, sessionUrl: session.url })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'

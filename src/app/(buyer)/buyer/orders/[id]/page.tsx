@@ -50,6 +50,10 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const [order, setOrder] = useState<Order | null>(null)
   const [listing, setListing] = useState<Listing | null>(null)
   const [seller, setSeller] = useState<Pick<Profile, 'full_name'> | null>(null)
+  // Coarse collection address (address_line1 + city) — shown prominently for
+  // collection orders. Fetched via the definer RPC since the base column grant
+  // hides these fields from cross-user reads.
+  const [sellerCollectionAddress, setSellerCollectionAddress] = useState<{ address_line1: string | null; city: string | null } | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [rating, setRating] = useState(0)
@@ -99,6 +103,13 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
       setListing(listing)
       setSeller(listing?.profiles ?? null)
+      // Fetch the coarse collection address once we know the seller. This is
+      // safe for the buyer to see — they've just ordered from this seller.
+      if (listing?.seller_id) {
+        const { data: addrRow } = await supabase.rpc('get_seller_public_address', { p_seller_id: listing.seller_id })
+        const first = Array.isArray(addrRow) && addrRow.length > 0 ? addrRow[0] : null
+        if (first) setSellerCollectionAddress({ address_line1: first.address_line1 ?? null, city: first.city ?? null })
+      }
 
       const { data: existingReview } = await supabase
         .from('reviews')
@@ -424,6 +435,25 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                 </div>
               )
             })()}
+
+            {/* Collection point — prominent card for collection orders once
+                the seller has been fetched. */}
+            {!isDelivery && sellerCollectionAddress && sellerCollectionAddress.address_line1 && (
+              <div className="fade-up" style={{background:'linear-gradient(135deg,#FFF0F8 0%,#FFE8F4 100%)', borderRadius:20, padding:'22px 24px', marginBottom:16, border:'1.5px solid rgba(200,0,106,0.22)', boxShadow:'0 6px 22px rgba(200,0,106,0.12)'}}>
+                <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:12}}>
+                  <span style={{width:44, height:44, borderRadius:12, background:'#C8006A', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0}}>📍</span>
+                  <div>
+                    <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', lineHeight:1.2}}>Collection point</div>
+                    <div style={{fontSize:12.5, color:'#8B0047', fontWeight:600, marginTop:2}}>Pick up from {seller?.full_name || 'the cook'}</div>
+                  </div>
+                </div>
+                <div style={{background:'var(--bg-card)', borderRadius:12, padding:'14px 16px', fontSize:15, fontWeight:700, color:'var(--text-primary)', lineHeight:1.45}}>
+                  {sellerCollectionAddress.address_line1}
+                  {sellerCollectionAddress.city ? `, ${sellerCollectionAddress.city}` : ''}
+                </div>
+                <p style={{fontSize:12, color:'#8B0047', marginTop:10, lineHeight:1.55}}>You&apos;ll receive the exact collection details (buzzer, entry code) when the cook marks your order ready.</p>
+              </div>
+            )}
 
             {/* Order details */}
             <div style={{background:'var(--bg-card)', borderRadius:20, padding:'24px', marginBottom:16, boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border-subtle)'}}>
