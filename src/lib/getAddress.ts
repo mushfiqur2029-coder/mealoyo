@@ -1,14 +1,15 @@
 // getAddress.io UK postcode → street-level address lookup.
 //
 // postcodes.io only returns coordinates + admin_district (city). getAddress.io
-// is the paid service that actually gives us the list of addresses at a given
-// postcode. The API key is a public "browser" key exposed via
-// NEXT_PUBLIC_GETADDRESS_API_KEY (the getAddress.io dashboard rate-limits and
-// scopes it to the app's domain, so client-side use is fine).
+// gives us the actual list of addresses at a given postcode. We authenticate
+// with a domain token (NEXT_PUBLIC_GETADDRESS_DOMAIN_TOKEN) — this is the
+// browser-safe credential getAddress.io issues per allowed origin, so the
+// dashboard rejects requests from anywhere but our domains. The token is
+// still passed in the same `api-key` query parameter the endpoint expects.
 //
 // Endpoint (with expand=true, so each address arrives as a structured object
 // rather than a formatted string):
-//   https://api.getaddress.io/find/{postcode}?api-key={key}&expand=true
+//   https://api.getaddress.io/find/{postcode}?api-key={domainToken}&expand=true
 
 // One address returned by getAddress.io — trimmed to the fields we actually
 // use. See https://documentation.getaddress.io/ for the full shape.
@@ -97,45 +98,28 @@ function toAddressResult(pc: string, a: RawExpandedAddress): AddressResult {
 // Runtime lookup. Throws AddressLookupError with a specific `.kind` so the UI
 // can pick the right fallback message; the caller catches and translates.
 export async function findAddressesByPostcode(rawPostcode: string): Promise<AddressResult[]> {
-  const rawKey = process.env.NEXT_PUBLIC_GETADDRESS_API_KEY
-  // Diagnostic — logs to the BROWSER console so you can inspect what actually
-  // shipped in the client bundle for this deploy. Only the length + prefix +
-  // suffix appear; the middle is redacted so the key can't be lifted from
-  // devtools logs.
-  const key = rawKey ? rawKey.trim() : undefined
-  console.log('[getAddress] env check', {
-    present: !!key,
-    length: key?.length ?? 0,
-    prefix: key ? key.slice(0, 4) : null,
-    suffix: key ? key.slice(-4) : null,
-  })
-  if (!key) throw new AddressLookupError('misconfigured', 'Address lookup is not configured')
+  const raw = process.env.NEXT_PUBLIC_GETADDRESS_DOMAIN_TOKEN
+  const token = raw ? raw.trim() : undefined
+  if (!token) throw new AddressLookupError('misconfigured', 'Address lookup is not configured')
   const pc = rawPostcode.trim().toUpperCase()
   if (!pc) return []
   // Strip whitespace inside the postcode too — the API accepts either form but
   // "RM82AR" is what the docs use and it avoids a redirect.
   const spaceless = pc.replace(/\s+/g, '')
-  const url = `https://api.getaddress.io/find/${encodeURIComponent(spaceless)}?api-key=${encodeURIComponent(key)}&expand=true`
-
-  // Log the URL with the key redacted so we can debug from the browser console
-  // without leaking the credential.
-  const safeUrl = url.replace(/api-key=[^&]+/, 'api-key=[REDACTED]')
-  console.log('[getAddress] request', safeUrl)
+  const url = `https://api.getaddress.io/find/${encodeURIComponent(spaceless)}?api-key=${encodeURIComponent(token)}&expand=true`
 
   let res: Response
   try {
     res = await fetch(url)
-  } catch (e) {
-    console.error('[getAddress] network error', e)
+  } catch {
     throw new AddressLookupError('unavailable', 'Address lookup is temporarily unavailable')
   }
 
   const contentLength = res.headers.get('content-length')
-  console.log('[getAddress] response', { status: res.status, contentLength })
 
-  // 401/403 → the key is rejected (bad key, or domain restriction mismatch).
+  // 401/403 → the token is rejected (bad token, or domain mismatch).
   if (res.status === 401 || res.status === 403) {
-    throw new AddressLookupError('unauthorized', 'Address lookup key was rejected', res.status)
+    throw new AddressLookupError('unauthorized', 'Address lookup token was rejected', res.status)
   }
   // 429 → the plan's daily/monthly quota is exhausted.
   if (res.status === 429) {
@@ -143,10 +127,9 @@ export async function findAddressesByPostcode(rawPostcode: string): Promise<Addr
   }
 
   // 404 — could be a genuine "postcode has no addresses" OR the service
-  // returning 404 with content-length: 0 when the key/plan is bad. We can't
-  // read the response as JSON to disambiguate in the second case, so use the
-  // body: a real "not found" from getAddress.io returns a JSON body with a
-  // Message; a plan/key failure returns 0 bytes.
+  // returning 404 with content-length: 0 when the token/plan is bad. Real
+  // "not found" from getAddress.io returns a JSON body with a Message; a
+  // plan/token failure returns 0 bytes.
   if (res.status === 404) {
     // Empty body → treat as unavailable so the UI shows a "try manual entry"
     // message instead of the misleading "no addresses found for this postcode".
