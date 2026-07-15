@@ -46,6 +46,26 @@ export interface AddressResult {
   label: string
 }
 
+// A typed error the caller can react to. `.kind` lets the UI pick between
+// "we're offline, try manual entry" and "that postcode has no listings".
+export type LookupErrorKind =
+  | 'unauthorized'   // 401/403 — key rejected or domain not allowed
+  | 'exhausted'      // 429 — daily plan limit
+  | 'unavailable'    // 404-with-empty-body, 5xx, network — service down
+  | 'notfound'       // genuine "no addresses for this postcode"
+  | 'misconfigured'  // NEXT_PUBLIC_GETADDRESS_API_KEY is missing at runtime
+
+export class AddressLookupError extends Error {
+  kind: LookupErrorKind
+  status?: number
+  constructor(kind: LookupErrorKind, message: string, status?: number) {
+    super(message)
+    this.name = 'AddressLookupError'
+    this.kind = kind
+    this.status = status
+  }
+}
+
 // Best-effort formatter for the dropdown label. getAddress.io returns
 // premise/thoroughfare/town/etc. as separate fields; we pick the tidiest
 // combination so it reads like a normal UK postal address.
@@ -74,18 +94,68 @@ function toAddressResult(pc: string, a: RawExpandedAddress): AddressResult {
   return { address_line1: line1, address_line2: line2, city, postcode, label }
 }
 
-// Runtime lookup. Rejects when the API key is missing so callers can show a
-// meaningful message rather than a 401 from getAddress.
+// Runtime lookup. Throws AddressLookupError with a specific `.kind` so the UI
+// can pick the right fallback message; the caller catches and translates.
 export async function findAddressesByPostcode(rawPostcode: string): Promise<AddressResult[]> {
   const key = process.env.NEXT_PUBLIC_GETADDRESS_API_KEY
-  if (!key) throw new Error('Address lookup is not configured')
+  if (!key) throw new AddressLookupError('misconfigured', 'Address lookup is not configured')
   const pc = rawPostcode.trim().toUpperCase()
   if (!pc) return []
-  const url = `https://api.getaddress.io/find/${encodeURIComponent(pc)}?api-key=${encodeURIComponent(key)}&expand=true`
-  const res = await fetch(url)
-  if (res.status === 404) return []
-  if (!res.ok) throw new Error(`Address lookup failed (${res.status})`)
-  const data = (await res.json()) as RawFindResponse
+  // Strip the space too — getAddress.io accepts either form but the redirect
+  // adds latency and the log line looks cleaner without it.
+  const spaceless = pc.replace(/\s+/g, '')
+  const url = `https://api.getaddress.io/find/${encodeURIComponent(spaceless)}?api-key=${encodeURIComponent(key)}&expand=true`
+
+  // Log the URL with the key redacted so we can debug from the browser console
+  // without leaking the credential.
+  const safeUrl = url.replace(/api-key=[^&]+/, 'api-key=[REDACTED]')
+  console.log('[getAddress] request', safeUrl)
+
+  let res: Response
+  try {
+    res = await fetch(url)
+  } catch (e) {
+    console.error('[getAddress] network error', e)
+    throw new AddressLookupError('unavailable', 'Address lookup is temporarily unavailable')
+  }
+
+  const contentLength = res.headers.get('content-length')
+  console.log('[getAddress] response', { status: res.status, contentLength })
+
+  // 401/403 → the key is rejected (bad key, or domain restriction mismatch).
+  if (res.status === 401 || res.status === 403) {
+    throw new AddressLookupError('unauthorized', 'Address lookup key was rejected', res.status)
+  }
+  // 429 → the plan's daily/monthly quota is exhausted.
+  if (res.status === 429) {
+    throw new AddressLookupError('exhausted', 'Address lookup daily limit reached', 429)
+  }
+
+  // 404 — could be a genuine "postcode has no addresses" OR the service
+  // returning 404 with content-length: 0 when the key/plan is bad. We can't
+  // read the response as JSON to disambiguate in the second case, so use the
+  // body: a real "not found" from getAddress.io returns a JSON body with a
+  // Message; a plan/key failure returns 0 bytes.
+  if (res.status === 404) {
+    // Empty body → treat as unavailable so the UI shows a "try manual entry"
+    // message instead of the misleading "no addresses found for this postcode".
+    if (contentLength === '0') {
+      throw new AddressLookupError('unavailable', 'Address lookup is temporarily unavailable (empty 404)', 404)
+    }
+    // Otherwise it really is "no addresses for that postcode".
+    return []
+  }
+
+  if (!res.ok) {
+    throw new AddressLookupError('unavailable', `Address lookup failed (${res.status})`, res.status)
+  }
+
+  let data: RawFindResponse
+  try {
+    data = (await res.json()) as RawFindResponse
+  } catch {
+    throw new AddressLookupError('unavailable', 'Address lookup returned unreadable data')
+  }
   const postcode = (data.postcode || pc).toUpperCase()
   const list = Array.isArray(data.addresses) ? data.addresses : []
   return list.map((a) => toAddressResult(postcode, a))

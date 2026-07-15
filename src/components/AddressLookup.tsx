@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { findAddressesByPostcode, type AddressResult } from '@/lib/getAddress'
+import { findAddressesByPostcode, AddressLookupError, type AddressResult, type LookupErrorKind } from '@/lib/getAddress'
 import { isValidUKPostcode, reverseGeocodePostcode } from '@/lib/pricing'
 
 // Single-input UK address lookup — Deliveroo-style. The buyer types their
@@ -45,6 +45,10 @@ export default function AddressLookup({
     valueIsComplete ? 'selected' : 'idle',
   )
   const [errorMsg, setErrorMsg] = useState('')
+  // Records what KIND of error we hit so the fallback message + auto-open of
+  // manual fields can distinguish "service down" from "postcode has no
+  // addresses".
+  const [errorKind, setErrorKind] = useState<LookupErrorKind | null>(null)
   const [manual, setManual] = useState(false)
   const [selectedLabel, setSelectedLabel] = useState<string | null>(valueIsComplete ? labelFromValue(value) : null)
   // The whole reason for this refactor: only fetch when the USER has actually
@@ -95,7 +99,7 @@ export default function AddressLookup({
 
     const controller = new AbortController()
     const t = setTimeout(async () => {
-      setStatus('loading'); setErrorMsg('')
+      setStatus('loading'); setErrorMsg(''); setErrorKind(null)
       lastFetchedRef.current = normalised
       try {
         const list = await findAddressesByPostcode(postcode)
@@ -104,8 +108,21 @@ export default function AddressLookup({
         setStatus(list.length === 0 ? 'empty' : 'ready')
       } catch (e) {
         if (controller.signal.aborted) return
+        const kind: LookupErrorKind = e instanceof AddressLookupError ? e.kind : 'unavailable'
+        setErrorKind(kind)
         setStatus('error')
-        setErrorMsg(e instanceof Error ? e.message : 'Address lookup failed')
+        // Friendly message picked per kind. The technical `.message` is only
+        // shown for genuinely-unknown failures.
+        setErrorMsg(
+          kind === 'unauthorized' ? 'Address lookup unavailable — please enter your address manually.'
+          : kind === 'exhausted' ? 'Address lookup limit reached today — please enter your address manually.'
+          : kind === 'unavailable' ? 'Address lookup unavailable — please enter your address manually.'
+          : kind === 'misconfigured' ? 'Address lookup is not set up — please enter your address manually.'
+          : 'Address lookup failed'
+        )
+        // Auto-open the manual fields for every kind EXCEPT a real "not found"
+        // (we handle that with a dedicated empty state further down).
+        if (kind !== 'notfound') setManual(true)
       }
     }, 350)
     return () => { controller.abort(); clearTimeout(t) }
@@ -325,11 +342,27 @@ export default function AddressLookup({
                   No addresses found for this postcode.
                 </div>
               )}
-              {status === 'error' && (
-                <div style={{ padding: '18px 16px', fontSize: 13.5, color: '#C0392B', fontWeight: 600 }}>
-                  {errorMsg || 'Could not look up that postcode.'}
-                </div>
-              )}
+              {status === 'error' && (() => {
+                // Service-down (unavailable / unauthorized / exhausted /
+                // misconfigured) reads as a calm amber notice, not a red
+                // error — the buyer's action is "enter manually", not "fix
+                // your postcode". A real API failure still shows the raw
+                // message so we can spot it in the wild.
+                const isDown = errorKind === 'unavailable' || errorKind === 'unauthorized' || errorKind === 'exhausted' || errorKind === 'misconfigured'
+                return isDown ? (
+                  <div style={{ padding: '14px 16px', display: 'flex', gap: 10, alignItems: 'flex-start', background: '#FFF4E0', borderTop: '1px solid rgba(184,115,10,0.18)' }}>
+                    <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>ℹ️</span>
+                    <div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#8C5500', marginBottom: 2 }}>Address lookup unavailable</div>
+                      <div style={{ fontSize: 12.5, color: '#8C5500', opacity: 0.9, lineHeight: 1.5 }}>Please enter your address manually below — everything else works normally.</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '18px 16px', fontSize: 13.5, color: '#C0392B', fontWeight: 600 }}>
+                    {errorMsg || 'Could not look up that postcode.'}
+                  </div>
+                )
+              })()}
               <button
                 type="button"
                 className="addrl-manual"
