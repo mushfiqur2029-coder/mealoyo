@@ -29,57 +29,74 @@ export default function AddressLookup({
   autoFocus?: boolean
   compact?: boolean
 }) {
+  // Build a "confirmed" label from a pre-filled value so a saved profile lands
+  // straight in the green chip without ever calling getAddress.io.
+  const labelFromValue = (v: AddressValue): string =>
+    [v.address_line1, v.city, v.postcode].filter((s) => s && s.trim()).join(', ')
+
+  // Treat the incoming value as "already-picked" when the parent hands us a
+  // full address on mount (or later). That's the only signal we need to skip
+  // the auto-fetch entirely.
+  const valueIsComplete = !!(value.address_line1 && value.postcode)
+
   const [postcode, setPostcode] = useState(value.postcode || '')
   const [results, setResults] = useState<AddressResult[] | null>(null) // null = never searched yet
-  const [status, setStatus] = useState<'idle' | 'loading' | 'gps' | 'error' | 'empty' | 'ready' | 'selected'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'gps' | 'error' | 'empty' | 'ready' | 'selected'>(
+    valueIsComplete ? 'selected' : 'idle',
+  )
   const [errorMsg, setErrorMsg] = useState('')
   const [manual, setManual] = useState(false)
-  const [selectedLabel, setSelectedLabel] = useState<string | null>(null)
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(valueIsComplete ? labelFromValue(value) : null)
+  // The whole reason for this refactor: only fetch when the USER has actually
+  // touched the input (or hit GPS). A parent re-render with the same saved
+  // value must NEVER trigger a lookup — that was the loop we were hitting.
+  const [userHasInteracted, setUserHasInteracted] = useState(false)
+  // Records the last postcode we actually sent to getAddress.io, so a re-render
+  // with the same input value doesn't re-request the same page from the API.
+  const lastFetchedRef = useRef<string | null>(valueIsComplete ? value.postcode.toUpperCase() : null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  // Reset the "selected" chip whenever the parent gives us a fresh empty value
-  // (e.g. after clearing the form).
+  // Sync when the parent CLEARS the value externally (e.g. logout, reset).
+  // We never sync a filled parent value back over user-in-progress state —
+  // that would fight the user's typing.
   useEffect(() => {
-    if (!value.address_line1 && !value.postcode && selectedLabel) {
-      setSelectedLabel(null)
-      setStatus('idle')
-      setResults(null)
+    if (!value.address_line1 && !value.postcode) {
+      if (selectedLabel) setSelectedLabel(null)
+      if (status !== 'idle') setStatus('idle')
+      if (results !== null) setResults(null)
+      if (postcode) setPostcode('')
+      lastFetchedRef.current = null
+      // Don't reset userHasInteracted — if the user cleared it themselves via
+      // "Change", their next keystroke should still auto-fetch.
     }
-  }, [value.address_line1, value.postcode, selectedLabel])
-
-  // Show manual fields automatically when the parent hands us a saved address
-  // that we didn't just pick from the dropdown — so pre-filled profiles are
-  // editable on load.
-  useEffect(() => {
-    if (!manual && (value.address_line1 || value.city) && !selectedLabel && status !== 'selected') {
-      setManual(true)
-    }
-    // Do not depend on `manual` to avoid re-entering the effect after we set it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value.address_line1, value.city, selectedLabel, status])
+  }, [value.address_line1, value.postcode])
 
   // Live UK postcode validation on the input (used to gate the auto-lookup).
   const looksValid = useMemo(() => isValidUKPostcode(postcode), [postcode])
 
-  // Auto-lookup when a valid postcode is typed. Debounced so we don't fire on
-  // every keystroke. Aborts in-flight fetches when the postcode changes again.
+  // Auto-lookup — ONLY when the user has actively interacted. A saved profile
+  // never triggers this on mount, no matter what value was passed in. Also
+  // deduped via `lastFetchedRef` so a re-render with an unchanged postcode is
+  // free.
   useEffect(() => {
+    if (!userHasInteracted) return
     if (!looksValid) {
-      // Only clear the "ready" state if the user actually shortened it below
-      // valid length — don't nuke a selected address just because they focused
-      // the input.
       if (status === 'ready' || status === 'empty' || status === 'error') {
         setStatus('idle'); setResults(null); setErrorMsg('')
       }
       return
     }
-    // Postcode already resolved to the selected value — don't re-fetch.
-    if (selectedLabel && postcode.toUpperCase() === value.postcode.toUpperCase()) return
+    const normalised = postcode.toUpperCase().trim()
+    // Already fetched this exact postcode — don't hit the API again just
+    // because the parent re-rendered.
+    if (lastFetchedRef.current === normalised) return
 
     const controller = new AbortController()
     const t = setTimeout(async () => {
       setStatus('loading'); setErrorMsg('')
+      lastFetchedRef.current = normalised
       try {
         const list = await findAddressesByPostcode(postcode)
         if (controller.signal.aborted) return
@@ -92,7 +109,7 @@ export default function AddressLookup({
       }
     }, 350)
     return () => { controller.abort(); clearTimeout(t) }
-  }, [postcode, looksValid, selectedLabel, value.postcode, status])
+  }, [postcode, looksValid, userHasInteracted, status])
 
   // Close the dropdown when the user clicks outside — normal picker behaviour.
   useEffect(() => {
@@ -119,15 +136,21 @@ export default function AddressLookup({
     setSelectedLabel(a.label)
     setStatus('selected')
     setManual(false)
+    // Remember what's now confirmed so a re-render doesn't re-fetch it.
+    lastFetchedRef.current = a.postcode.toUpperCase()
   }
 
   const clearSelection = () => {
     setSelectedLabel(null)
     setStatus('idle')
     setResults(null)
+    setErrorMsg('')
     onChange({ address_line1: '', address_line2: '', city: '', postcode: '' })
     setPostcode('')
-    // Focus the input so the user can start again immediately.
+    lastFetchedRef.current = null
+    // A "Change" click is user intent to search again — but the next keystroke
+    // will re-set this anyway; leaving it here is defensive.
+    setUserHasInteracted(true)
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
@@ -136,14 +159,17 @@ export default function AddressLookup({
       setStatus('error'); setErrorMsg('Location is not available on this device')
       return
     }
+    // GPS is user intent to search — flip the flag so the resulting postcode
+    // update fires the auto-lookup.
+    setUserHasInteracted(true)
     setStatus('gps'); setErrorMsg('')
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const r = await reverseGeocodePostcode(pos.coords.latitude, pos.coords.longitude)
         if (!r) { setStatus('error'); setErrorMsg('Could not find your postcode from your location'); return }
+        // Setting the postcode kicks the auto-lookup effect since
+        // userHasInteracted is now true.
         setPostcode(r.postcode.toUpperCase())
-        // The auto-lookup effect will kick in on the next tick — no need to
-        // fetch again here.
       },
       (err) => {
         setStatus('error')
@@ -249,7 +275,13 @@ export default function AddressLookup({
               aria-label="Enter postcode"
               placeholder="Enter postcode (e.g. E3 4SS)"
               value={postcode}
-              onChange={(e) => { setPostcode(e.target.value); if (status === 'selected') setStatus('idle') }}
+              onChange={(e) => {
+                // The single place that flips userHasInteracted — typing here
+                // is the only interaction that should ever trigger a fetch.
+                setUserHasInteracted(true)
+                setPostcode(e.target.value)
+                if (status === 'selected') setStatus('idle')
+              }}
               onFocus={() => { if (results && results.length > 0 && status === 'idle' && !selectedLabel) setStatus('ready') }}
               style={inputStyle}
             />
