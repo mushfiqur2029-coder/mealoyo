@@ -143,6 +143,11 @@ export async function POST(request: Request) {
     const platformCommission = calcCommission(subtotal)
     const sellerPayout = sellerReceives(subtotal)
 
+    // 7b. Driver split of the delivery fee: 80% payout / 20% platform commission.
+    // Both are 0 on collection orders.
+    const driverPayout = Math.round(deliveryFee * 0.8 * 100) / 100
+    const driverCommission = Math.round(deliveryFee * 0.2 * 100) / 100
+
     const total = Math.max(0, Math.round((subtotal + svcFee + deliveryFee - discount) * 100) / 100)
 
     // 8. Persist the order with the server-computed amounts (service role → RLS bypass).
@@ -155,6 +160,8 @@ export async function POST(request: Request) {
         quantity,
         total_amount: total,
         delivery_fee: deliveryFee,
+        driver_payout: driverPayout,
+        driver_commission: driverCommission,
         service_fee: svcFee,
         platform_commission: platformCommission,
         seller_payout: sellerPayout,

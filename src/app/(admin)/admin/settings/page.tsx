@@ -9,7 +9,7 @@ import type { Profile } from '@/lib/types'
 
 const COMMISSION_RATE = 0.12
 
-type RevenueOrder = { status: string; platform_commission: string }
+type RevenueOrder = { status: string; platform_commission: string; driver_commission?: string | null }
 
 type DeletionRow = {
   id: string
@@ -81,9 +81,11 @@ export default function AdminSettings() {
         supabase.rpc('admin_get_profiles_by_role', { p_role: 'driver' }),
         supabase.rpc('admin_get_all_orders'),
       ])
+      // Platform revenue = food commission (12% of subtotal) + driver commission
+      // (20% of delivery fee) on delivered orders.
       const revenue = (orders || [])
         .filter((o: RevenueOrder) => o.status === 'delivered')
-        .reduce((sum: number, o: RevenueOrder) => sum + parseFloat(o.platform_commission || '0'), 0)
+        .reduce((sum: number, o: RevenueOrder) => sum + parseFloat(o.platform_commission || '0') + parseFloat(o.driver_commission || '0'), 0)
 
       setStats({
         sellers: sellers?.length || 0,

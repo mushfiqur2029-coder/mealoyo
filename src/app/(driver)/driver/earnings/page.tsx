@@ -140,7 +140,12 @@ export default function DriverEarnings() {
     </div>
   )
 
-  const fee = (o: Order) => parseFloat(o.delivery_fee || '0')
+  // Driver's share is stored in driver_payout post-commission-split; legacy
+  // pre-split rows still have driver_payout=0 so we fall back to delivery_fee.
+  const fee = (o: Order) => {
+    const payout = parseFloat(o.driver_payout || '0')
+    return payout > 0 ? payout : parseFloat(o.delivery_fee || '0')
+  }
   const totalEarned = orders.reduce((s, o) => s + fee(o), 0)
   const activeWithdrawn = withdrawals.filter(w => w.status !== 'rejected').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
   const available = Math.max(0, totalEarned - activeWithdrawn)

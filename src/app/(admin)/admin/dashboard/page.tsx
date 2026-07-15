@@ -17,7 +17,7 @@ type PendingItem = {
   cuisine?: string | null
   created_at: string
 }
-type AdminOrderRow = { id?: string; status: string; platform_commission?: string | null; total?: string | null; created_at?: string | null }
+type AdminOrderRow = { id?: string; status: string; platform_commission?: string | null; driver_commission?: string | null; total?: string | null; created_at?: string | null }
 type Stats = { users: number; sellers: number; drivers: number; orders: number; listings: number; revenue: number }
 
 // Compact relative time, e.g. "3m ago", "2h ago", "5d ago".
@@ -106,9 +106,11 @@ export default function AdminDashboard() {
       setListings(pendingListings || [])
 
       const orderRows = (allOrders as AdminOrderRow[] | null) || []
+      // Platform revenue = food commission (12% of seller subtotal) + driver
+      // commission (20% of delivery fee) on every delivered order.
       const revenue = orderRows
         .filter(o => o.status === 'delivered')
-        .reduce((sum, o) => sum + parseFloat(o.platform_commission || '0'), 0)
+        .reduce((sum, o) => sum + parseFloat(o.platform_commission || '0') + parseFloat(o.driver_commission || '0'), 0)
 
       setRecentOrders(
         orderRows

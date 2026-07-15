@@ -63,7 +63,6 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
     cuisine: '',
     serves: '1',
     prep_time: '1 hour',
-    delivery_options: 'Collection & delivery',
     delivery_radius: '3',
     allergens: [] as string[],
     halal: false,
@@ -94,10 +93,6 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
         return
       }
 
-      const delivery = Array.isArray(listing.delivery_options)
-        ? (listing.delivery_options[0] || 'Collection & delivery')
-        : (listing.delivery_options || 'Collection & delivery')
-
       setStatus(listing.status || 'pending')
       setImageUrl(listing.image_url || null)
       setOrderCount(listing.order_count ?? null)
@@ -108,7 +103,6 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
         cuisine: listing.cuisine || '',
         serves: listing.serves != null ? String(listing.serves) : '1',
         prep_time: listing.prep_time || '1 hour',
-        delivery_options: delivery,
         delivery_radius: listing.delivery_radius_miles != null ? String(listing.delivery_radius_miles) : '3',
         allergens: Array.isArray(listing.allergens) ? listing.allergens : [],
         halal: !!listing.halal,
@@ -181,7 +175,9 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
       cuisine: form.cuisine,
       serves: parseInt(form.serves),
       prep_time: form.prep_time,
-      delivery_options: [form.delivery_options],
+      // Every seller offers collection + delivery at the platform level. Kept
+      // the column update so any legacy row also normalises to the default.
+      delivery_options: ['Collection & delivery'],
       delivery_radius_miles: parseFloat(form.delivery_radius),
       allergens: form.allergens,
       halal: form.halal,
@@ -467,25 +463,13 @@ export default function EditListing({ params }: { params: Promise<{ id: string }
                       </select>
                     </div>
                   </div>
-                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
-                    <div>
-                      <label style={lbl}>Delivery options</label>
-                      <select value={form.delivery_options} onChange={e=>set('delivery_options',e.target.value)} style={sel}>
-                        <option>Collection &amp; delivery</option>
-                        <option>Collection only</option>
-                        <option>Delivery only</option>
-                        <option>Pre-order catering only</option>
-                        <option>Postal UK-wide</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={lbl}>Delivery radius</label>
-                      <select value={form.delivery_radius} onChange={e=>set('delivery_radius',e.target.value)} style={sel}>
-                        {RADIUS_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-                      </select>
-                    </div>
+                  <div>
+                    <label style={lbl}>Delivery radius</label>
+                    <select value={form.delivery_radius} onChange={e=>set('delivery_radius',e.target.value)} style={sel}>
+                      {RADIUS_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                    </select>
+                    <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.65, marginTop:8}}>Every listing is available for collection and delivery by default — the radius controls how far you&apos;re willing to send a driver. Buyers beyond your radius (or over 5 miles) will only see collection.</p>
                   </div>
-                  <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.65, marginTop:-6}}>Buyers beyond your radius (or over 5 miles) won&apos;t see a delivery option — collection only.</p>
                 </div>
               </div>
 

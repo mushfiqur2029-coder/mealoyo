@@ -95,6 +95,10 @@ export async function POST(request: Request) {
       const qty = Math.max(1, Math.min(50, Math.floor(Number(it.quantity) || 1)))
       const lineSub = Math.round(parseFloat(l.price) * qty * 100) / 100
       const svcForOrder = idx === 0 ? svcFee : 0 // whole-cart service fee rides on the first order
+      // Cart flow doesn't quote per-item delivery fees (single-seller cart with a
+      // single dispatch), so delivery_fee stays 0 here and the driver split is 0
+      // to match. If we later add per-order delivery fees at cart checkout, this
+      // is where the 80/20 driver split would be computed.
       return {
         buyer_id: user.id,
         seller_id: sellerId,
@@ -102,6 +106,8 @@ export async function POST(request: Request) {
         quantity: qty,
         total_amount: Math.round((lineSub + svcForOrder) * 100) / 100,
         delivery_fee: 0,
+        driver_payout: 0,
+        driver_commission: 0,
         service_fee: svcForOrder,
         platform_commission: calcCommission(lineSub),
         seller_payout: sellerReceives(lineSub),

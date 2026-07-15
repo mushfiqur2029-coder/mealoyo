@@ -69,6 +69,10 @@ export interface Order {
   seller_payout: string
   platform_commission: string
   delivery_fee: string
+  // Driver split of delivery_fee: driver_payout = 80%, driver_commission = 20%.
+  // 0 (default) on collection orders and legacy pre-split rows.
+  driver_payout: string
+  driver_commission: string
   service_fee: string
   delivery_type: string | null
   delivery_address: string | null

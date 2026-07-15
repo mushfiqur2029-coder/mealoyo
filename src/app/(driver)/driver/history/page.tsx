@@ -124,8 +124,14 @@ export default function DriverHistory() {
   const cutoffDays = range === '7d' ? 7 : range === '30d' ? 30 : null
   const filtered = cutoffDays == null ? orders : orders.filter(o => (now - new Date(o.created_at).getTime()) / 864e5 <= cutoffDays)
 
+  // Driver's share is stored in driver_payout post-commission-split; legacy
+  // pre-split rows still have driver_payout=0 so we fall back to delivery_fee.
+  const driverFee = (o: Order) => {
+    const payout = parseFloat(o.driver_payout || '0')
+    return payout > 0 ? payout : parseFloat(o.delivery_fee || '0')
+  }
   const delivered = filtered.filter(o => o.status === 'delivered')
-  const totalEarned = delivered.reduce((s, o) => s + parseFloat(o.delivery_fee || '0'), 0)
+  const totalEarned = delivered.reduce((s, o) => s + driverFee(o), 0)
   const cancelledCount = filtered.filter(o => o.status === 'cancelled').length
 
   const stats = [
@@ -183,7 +189,7 @@ export default function DriverHistory() {
             <p style={{fontSize:14, color:'var(--text-secondary)'}}>{range === 'all' ? 'Completed and cancelled drops will show up here.' : 'Try widening the date range above.'}</p>
           </div>
         ) : groups.map(group => {
-          const dayTotal = group.items.filter(o => o.status === 'delivered').reduce((s, o) => s + parseFloat(o.delivery_fee || '0'), 0)
+          const dayTotal = group.items.filter(o => o.status === 'delivered').reduce((s, o) => s + driverFee(o), 0)
           return (
             <div key={group.key} className="fade-up" style={{marginBottom:22}}>
               {/* Timeline day header */}
@@ -215,7 +221,7 @@ export default function DriverHistory() {
                           <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>📍 {dropTo}</span>
                         </div>
                         <div style={{textAlign:'right', flexShrink:0}}>
-                          <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:isDelivered ? '#34D399' : 'var(--text-secondary)'}}>£{parseFloat(o.delivery_fee || '0').toFixed(2)}</div>
+                          <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:isDelivered ? '#34D399' : 'var(--text-secondary)'}}>£{driverFee(o).toFixed(2)}</div>
                           <span style={{fontSize:10.5, fontWeight:700, color:isDelivered ? '#34D399' : '#FF8A8A', textTransform:'uppercase', letterSpacing:'0.04em'}}>{o.status}</span>
                         </div>
                       </div>

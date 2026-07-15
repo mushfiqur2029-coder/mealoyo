@@ -213,32 +213,31 @@ export default function BuyerProfile() {
           {/* Delivery address */}
           <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
             <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>Delivery address</h4>
-            <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6, marginBottom:14}}>Saved here so we can auto-fill it at checkout.</p>
+            <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6, marginBottom:14}}>Saved here so we can auto-fill it at checkout. Enter your postcode first and tap <strong>Find address</strong> to confirm it and auto-fill your city.</p>
             <div style={{display:'flex', flexDirection:'column', gap:14}}>
               <div>
-                <label style={labelStyle}>Address line 1</label>
-                <input value={addr1} onChange={e => setAddr1(e.target.value)} placeholder="House number and street" style={inputStyle}/>
+                <label style={labelStyle}>Postcode</label>
+                <input value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="e.g. E3 4SS" autoCapitalize="characters" style={{...inputStyle, textTransform:'uppercase'}}/>
+                <PostcodeLookup
+                  postcode={postcode}
+                  onResolved={({ postcode: pc, city: c }) => {
+                    setPostcode(pc.toUpperCase())
+                    if (c) setCity(c)
+                  }}
+                />
               </div>
               <div>
-                <label style={labelStyle}>Address line 2</label>
-                <input value={addr2} onChange={e => setAddr2(e.target.value)} placeholder="Flat, building (optional)" style={inputStyle}/>
+                <label style={labelStyle}>Door/flat number and street name *</label>
+                <input value={addr1} onChange={e => setAddr1(e.target.value)} placeholder="e.g. 42 Baker Street" style={inputStyle}/>
+                <p style={{fontSize:11, color:'var(--text-primary)', opacity:0.6, marginTop:6}}>We can&apos;t look up street names from a postcode — please type this manually.</p>
               </div>
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
-                <div>
-                  <label style={labelStyle}>City / Town</label>
-                  <input value={city} onChange={e => setCity(e.target.value)} placeholder="London" style={inputStyle}/>
-                </div>
-                <div>
-                  <label style={labelStyle}>Postcode</label>
-                  <input value={postcode} onChange={e => setPostcode(e.target.value)} placeholder="E3 4SS" autoCapitalize="characters" style={{...inputStyle, textTransform:'uppercase'}}/>
-                  <PostcodeLookup
-                    postcode={postcode}
-                    onResolved={({ postcode: pc, city: c }) => {
-                      setPostcode(pc.toUpperCase())
-                      if (c) setCity(c)
-                    }}
-                  />
-                </div>
+              <div>
+                <label style={labelStyle}>Building name or apartment (optional)</label>
+                <input value={addr2} onChange={e => setAddr2(e.target.value)} placeholder="Flat 3B, Riverside Court" style={inputStyle}/>
+              </div>
+              <div>
+                <label style={labelStyle}>City / Town</label>
+                <input value={city} onChange={e => setCity(e.target.value)} placeholder="Auto-fills from postcode" style={inputStyle}/>
               </div>
             </div>
           </div>

@@ -35,6 +35,14 @@ interface ActiveDelivery extends AvailableJob {
   delivery_code: string | null
 }
 
+// Driver keeps 80% of the delivery fee; the platform keeps 20%. Kept here
+// (not just in the DB) so the "You earn" figures on job cards and active
+// deliveries can be shown before the row is persisted with the split.
+const driverShare = (deliveryFee: string | number | null | undefined): number => {
+  const fee = typeof deliveryFee === 'number' ? deliveryFee : parseFloat(deliveryFee || '0')
+  return Math.round(fee * 0.8 * 100) / 100
+}
+
 const dark = `
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
   @keyframes shimmerD { 0% { background-position: -480px 0; } 100% { background-position: 480px 0; } }
@@ -80,6 +88,15 @@ export default function DriverDashboard() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null)
   const [acceptError, setAcceptError] = useState('')
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null)
+  // Refresh telemetry — powers the "last updated Xs ago" label.
+  const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null)
+  const [nowTick, setNowTick] = useState<number | null>(null)
+  // Tracks which job ids we've already announced (played a beep for) so a fresh
+  // poll or realtime event on the same job doesn't beep again.
+  const seenJobIds = useRef<Set<string>>(new Set())
+  // Client-side per-job hide timeouts. After 20s a job disappears from THIS
+  // driver's view only; it stays available for other drivers in the DB.
+  const [hiddenJobIds, setHiddenJobIds] = useState<Set<string>>(new Set())
   // Handshake modals
   const [pickupOrderId, setPickupOrderId] = useState<string | null>(null)
   const [pickupDigits, setPickupDigits] = useState<string[]>(['', '', '', '', '', ''])
@@ -106,16 +123,51 @@ export default function DriverDashboard() {
     [],
   )
 
+  // A short 880Hz beep — same trick as the seller notification. Wrapped so
+  // failures (autoplay policy, unsupported context) never throw.
+  const beep = useCallback(() => {
+    try {
+      const W = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }
+      const AudioCtx = W.AudioContext || W.webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5)
+      osc.connect(gain).connect(ctx.destination)
+      osc.start(); osc.stop(ctx.currentTime + 0.55)
+      osc.onended = () => ctx.close().catch(() => {})
+    } catch { /* ignore */ }
+  }, [])
+
   // Fetch order + job feeds. Extracted so a poll / realtime / refresh button can
-  // reuse it without duplicating query logic.
+  // reuse it without duplicating query logic. Announces newly-seen jobs.
   const loadFeeds = useCallback(async () => {
     const [{ data: available }, { data: mine }] = await Promise.all([
       supabase.rpc('get_available_delivery_jobs'),
       supabase.rpc('get_my_active_deliveries'),
     ])
-    setJobs(((available as AvailableJob[] | null) || []))
+    const list = (available as AvailableJob[] | null) || []
+    setJobs(list)
     setActive(((mine as ActiveDelivery[] | null) || []))
-  }, [])
+    setLastRefreshAt(Date.now())
+    // Beep for any job we hadn't seen before this refresh; then record it so we
+    // don't re-beep on the next poll. Skip the very first refresh — everything
+    // is "new" then, and we don't want a beep the moment the page loads.
+    const firstRun = seenJobIds.current.size === 0
+    let announced = false
+    for (const j of list) {
+      if (!seenJobIds.current.has(j.order_id)) {
+        seenJobIds.current.add(j.order_id)
+        if (!firstRun) announced = true
+      }
+    }
+    if (announced) beep()
+  }, [beep])
 
   useEffect(() => {
     const getData = async () => {
@@ -133,13 +185,21 @@ export default function DriverDashboard() {
     getData()
   }, [router, loadFeeds])
 
-  // 30-second poll for new jobs while online. Cheap: RPC returns just the
+  // 10-second poll for new jobs while online. Cheap: RPC returns just the
   // available/active rows, filtered server-side.
   useEffect(() => {
     if (!online) return
-    const t = setInterval(loadFeeds, 30000)
+    const t = setInterval(loadFeeds, 10000)
     return () => clearInterval(t)
   }, [online, loadFeeds])
+
+  // 1-second tick to keep the "last updated Xs ago" label live. Kept off the
+  // render path (no Date.now in render) per React 19's rules-of-purity.
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setNowTick(Date.now()))
+    const t = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => { cancelAnimationFrame(raf); clearInterval(t) }
+  }, [])
 
   // Realtime: any change to a ready-delivery order that isn't yet assigned
   // could be a new job for us. Broad filter (INSERT+UPDATE), and we just
@@ -271,7 +331,12 @@ export default function DriverDashboard() {
   const startOfWeek = new Date(); startOfWeek.setDate(startOfWeek.getDate() - 6); startOfWeek.setHours(0, 0, 0, 0)
   const todayOrders = historyOrders.filter(o => new Date(o.created_at) >= startOfToday)
   const weekOrders = historyOrders.filter(o => new Date(o.created_at) >= startOfWeek)
-  const fee = (o: Order) => parseFloat(o.delivery_fee || '0')
+  // Historical rows may have driver_payout=0 (pre-commission-split); fall back
+  // to the raw delivery_fee for those so old earnings don't vanish from the UI.
+  const fee = (o: Order) => {
+    const payout = parseFloat(o.driver_payout || '0')
+    return payout > 0 ? payout : parseFloat(o.delivery_fee || '0')
+  }
   const todayPay = todayOrders.reduce((s, o) => s + fee(o), 0)
   const weekPay = weekOrders.reduce((s, o) => s + fee(o), 0)
   const totalPay = historyOrders.reduce((s, o) => s + fee(o), 0)
@@ -424,7 +489,7 @@ export default function DriverDashboard() {
                         </div>
                       </div>
                       <div style={{textAlign:'right', flexShrink:0}}>
-                        <div style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{parseFloat(a.delivery_fee || '0').toFixed(2)}</div>
+                        <div style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{driverShare(a.delivery_fee).toFixed(2)}</div>
                         <div style={{fontSize:10, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:3, fontWeight:700}}>You earn</div>
                       </div>
                     </div>
@@ -452,8 +517,20 @@ export default function DriverDashboard() {
 
         {/* Available jobs */}
         <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
-          <div style={{padding:'18px 20px', borderBottom:'1px solid var(--bg-secondary)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-            <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Available jobs near you {jobs.length > 0 && <span style={{color:'#C8006A'}}>· {jobs.length}</span>}</h2>
+          <div style={{padding:'18px 20px', borderBottom:'1px solid var(--bg-secondary)', display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, flexWrap:'wrap'}}>
+            <div style={{display:'flex', alignItems:'center', gap:12, minWidth:0, flexWrap:'wrap'}}>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>Available jobs near you {jobs.length > 0 && <span style={{color:'#C8006A'}}>· {jobs.length}</span>}</h2>
+              {online && (
+                <span aria-label="Listening for jobs" style={{display:'inline-flex', alignItems:'center', gap:7, background:'rgba(52,211,153,0.14)', border:'1px solid rgba(52,211,153,0.35)', padding:'4px 10px 4px 8px', borderRadius:100, fontSize:11, fontWeight:700, color:'#34D399'}}>
+                  <span style={{width:8, height:8, borderRadius:'50%', background:'#34D399', animation:'pulseG 2s ease-out infinite'}}/>
+                  Listening
+                </span>
+              )}
+              {lastRefreshAt !== null && nowTick !== null && (() => {
+                const secs = Math.max(0, Math.round((nowTick - lastRefreshAt) / 1000))
+                return <span style={{fontSize:11.5, color:'var(--text-secondary)', fontWeight:600}}>Last updated {secs === 0 ? 'just now' : `${secs}s ago`}</span>
+              })()}
+            </div>
             <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:32, padding:'0 14px', background:'rgba(200,0,106,0.16)', color:'var(--text-primary)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:8, fontSize:12, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.14s'}}>
               <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Refreshing…' : 'Refresh'}
             </button>
@@ -468,25 +545,30 @@ export default function DriverDashboard() {
               <div style={{fontSize:40, marginBottom:12}}>🌙</div>
               <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6}}>You&apos;re offline. Flip the switch to see jobs.</p>
             </div>
-          ) : jobs.length === 0 ? (
-            <div style={{padding:'44px 24px', textAlign:'center'}}>
-              <div style={{fontSize:40, marginBottom:12}}>📭</div>
-              <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No delivery jobs available right now</h3>
-              <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, maxWidth:360, margin:'0 auto'}}>You&apos;ll be notified the moment a nearby cook marks a delivery order ready.</p>
-            </div>
-          ) : (
-            <div style={{padding:'12px 16px 16px', display:'flex', flexDirection:'column', gap:12}}>
-              {jobs.map(j => (
-                <JobCard
-                  key={j.order_id}
-                  job={j}
-                  myLocation={myLocation}
-                  onAccept={() => acceptJob(j.order_id)}
-                  accepting={acceptingId === j.order_id}
-                />
-              ))}
-            </div>
-          )}
+          ) : (() => {
+            const visibleJobs = jobs.filter(j => !hiddenJobIds.has(j.order_id))
+            if (visibleJobs.length === 0) return (
+              <div style={{padding:'44px 24px', textAlign:'center'}}>
+                <div style={{fontSize:40, marginBottom:12}}>📭</div>
+                <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No delivery jobs available right now</h3>
+                <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, maxWidth:360, margin:'0 auto'}}>You&apos;ll be notified the moment a nearby cook marks a delivery order ready.</p>
+              </div>
+            )
+            return (
+              <div style={{padding:'12px 16px 16px', display:'flex', flexDirection:'column', gap:12}}>
+                {visibleJobs.map(j => (
+                  <JobCard
+                    key={j.order_id}
+                    job={j}
+                    myLocation={myLocation}
+                    onAccept={() => acceptJob(j.order_id)}
+                    accepting={acceptingId === j.order_id}
+                    onTimeout={() => setHiddenJobIds(prev => { const n = new Set(prev); n.add(j.order_id); return n })}
+                  />
+                ))}
+              </div>
+            )
+          })()}
         </div>
 
       </div>
@@ -572,26 +654,40 @@ export default function DriverDashboard() {
   )
 }
 
+// Countdown window from when the card first appeared — after this many seconds
+// the job disappears from THIS driver's view (still exists in the DB for
+// other drivers to pick up).
+const JOB_COUNTDOWN_SECS = 20
+
 // One job card. Kept as a small component so the distance calc can look up the
 // seller's postcode async without re-rendering the whole list.
-function JobCard({ job, myLocation, onAccept, accepting }: {
+function JobCard({ job, myLocation, onAccept, accepting, onTimeout }: {
   job: AvailableJob
   myLocation: { lat: number; lng: number } | null
   onAccept: () => void
   accepting: boolean
+  onTimeout: () => void
 }) {
   const [distance, setDistance] = useState<number | null>(null)
-  // "now" snapshot for the placed-ago label — refreshed once a minute so the
-  // label doesn't drift, but never read directly during render (React 19's
-  // rules-of-purity forbids Date.now() at render time).
+  // "now" snapshot for the placed-ago + countdown. Ticks every second so the
+  // countdown ring animates smoothly. Never read directly during render (React
+  // 19's rules-of-purity forbids Date.now() at render time).
   const [now, setNow] = useState<number | null>(null)
+  const appearedAtRef = useRef<number | null>(null)
   useEffect(() => {
-    // Kick the first read on the next frame so React 19's rules-of-effects
-    // don't flag a synchronous setState inside the effect body.
+    appearedAtRef.current = Date.now()
     const raf = requestAnimationFrame(() => setNow(Date.now()))
-    const t = setInterval(() => setNow(Date.now()), 60000)
+    const t = setInterval(() => setNow(Date.now()), 1000)
     return () => { cancelAnimationFrame(raf); clearInterval(t) }
   }, [])
+  // When the countdown hits zero, notify the parent to hide this card from the
+  // driver's view. Fires exactly once.
+  const timedOutRef = useRef(false)
+  useEffect(() => {
+    if (timedOutRef.current || now === null || appearedAtRef.current === null) return
+    const remaining = JOB_COUNTDOWN_SECS - Math.floor((now - appearedAtRef.current) / 1000)
+    if (remaining <= 0) { timedOutRef.current = true; onTimeout() }
+  }, [now, onTimeout])
 
   useEffect(() => {
     let alive = true
@@ -612,8 +708,25 @@ function JobCard({ job, myLocation, onAccept, accepting }: {
     return `${hrs}h ago`
   })()
 
+  // Countdown UI values — clamped so they render sensibly before the first tick.
+  const elapsed = now !== null && appearedAtRef.current !== null ? Math.max(0, (now - appearedAtRef.current) / 1000) : 0
+  const remaining = Math.max(0, JOB_COUNTDOWN_SECS - elapsed)
+  const remainingRounded = Math.ceil(remaining)
+  const urgent = remaining <= 5 && remaining > 0
+  // Progress bar width — full at 20s, empty at 0s.
+  const progressPct = Math.max(0, Math.min(100, (remaining / JOB_COUNTDOWN_SECS) * 100))
+  const ringColor = urgent ? '#EF4444' : remaining <= 10 ? '#F59E0B' : '#34D399'
+
   return (
-    <div className="job" style={{background:'var(--bg-page)', border:'1px solid var(--border-subtle)', borderRadius:14, padding:'16px 18px'}}>
+    <div className="job" style={{background:'var(--bg-page)', border: urgent ? '2px solid #EF4444' : '1px solid var(--border-subtle)', borderRadius:14, padding:'16px 18px', position:'relative', overflow:'hidden', animation: urgent ? 'jobUrgent 0.9s ease-in-out infinite' : 'none'}}>
+      <style>{`
+        @keyframes jobUrgent { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.55); } 50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); } }
+      `}</style>
+      {/* Countdown progress bar along the top edge */}
+      <div aria-hidden="true" style={{position:'absolute', top:0, left:0, right:0, height:3, background:'rgba(255,255,255,0.06)'}}>
+        <div style={{height:'100%', width:`${progressPct}%`, background:ringColor, transition:'width 1s linear, background 0.3s'}}/>
+      </div>
+
       <div style={{display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap'}}>
         <div style={{flex:1, minWidth:0}}>
           <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap'}}>
@@ -622,20 +735,37 @@ function JobCard({ job, myLocation, onAccept, accepting }: {
             {distance !== null && (
               <span style={{background:'rgba(52,211,153,0.14)', color:'#34D399', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:100}}>~{distance.toFixed(1)} mi away</span>
             )}
+            <span aria-label={`${remainingRounded} seconds to accept`} style={{background: urgent ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.06)', color: ringColor, fontSize:11, fontWeight:800, padding:'3px 9px', borderRadius:100, marginLeft:'auto'}}>
+              ⏱ {remainingRounded}s
+            </span>
           </div>
           <div style={{fontSize:12, color:'var(--text-secondary)', lineHeight:1.6}}>
             <div>🍲 <strong style={{color:'var(--text-primary)'}}>{job.seller_name}</strong> · {job.seller_address || '—'}{job.seller_postcode ? ` · ${job.seller_postcode}` : ''}</div>
             <div>🏠 To: {job.delivery_address || '—'}</div>
           </div>
         </div>
-        <div style={{textAlign:'right', flexShrink:0}}>
-          <div style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{parseFloat(job.delivery_fee || '0').toFixed(2)}</div>
-          <div style={{fontSize:10, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:3, fontWeight:700}}>You earn</div>
+        {/* Circular countdown ring around the earnings */}
+        <div style={{position:'relative', width:78, height:78, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center'}}>
+          <svg width="78" height="78" style={{position:'absolute', inset:0, transform:'rotate(-90deg)'}} aria-hidden="true">
+            <circle cx="39" cy="39" r="34" stroke="rgba(255,255,255,0.08)" strokeWidth="5" fill="none"/>
+            <circle
+              cx="39" cy="39" r="34"
+              stroke={ringColor} strokeWidth="5" fill="none"
+              strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 34}
+              strokeDashoffset={2 * Math.PI * 34 * (1 - remaining / JOB_COUNTDOWN_SECS)}
+              style={{transition:'stroke-dashoffset 1s linear, stroke 0.3s'}}
+            />
+          </svg>
+          <div style={{textAlign:'center', position:'relative'}}>
+            <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{driverShare(job.delivery_fee).toFixed(2)}</div>
+            <div style={{fontSize:9, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:2, fontWeight:700}}>Earn</div>
+          </div>
         </div>
       </div>
       <div style={{marginTop:14, display:'flex', justifyContent:'flex-end'}}>
-        <button onClick={onAccept} disabled={accepting} className="accept" style={{height:42, padding:'0 22px', background:'#34D399', color:'#0A1F14', border:'none', borderRadius:11, fontSize:14, fontWeight:800, cursor:accepting ? 'wait' : 'pointer', boxShadow:'0 4px 14px rgba(52,211,153,0.28)', opacity:accepting ? 0.7 : 1}}>
-          {accepting ? 'Accepting…' : 'Accept job →'}
+        <button onClick={onAccept} disabled={accepting} className="accept" style={{height:42, padding:'0 22px', background: urgent ? '#EF4444' : '#34D399', color: urgent ? '#fff' : '#0A1F14', border:'none', borderRadius:11, fontSize:14, fontWeight:800, cursor:accepting ? 'wait' : 'pointer', boxShadow: urgent ? '0 4px 14px rgba(239,68,68,0.35)' : '0 4px 14px rgba(52,211,153,0.28)', opacity:accepting ? 0.7 : 1}}>
+          {accepting ? 'Accepting…' : urgent ? `Accept now! ${remainingRounded}s` : 'Accept job →'}
         </button>
       </div>
     </div>

@@ -37,9 +37,11 @@ export default function PostcodeLookup({
     setBusy('find')
     const res = await lookupPostcodeAddress(pc)
     setBusy(null)
-    if (!res) { flash('err', 'Postcode not found, please enter address manually'); return }
+    if (!res) { flash('err', 'Postcode not found, please check and try again'); return }
     onResolved({ postcode: res.postcode, city: res.city })
-    flash('ok', res.city ? `Found — city set to ${res.city}` : 'Postcode confirmed')
+    flash('ok', res.city
+      ? `Postcode confirmed — city set to ${res.city}. Now enter your door number and street name below.`
+      : 'Postcode confirmed. Now enter your door number and street name below.')
   }
 
   const useLocation = () => {
@@ -53,7 +55,7 @@ export default function PostcodeLookup({
         setBusy(null)
         if (!r) { flash('err', 'Could not find a nearby postcode'); return }
         onResolved({ postcode: r.postcode, city: r.city })
-        flash('ok', `Detected ${r.postcode}${r.city ? ' · ' + r.city : ''}`)
+        flash('ok', `Detected ${r.postcode}${r.city ? ' · ' + r.city : ''}. Please enter your door number and street name below.`)
       },
       (err) => {
         setBusy(null)

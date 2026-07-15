@@ -45,6 +45,9 @@ export default function SellerOrders() {
   const [filter, setFilter] = useState('all')
   const [sellerId, setSellerId] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // Persistent "new order" banner — stays until dismissed. Separate from the
+  // auto-dismissing toast because busy sellers may miss the transient one.
+  const [newOrderBanner, setNewOrderBanner] = useState(0)
   const [collectionOrder, setCollectionOrder] = useState<Order | null>(null)
   const [collectionDigits, setCollectionDigits] = useState<string[]>(['', '', '', '', '', ''])
   const [collectionGenerating, setCollectionGenerating] = useState(false)
@@ -57,6 +60,54 @@ export default function SellerOrders() {
   const [pickupError, setPickupError] = useState('')
   const digitRefs = useRef<Array<HTMLInputElement | null>>([])
   const router = useRouter()
+
+  // Ask for browser notification permission once, so the realtime handlers below
+  // can pop a system notification when a new order arrives while this tab is
+  // backgrounded. Silent no-op on unsupported browsers.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    if (Notification.permission === 'default' && !localStorage.getItem('mealoyo_notif_asked')) {
+      localStorage.setItem('mealoyo_notif_asked', '1')
+      Notification.requestPermission().catch(() => {})
+    }
+  }, [])
+
+  // A short 880Hz beep via the Web Audio API — no audio asset needed, and the
+  // AudioContext is created on demand (browsers block it until a user gesture,
+  // but the realtime event usually fires after the seller has already clicked
+  // into the page).
+  const playNewOrderBeep = () => {
+    try {
+      const W = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }
+      const AudioCtx = W.AudioContext || W.webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5)
+      osc.connect(gain).connect(ctx.destination)
+      osc.start()
+      osc.stop(ctx.currentTime + 0.55)
+      osc.onended = () => ctx.close().catch(() => {})
+    } catch { /* ignore — audio is a nice-to-have */ }
+  }
+
+  // Fire everything that "new order arrived" should do: sound, system push,
+  // toast, and bump the persistent banner counter.
+  const announceNewOrder = () => {
+    playNewOrderBeep()
+    setToast('New order received')
+    setNewOrderBanner(n => n + 1)
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('New order received! 🍽️', { body: 'You have a new order. Tap to view.', icon: '/favicon.png' })
+      } catch { /* browsers throw if not in a service worker on some platforms */ }
+    }
+  }
 
   useEffect(() => {
     const getData = async () => {
@@ -99,7 +150,7 @@ export default function SellerOrders() {
           // pending_payment), handled by the UPDATE subscription below.
           if (data && data.status !== 'pending_payment' && paymentOk(data)) {
             setOrders(prev => prev.some(o => o.id === data.id) ? prev : [data, ...prev])
-            setToast('New order received')
+            announceNewOrder()
           }
         }
       )
@@ -120,7 +171,7 @@ export default function SellerOrders() {
           if (!data || !paymentOk(data)) return
           setOrders(prev => {
             if (prev.some(o => o.id === data.id)) return prev.map(o => o.id === data.id ? { ...o, ...data } : o)
-            queueMicrotask(() => setToast('New order received'))
+            queueMicrotask(() => announceNewOrder())
             return [data, ...prev]
           })
         }
@@ -382,6 +433,18 @@ export default function SellerOrders() {
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(22px,2.8vw,32px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>Orders</h1>
           <p style={{fontSize:14, color:'var(--text-primary)'}}>{orders.length} {orders.length === 1 ? 'order' : 'orders'} total · sorted newest first</p>
         </div>
+
+        {/* Persistent "new order" banner — stays until dismissed */}
+        {newOrderBanner > 0 && (
+          <div role="alert" className="fade-up" style={{display:'flex', alignItems:'center', gap:14, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF4FA 100%)', border:'2px solid #C8006A', borderRadius:16, padding:'14px 18px', marginBottom:18, boxShadow:'0 8px 24px rgba(200,0,106,0.18)'}}>
+            <span style={{fontSize:26, animation:'toastDot 1.8s ease-out infinite', display:'inline-flex', width:44, height:44, borderRadius:'50%', background:'#fff', alignItems:'center', justifyContent:'center', flexShrink:0}}>🔔</span>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#C8006A'}}>New order received!</div>
+              <div style={{fontSize:13, color:'var(--text-primary)', marginTop:2}}>{newOrderBanner === 1 ? "You've got a new order waiting — accept it below." : `${newOrderBanner} new orders arrived while you were on this page.`}</div>
+            </div>
+            <button onClick={() => setNewOrderBanner(0)} className="advance-btn" style={{flexShrink:0, height:40, padding:'0 16px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer'}}>Dismiss</button>
+          </div>
+        )}
 
         {/* Revenue summary cards */}
         <div className="summary-grid fade-up" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:26}}>
