@@ -97,12 +97,23 @@ function toAddressResult(pc: string, a: RawExpandedAddress): AddressResult {
 // Runtime lookup. Throws AddressLookupError with a specific `.kind` so the UI
 // can pick the right fallback message; the caller catches and translates.
 export async function findAddressesByPostcode(rawPostcode: string): Promise<AddressResult[]> {
-  const key = process.env.NEXT_PUBLIC_GETADDRESS_API_KEY
+  const rawKey = process.env.NEXT_PUBLIC_GETADDRESS_API_KEY
+  // Diagnostic — logs to the BROWSER console so you can inspect what actually
+  // shipped in the client bundle for this deploy. Only the length + prefix +
+  // suffix appear; the middle is redacted so the key can't be lifted from
+  // devtools logs.
+  const key = rawKey ? rawKey.trim() : undefined
+  console.log('[getAddress] env check', {
+    present: !!key,
+    length: key?.length ?? 0,
+    prefix: key ? key.slice(0, 4) : null,
+    suffix: key ? key.slice(-4) : null,
+  })
   if (!key) throw new AddressLookupError('misconfigured', 'Address lookup is not configured')
   const pc = rawPostcode.trim().toUpperCase()
   if (!pc) return []
-  // Strip the space too — getAddress.io accepts either form but the redirect
-  // adds latency and the log line looks cleaner without it.
+  // Strip whitespace inside the postcode too — the API accepts either form but
+  // "RM82AR" is what the docs use and it avoids a redirect.
   const spaceless = pc.replace(/\s+/g, '')
   const url = `https://api.getaddress.io/find/${encodeURIComponent(spaceless)}?api-key=${encodeURIComponent(key)}&expand=true`
 
