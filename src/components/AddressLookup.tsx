@@ -245,12 +245,15 @@ export default function AddressLookup({
     || status === 'resolving'
     || (status === 'error' && !!errorMsg)
 
-  // ── STYLES — Silicon Valley clean: white cards, brand pink, generous
-  //    touch targets (48px+ on desktop, 52px on mobile via CSS below).
+  // ── STYLES — polished pass: deeper dropdown shadow, taller touch targets,
+  //    pink hover accent, deeper Google-style attribution footer.
   const h = compact ? 44 : 48
+  // Right side of the input carries: clear-X (when there's text) + GPS.
+  const showClear = inputValue.trim().length > 0 && status !== 'selected' && status !== 'gps'
+  const inputRightPad = showClear ? 76 : 44
   const inputStyle: React.CSSProperties = {
     height: h, width: '100%', border: '1.5px solid #E0E0E0', borderRadius: 12,
-    padding: '0 44px 0 44px', fontSize: 15, color: '#1A1A1A',
+    padding: `0 ${inputRightPad}px 0 44px`, fontSize: 15, color: '#1A1A1A',
     background: '#FAFAFA', fontFamily: 'Inter,system-ui,sans-serif', outline: 'none',
     transition: 'border-color 0.14s, background 0.14s',
   }
@@ -258,22 +261,34 @@ export default function AddressLookup({
     position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', color: '#C8006A',
   }
+  // GPS pinned to the right; clear-X sits to its left when visible.
   const gpsBtn: React.CSSProperties = {
     position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
-    width: h - 12, height: h - 12, borderRadius: 8, border: '1px solid rgba(200,0,106,0.25)',
-    background: '#FFE8F4', color: '#C8006A', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, transition: 'all 0.14s',
+    width: h - 12, height: h - 12, borderRadius: 8, border: 'none',
+    background: '#C8006A', color: '#fff', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 15, transition: 'all 0.14s', boxShadow: '0 2px 6px rgba(200,0,106,0.28)',
+  }
+  const clearBtn: React.CSSProperties = {
+    position: 'absolute', right: 6 + (h - 12) + 4, top: '50%', transform: 'translateY(-50%)',
+    width: h - 18, height: h - 18, borderRadius: '50%', border: 'none',
+    background: 'rgba(0,0,0,0.06)', color: '#1A1A1A', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 13, lineHeight: 1, transition: 'all 0.14s',
   }
   const dropdown: React.CSSProperties = {
     position: 'absolute', top: `calc(${h}px + 6px)`, left: 0, right: 0, zIndex: 40,
-    background: '#fff', border: '1.5px solid rgba(200,0,106,0.16)',
-    borderRadius: 14, boxShadow: '0 12px 40px rgba(200,0,106,0.14)',
-    maxHeight: 320, overflowY: 'auto', overscrollBehavior: 'contain',
+    background: '#fff', border: '1px solid #F0F0F0',
+    borderRadius: 14, boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+    maxHeight: 340, overflowY: 'auto', overscrollBehavior: 'contain',
+    // Fade + slide-down animation on mount.
+    animation: 'addrlDropIn 0.16s cubic-bezier(0.34,1.2,0.64,1) both',
   }
   const rowStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', gap: 12,
-    padding: '0 14px', minHeight: 56, cursor: 'pointer',
-    fontSize: 14, color: '#1A1A1A', transition: 'background 0.12s',
+    padding: '0 14px', minHeight: 48, cursor: 'pointer',
+    fontSize: 14, color: '#1A1A1A', transition: 'background 0.14s, border-color 0.14s',
+    borderLeft: '3px solid transparent',
   }
   const manualBtn: React.CSSProperties = {
     display: 'block', width: '100%', textAlign: 'left', padding: '12px 14px',
@@ -284,27 +299,35 @@ export default function AddressLookup({
   return (
     <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
       <style>{`
-        .addrl-row:hover { background: #FFE8F4; }
+        .addrl-row:hover, .addrl-row:focus { background: #FFE8F4; border-left-color: #C8006A !important; outline: none; }
         .addrl-input:focus { border-color: #C8006A !important; background: #fff !important; box-shadow: 0 0 0 3px rgba(200,0,106,0.08); }
-        .addrl-gps:hover { background: #FFD1E6 !important; }
+        .addrl-gps:hover { background: #A00055 !important; transform: translateY(-50%) scale(1.06); }
+        .addrl-clear:hover { background: rgba(0,0,0,0.12) !important; }
         .addrl-manual:hover { background: #FFE8F4 !important; }
         @keyframes addrlSpin { to { transform: rotate(360deg); } }
+        @keyframes addrlDropIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
         .addrl-spin { animation: addrlSpin 0.7s linear infinite; }
+        /* Larger touch targets on phones — 52px is Apple/Google guideline. */
         @media (max-width: 640px) {
-          .addrl-row { min-height: 60px; font-size: 15px; }
+          .addrl-row { min-height: 52px; font-size: 15px; }
         }
       `}</style>
 
-      {/* ── SELECTED CONFIRMATION CHIP ── */}
+      {/* ── SELECTED CONFIRMATION CHIP — deep green, white check, white text ── */}
       {selectedLabel && status === 'selected' ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: '#EAF7EE', border: '1.5px solid #A8DDB8', borderRadius: 12 }}>
-          <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: '50%', background: '#2DA84E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 700 }}>✓</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: '#2DA84E', border: '1.5px solid #229140', borderRadius: 12, boxShadow: '0 4px 14px rgba(45,168,78,0.24)' }}>
+          <span aria-hidden="true" style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.22)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 700 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          </span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: 'Georgia,serif', fontSize: 13, fontWeight: 700, color: '#157A33', lineHeight: 1.2 }}>Address confirmed</div>
-            <div style={{ fontSize: 13.5, color: '#1A1A1A', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedLabel}</div>
+            <div style={{ fontFamily: 'Georgia,serif', fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '0.02em', lineHeight: 1.2 }}>Address confirmed</div>
+            <div style={{ fontSize: 13.5, color: '#fff', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.94 }}>{selectedLabel}</div>
           </div>
           <button type="button" onClick={clearSelection}
-            style={{ background: 'none', border: 'none', color: '#C8006A', fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', flexShrink: 0 }}>Change</button>
+            style={{ background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0, padding: '6px 12px', borderRadius: 8 }}>Change</button>
         </div>
       ) : (
         <>
@@ -341,6 +364,26 @@ export default function AddressLookup({
               }}
               style={inputStyle}
             />
+            {/* Clear-X — appears while the buyer has text but hasn't picked. */}
+            {showClear && (
+              <button
+                type="button"
+                onClick={() => {
+                  setInputValue('')
+                  setSearchQuery('')
+                  setPredictions(null)
+                  lastQueriedRef.current = null
+                  if (status === 'ready' || status === 'empty' || status === 'error') setStatus('idle')
+                  setUserHasInteracted(false)
+                  requestAnimationFrame(() => inputRef.current?.focus())
+                }}
+                aria-label="Clear address"
+                className="addrl-clear"
+                style={clearBtn}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
             <button
               type="button"
               onClick={useMyLocation}
@@ -351,9 +394,10 @@ export default function AddressLookup({
               title="Use my current location"
             >
               {status === 'gps' ? (
-                <span className="addrl-spin" style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(200,0,106,0.35)', borderTopColor: '#C8006A', borderRadius: '50%' }}/>
+                <span className="addrl-spin" style={{ display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(255,255,255,0.5)', borderTopColor: '#fff', borderRadius: '50%' }}/>
               ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+                // Location pin icon (drop-shape with dot in centre).
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="2.6" fill="currentColor" stroke="none"/></svg>
               )}
             </button>
           </div>
@@ -415,8 +459,16 @@ export default function AddressLookup({
                 Enter address manually →
               </button>
               {/* Google TOS: Places-powered dropdowns must display attribution. */}
-              <div style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', borderTop: '1px solid #F5F0F3', background: '#FAFAFA', color: '#6B6B6B', fontSize: 11 }}>
-                Powered by Google
+              <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, borderTop: '1px solid #F5F0F3', background: '#FAFAFA', color: '#6B6B6B', fontSize: 11, letterSpacing: '0.02em' }}>
+                <span style={{ fontWeight: 500 }}>Powered by</span>
+                <span aria-hidden="true" style={{ display: 'inline-flex', gap: 1, fontWeight: 700, fontSize: 12, letterSpacing: '0.01em' }}>
+                  <span style={{ color: '#4285F4' }}>G</span>
+                  <span style={{ color: '#EA4335' }}>o</span>
+                  <span style={{ color: '#FBBC05' }}>o</span>
+                  <span style={{ color: '#4285F4' }}>g</span>
+                  <span style={{ color: '#34A853' }}>l</span>
+                  <span style={{ color: '#EA4335' }}>e</span>
+                </span>
               </div>
             </div>
           )}
