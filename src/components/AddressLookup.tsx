@@ -59,6 +59,13 @@ export default function AddressLookup({
   const [errorMsg, setErrorMsg] = useState('')
   const [errorKind, setErrorKind] = useState<LookupErrorKind | null>(null)
   const [manual, setManual] = useState(false)
+  // Tracks what came back missing from a successful Google Details call, so we
+  // can nudge the buyer to fill it in. Google's data is inconsistent for
+  // buildings that aren't in Royal Mail's PAF (approximated tourist entries,
+  // brand-new construction, some POI-style addresses), and we can't accept
+  // an order with no postcode — so we hide the green confirmed chip when
+  // that happens and open the manual form pre-filled with what we do have.
+  const [missingField, setMissingField] = useState<'postcode' | 'street' | null>(null)
   const [selectedLabel, setSelectedLabel] = useState<string | null>(valueIsComplete ? labelFromValue(value) : null)
   // Flipped to true only when the user actually types or clicks GPS/Change.
   // A saved profile that lands in the "selected" state must never flip this,
@@ -79,6 +86,7 @@ export default function AddressLookup({
       if (inputValue) setInputValue('')
       if (searchQuery) setSearchQuery('')
       lastQueriedRef.current = null
+      if (missingField) setMissingField(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value.address_line1, value.postcode])
@@ -164,14 +172,21 @@ export default function AddressLookup({
       // re-render of the effect body returns immediately on the guard.
       setUserHasInteracted(false)
       lastQueriedRef.current = null
-      // If Google returned no street (rare — e.g. a POI without street data),
-      // open the manual fields with whatever we do have (city + postcode).
+      // Strict guards: we need both a street address AND a postcode before we
+      // can call the address "confirmed" — an order can't dispatch without a
+      // postcode for delivery distance, and can't route without a street.
+      // Google sometimes returns one without the other for POI-style
+      // entries; drop into the manual form and tell the buyer what's missing.
       if (!detail.address_line1) {
-        setSelectedLabel(null); setStatus('idle'); setManual(true); return
+        setSelectedLabel(null); setStatus('idle'); setManual(true); setMissingField('street'); return
+      }
+      if (!detail.postcode) {
+        setSelectedLabel(null); setStatus('idle'); setManual(true); setMissingField('postcode'); return
       }
       setSelectedLabel(label)
       setStatus('selected')
       setManual(false)
+      setMissingField(null)
     } catch (e) {
       const kind: LookupErrorKind = e instanceof AddressLookupError ? e.kind : 'unavailable'
       setErrorKind(kind); setStatus('error')
@@ -184,6 +199,7 @@ export default function AddressLookup({
     setSelectedLabel(null); setStatus('idle'); setPredictions(null); setErrorMsg(''); setErrorKind(null)
     onChange({ address_line1: '', address_line2: '', city: '', postcode: '' })
     setInputValue(''); setSearchQuery(''); lastQueriedRef.current = null
+    setMissingField(null)
     // Reset interaction so the effect stays quiet until the buyer actually
     // types the first character of their new search.
     setUserHasInteracted(false)
@@ -419,20 +435,43 @@ export default function AddressLookup({
       {/* ── MANUAL FIELDS — fallback + always after "Change" ── */}
       {manual && !selectedLabel && (
         <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
+          {/* Notice when Google returned a picked address without a
+              required field. Tells the buyer exactly what to add. */}
+          {missingField && (
+            <div role="alert" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', background: '#FFF4E0', border: '1.5px solid #F5C97A', borderRadius: 12 }}>
+              <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>⚠️</span>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: '#8C5500', marginBottom: 2 }}>
+                  {missingField === 'postcode' ? 'Postcode missing from that address' : 'Street missing from that address'}
+                </div>
+                <div style={{ fontSize: 12.5, color: '#8C5500', opacity: 0.9, lineHeight: 1.5 }}>
+                  {missingField === 'postcode'
+                    ? "Google didn't return a postcode for this address — please add it below."
+                    : "Google didn't return a full street address — please fill it in below."}
+                </div>
+              </div>
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10 }}>
             <ManualField
               label='Flat/House number'
               value={extractHouse(value.address_line1)}
               placeholder='e.g. 42'
               required
-              onChange={(house) => onChange({ ...value, address_line1: joinLine1(house, extractStreet(value.address_line1)) })}
+              onChange={(house) => {
+                if (missingField === 'street') setMissingField(null)
+                onChange({ ...value, address_line1: joinLine1(house, extractStreet(value.address_line1)) })
+              }}
             />
             <ManualField
               label='Street name'
               value={extractStreet(value.address_line1)}
               placeholder='e.g. Baker Street'
               required
-              onChange={(street) => onChange({ ...value, address_line1: joinLine1(extractHouse(value.address_line1), street) })}
+              onChange={(street) => {
+                if (missingField === 'street') setMissingField(null)
+                onChange({ ...value, address_line1: joinLine1(extractHouse(value.address_line1), street) })
+              }}
             />
           </div>
           <ManualField
@@ -454,7 +493,10 @@ export default function AddressLookup({
             placeholder='E3 4SS'
             uppercase
             required
-            onChange={(v) => onChange({ ...value, postcode: v.toUpperCase() })}
+            onChange={(v) => {
+              if (missingField === 'postcode') setMissingField(null)
+              onChange({ ...value, postcode: v.toUpperCase() })
+            }}
           />
         </div>
       )}
