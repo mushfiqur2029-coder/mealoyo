@@ -45,7 +45,13 @@ export default function AddressLookup({
 
   const valueIsComplete = !!(value.address_line1 && value.postcode)
 
-  const [query, setQuery] = useState(labelFromValue(value))
+  // Two separate strings: `inputValue` is what the input SHOWS (parent-derived
+  // on mount, updated when we set it after a pick); `searchQuery` is what
+  // actually feeds the autocomplete effect. Splitting them is the fix for
+  // the post-selection loop — setting `inputValue = formatted address` no
+  // longer re-triggers a search.
+  const [inputValue, setInputValue] = useState(labelFromValue(value))
+  const [searchQuery, setSearchQuery] = useState('')
   const [predictions, setPredictions] = useState<AddressPrediction[] | null>(null)
   const [status, setStatus] = useState<
     'idle' | 'loading' | 'gps' | 'error' | 'empty' | 'ready' | 'selected' | 'resolving'
@@ -54,6 +60,10 @@ export default function AddressLookup({
   const [errorKind, setErrorKind] = useState<LookupErrorKind | null>(null)
   const [manual, setManual] = useState(false)
   const [selectedLabel, setSelectedLabel] = useState<string | null>(valueIsComplete ? labelFromValue(value) : null)
+  // Flipped to true only when the user actually types or clicks GPS/Change.
+  // A saved profile that lands in the "selected" state must never flip this,
+  // and the pick handler must never leave it true — otherwise the autocomplete
+  // effect fires again on the next render.
   const [userHasInteracted, setUserHasInteracted] = useState(false)
   const lastQueriedRef = useRef<string | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -66,7 +76,8 @@ export default function AddressLookup({
       if (selectedLabel) setSelectedLabel(null)
       if (status !== 'idle') setStatus('idle')
       if (predictions !== null) setPredictions(null)
-      if (query) setQuery('')
+      if (inputValue) setInputValue('')
+      if (searchQuery) setSearchQuery('')
       lastQueriedRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -74,9 +85,16 @@ export default function AddressLookup({
 
   // Autocomplete — only when the user has actively typed. Debounced so we
   // don't burn Google quota on every keystroke; deduped via lastQueriedRef.
+  //
+  // Two hard guards up front stop the post-selection loop:
+  //   1. status === 'selected' → the buyer already picked; never re-fetch.
+  //   2. !userHasInteracted → this is either the initial mount OR a
+  //      just-completed pick, where we reset the flag to false so a parent
+  //      re-render triggered by onChange can't sneak past.
   useEffect(() => {
+    if (status === 'selected') return
     if (!userHasInteracted) return
-    const q = query.trim()
+    const q = searchQuery.trim()
     if (q.length < 3) {
       if (status === 'ready' || status === 'empty' || status === 'error') {
         setStatus('idle'); setPredictions(null); setErrorMsg(''); setErrorKind(null)
@@ -108,7 +126,12 @@ export default function AddressLookup({
       }
     }, 300)
     return () => { controller.abort(); clearTimeout(t) }
-  }, [query, userHasInteracted, status])
+    // Deps deliberately narrow — `searchQuery` and `userHasInteracted` are
+    // the only things that should cause a fetch to be considered. `status`
+    // is read inside the effect but not in deps; the two guards at the top
+    // make it safe to re-run only on the interactions we care about.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, userHasInteracted])
 
   // Close the dropdown when the user clicks outside — normal picker behaviour.
   useEffect(() => {
@@ -132,7 +155,14 @@ export default function AddressLookup({
         postcode: detail.postcode,
       })
       const label = detail.formatted_address || p.description
-      setQuery(label)
+      // Show the formatted address in the input, but never in searchQuery —
+      // otherwise the autocomplete effect would treat it as new input and
+      // refetch. Clear searchQuery to be safe.
+      setInputValue(label)
+      setSearchQuery('')
+      // Extra belt-and-braces: reset the interaction flag so any accidental
+      // re-render of the effect body returns immediately on the guard.
+      setUserHasInteracted(false)
       lastQueriedRef.current = null
       // If Google returned no street (rare — e.g. a POI without street data),
       // open the manual fields with whatever we do have (city + postcode).
@@ -153,7 +183,10 @@ export default function AddressLookup({
   const clearSelection = () => {
     setSelectedLabel(null); setStatus('idle'); setPredictions(null); setErrorMsg(''); setErrorKind(null)
     onChange({ address_line1: '', address_line2: '', city: '', postcode: '' })
-    setQuery(''); lastQueriedRef.current = null; setUserHasInteracted(true)
+    setInputValue(''); setSearchQuery(''); lastQueriedRef.current = null
+    // Reset interaction so the effect stays quiet until the buyer actually
+    // types the first character of their new search.
+    setUserHasInteracted(false)
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
@@ -170,7 +203,11 @@ export default function AddressLookup({
         try {
           const r = await reverseGeocodeViaPlaces(pos.coords.latitude, pos.coords.longitude)
           if (!r?.postcode) { setStatus('error'); setErrorMsg('Could not find a postcode at your location'); return }
-          setQuery(r.postcode)
+          // Seed both — inputValue shows in the input, searchQuery drives
+          // the effect. userHasInteracted was set true above, so the effect
+          // will fetch as soon as the debounce completes.
+          setInputValue(r.postcode)
+          setSearchQuery(r.postcode)
         } catch (e) {
           const kind: LookupErrorKind = e instanceof AddressLookupError ? e.kind : 'unavailable'
           setErrorKind(kind); setStatus('error')
@@ -273,10 +310,14 @@ export default function AddressLookup({
               autoComplete="street-address"
               aria-label="Search your address"
               placeholder="Start typing your address or postcode…"
-              value={query}
+              value={inputValue}
               onChange={(e) => {
+                // Typing is the ONLY thing that mirrors input → search. A
+                // programmatic setInputValue (after pick / mount) never
+                // touches searchQuery, so it can't trigger a refetch.
                 setUserHasInteracted(true)
-                setQuery(e.target.value)
+                setInputValue(e.target.value)
+                setSearchQuery(e.target.value)
                 if (status === 'selected') setStatus('idle')
               }}
               onFocus={() => {
@@ -367,7 +408,7 @@ export default function AddressLookup({
           {/* ── SUB-HINT below the input ── */}
           {!showDropdown && (
             <p style={{ fontSize: 12, color: '#1A1A1A', opacity: 0.7, marginTop: 8, lineHeight: 1.5 }}>
-              {query.trim().length >= 3
+              {searchQuery.trim().length >= 3
                 ? 'Waiting for you to finish typing…'
                 : 'Start typing your address — we\'ll show suggestions.'}
             </p>
