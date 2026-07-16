@@ -8,6 +8,8 @@ import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
 import ThemeToggle from '@/components/ThemeToggle'
 import AddressLookup, { type AddressValue } from '@/components/AddressLookup'
+import ProfileCompletionCard from '@/components/ProfileCompletionCard'
+import { calculateProfileCompletion } from '@/lib/profileCompletion'
 import { isValidUKPostcode, formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
@@ -39,6 +41,9 @@ export default function SellerProfile() {
   const [status, setStatus] = useState('')
   // Snapshot of the sensitive fields as loaded, to detect real changes on save.
   const [orig, setOrig] = useState({ fullName:'', address_line1:'', address_line2:'', city:'' })
+  // Whether this seller has at least one live listing — feeds profile
+  // completion scoring. Fetched alongside the profile row.
+  const [hasListing, setHasListing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -87,6 +92,9 @@ export default function SellerProfile() {
       setSortCode(row?.bank_sort_code || '')
       setAccountNumber(row?.bank_account_number || '')
       setOrig({ fullName: p?.full_name || '', address_line1: loadedAddress.address_line1, address_line2: loadedAddress.address_line2, city: loadedAddress.city })
+      // Live listing count — head request is cheap; only need to know >=1.
+      const { count: liveCount } = await supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', user.id).eq('status', 'live')
+      setHasListing((liveCount ?? 0) > 0)
       setLoading(false)
     }
     getData()
@@ -237,8 +245,23 @@ export default function SellerProfile() {
           <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>Manage your seller account details.</p>
         </div>
 
+        {/* Profile completion card */}
+        <ProfileCompletionCard
+          role="seller"
+          variant="full"
+          result={calculateProfileCompletion(
+            {
+              full_name: fullName, phone, avatar_url: avatarUrl,
+              address_line1: address.address_line1, address_line2: address.address_line2, city: address.city, postcode: address.postcode,
+              bank_account_name: bankName, bank_sort_code: sortCode, bank_account_number: accountNumber,
+            },
+            'seller',
+            { hasListing },
+          )}
+        />
+
         {/* Identity card */}
-        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'28px 24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', textAlign:'center', marginBottom:18}}>
+        <div id="pcc-avatar" className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'28px 24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', textAlign:'center', marginBottom:18}}>
           <div style={{marginBottom:14}}>
             {user && <AvatarUpload userId={user.id} initialUrl={avatarUrl} initials={initials} onUploaded={setAvatarUrl}/>}
           </div>
@@ -282,17 +305,17 @@ export default function SellerProfile() {
         {/* Details form */}
         <form onSubmit={handleSave} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column', gap:18, marginBottom:18}}>
           <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)'}}>Account details</h3>
-          <div>
+          <div id="pcc-name">
             <label style={labelStyle}>Full name{reviewBadge}</label>
             <input value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle}/>
           </div>
-          <div>
+          <div id="pcc-phone">
             <label style={labelStyle}>Phone number</label>
             <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={inputStyle}/>
           </div>
 
           {/* Address — one postcode lookup, then pick from the dropdown. */}
-          <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
+          <div id="pcc-address" style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
             <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>Address{reviewBadge}</h4>
             <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6, marginBottom:14}}>Where you cook from — used for verification and dispatch. Type your postcode and pick your address from the list.</p>
             <AddressLookup value={address} onChange={setAddress}/>
@@ -333,7 +356,7 @@ export default function SellerProfile() {
         </form>
 
         {/* Bank details for withdrawals */}
-        <form onSubmit={handleSaveBank} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column', gap:16, marginBottom:18}}>
+        <form id="pcc-bank" onSubmit={handleSaveBank} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column', gap:16, marginBottom:18}}>
           <div>
             <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:2}}>Bank details for withdrawals</h3>
             <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6}}>Where we send your earnings when you request a withdrawal.</p>

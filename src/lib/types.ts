@@ -24,6 +24,8 @@ export interface Profile {
   bank_account_name?: string | null
   bank_sort_code?: string | null
   bank_account_number?: string | null
+  // Vehicle type — drivers only. See 20260716_vehicle_type.sql.
+  vehicle_type?: 'bicycle' | 'moped' | 'car' | 'van' | null
   // Referrals (see 20260707_referrals_oauth.sql)
   referral_code?: string | null
   referred_by?: string | null

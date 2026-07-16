@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
 import CartButton from '@/components/CartButton'
+import ProfileCompletionCard from '@/components/ProfileCompletionCard'
+import { calculateProfileCompletion, ctxFromAuthUser } from '@/lib/profileCompletion'
 import { pointsToPounds } from '@/lib/loyalty'
 import type { User, Profile, Order, Listing } from '@/lib/types'
 
@@ -32,6 +34,8 @@ export default function BuyerDashboard() {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  // Full profile row (address/postcode/etc) for the completion card.
+  const [fullProfileRow, setFullProfileRow] = useState<Profile | null>(null)
   const [referralCode, setReferralCode] = useState<string | null>(null)
   const [refCopied, setRefCopied] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
@@ -58,6 +62,7 @@ export default function BuyerDashboard() {
       const { data: avatarRow } = await supabase.rpc('get_my_profile_full')
       setAvatarUrl(avatarRow?.avatar_url || null)
       setReferralCode(avatarRow?.referral_code || null)
+      setFullProfileRow(avatarRow as Profile | null)
       // Credit a referrer captured from a ?ref= link on registration. Runs once,
       // then clears — the RPC itself ignores self-referrals and repeats.
       const pendingRef = localStorage.getItem('mealoyo_ref')
@@ -198,6 +203,16 @@ export default function BuyerDashboard() {
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,34px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 👋</h1>
           <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>{today}</p>
         </div>
+
+        {/* Profile completion nag — dismissible per-session, hides at >=80%. */}
+        {fullProfileRow && (
+          <ProfileCompletionCard
+            role="buyer"
+            variant="compact"
+            storageKey="pcc-dismiss-buyer"
+            result={calculateProfileCompletion(fullProfileRow, 'buyer', ctxFromAuthUser(user))}
+          />
+        )}
 
         {/* Top stats */}
         <div className="dash-grid fade-up" style={{display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:14, marginBottom:24}}>

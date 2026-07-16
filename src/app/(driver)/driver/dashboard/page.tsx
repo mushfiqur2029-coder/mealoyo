@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import ProfileCompletionCard from '@/components/ProfileCompletionCard'
+import { calculateProfileCompletion } from '@/lib/profileCompletion'
 import NavAvatar from '@/components/NavAvatar'
 import { haversineDistance, lookupPostcode, isValidUKPostcode } from '@/lib/pricing'
 import type { Profile, Order } from '@/lib/types'
@@ -78,6 +80,8 @@ const dark = `
 
 export default function DriverDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null)
+  // Full profile row (address + bank + vehicle_type) for the completion card.
+  const [fullProfileRow, setFullProfileRow] = useState<Profile | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [historyOrders, setHistoryOrders] = useState<Order[]>([])
   const [jobs, setJobs] = useState<AvailableJob[]>([])
@@ -175,6 +179,9 @@ export default function DriverDashboard() {
       if (!user) { router.push('/login'); return }
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
+      // Full row for completion scoring (address/bank/vehicle aren't in the base RPC).
+      const { data: fullRow } = await supabase.rpc('get_my_profile_full')
+      setFullProfileRow(fullRow as Profile | null)
       const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
       setAvatarUrl(avatarRow?.avatar_url || null)
       const { data } = await supabase.from('orders').select('*, listings(name,cuisine)').eq('driver_id', user.id).eq('status', 'delivered').order('created_at', { ascending: false })
@@ -438,6 +445,16 @@ export default function DriverDashboard() {
             </span>
           </button>
         </div>
+
+        {/* Profile completion nag — dismissible per-session, hides at >=80%. */}
+        {fullProfileRow && (
+          <ProfileCompletionCard
+            role="driver"
+            variant="compact"
+            storageKey="pcc-dismiss-driver"
+            result={calculateProfileCompletion(fullProfileRow, 'driver')}
+          />
+        )}
 
         {/* Earnings hero */}
         <div className="fade-up" style={{background:'linear-gradient(135deg,#C8006A 0%,#7A0042 100%)', borderRadius:22, padding:'26px 26px 24px', boxShadow:'0 16px 44px rgba(200,0,106,0.34)', marginBottom:20, position:'relative', overflow:'hidden'}}>

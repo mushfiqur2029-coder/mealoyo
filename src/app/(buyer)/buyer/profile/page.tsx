@@ -8,6 +8,8 @@ import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
 import ThemeToggle from '@/components/ThemeToggle'
 import AddressLookup, { type AddressValue } from '@/components/AddressLookup'
+import ProfileCompletionCard from '@/components/ProfileCompletionCard'
+import { calculateProfileCompletion, ctxFromAuthUser } from '@/lib/profileCompletion'
 import type { User, Profile } from '@/lib/types'
 
 const NAV = [
@@ -175,8 +177,19 @@ export default function BuyerProfile() {
           <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>Manage your account details.</p>
         </div>
 
+        {/* Profile completion card */}
+        <ProfileCompletionCard
+          role="buyer"
+          variant="full"
+          result={calculateProfileCompletion(
+            { full_name: fullName, phone, avatar_url: avatarUrl, address_line1: address.address_line1, address_line2: address.address_line2, city: address.city, postcode: address.postcode },
+            'buyer',
+            ctxFromAuthUser(user),
+          )}
+        />
+
         {/* Identity card */}
-        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'28px 24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', textAlign:'center', marginBottom:18}}>
+        <div id="pcc-avatar" className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'28px 24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', textAlign:'center', marginBottom:18}}>
           <div style={{marginBottom:14}}>
             {user && <AvatarUpload userId={user.id} initialUrl={avatarUrl} initials={initials} onUploaded={setAvatarUrl}/>}
           </div>
@@ -202,23 +215,23 @@ export default function BuyerProfile() {
         {/* Details form */}
         <form onSubmit={handleSave} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column', gap:18, marginBottom:18}}>
           <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)'}}>Account details</h3>
-          <div>
+          <div id="pcc-name">
             <label style={labelStyle}>Full name</label>
             <input value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle}/>
           </div>
-          <div>
+          <div id="pcc-phone">
             <label style={labelStyle}>Phone number</label>
             <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={inputStyle}/>
           </div>
 
           {/* Delivery address — one postcode lookup covers the whole thing. */}
-          <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
+          <div id="pcc-address" style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
             <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>Delivery address</h4>
             <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6, marginBottom:14}}>Type your postcode and pick your address from the list — we&apos;ll save it so checkout auto-fills.</p>
             <AddressLookup value={address} onChange={setAddress}/>
           </div>
 
-          <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
+          <div id="pcc-email" style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
             <label style={{...labelStyle, display:'flex', alignItems:'center', gap:6}}>Email address <span style={{fontSize:12}}>🔒</span></label>
             <div style={{position:'relative'}}>
               <input value={email} disabled style={{...inputStyle, padding:'0 40px 0 14px', opacity:0.7, background:'var(--bg-secondary)', cursor:'not-allowed'}}/>
@@ -230,7 +243,7 @@ export default function BuyerProfile() {
         </form>
 
         {/* Change password */}
-        <form onSubmit={handleChangePassword} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column', gap:16, marginBottom:18}}>
+        <form id="pcc-password" onSubmit={handleChangePassword} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'24px', boxShadow:'0 2px 16px var(--border-subtle)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column', gap:16, marginBottom:18}}>
           <div>
             <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:2}}>Change password</h3>
             <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6}}>Use at least 6 characters.</p>

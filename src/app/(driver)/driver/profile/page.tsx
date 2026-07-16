@@ -8,6 +8,8 @@ import AvatarUpload from '@/components/AvatarUpload'
 import NavAvatar from '@/components/NavAvatar'
 import ThemeToggle from '@/components/ThemeToggle'
 import AddressLookup, { type AddressValue } from '@/components/AddressLookup'
+import ProfileCompletionCard from '@/components/ProfileCompletionCard'
+import { calculateProfileCompletion } from '@/lib/profileCompletion'
 import { formatSortCode, isValidSortCode, isValidAccountNumber } from '@/lib/pricing'
 import type { User, Profile } from '@/lib/types'
 
@@ -49,6 +51,7 @@ export default function DriverProfile() {
   const [fullName, setFullName] = useState('')
   const [phone, setPhone] = useState('')
   const [address, setAddress] = useState<AddressValue>({ address_line1: '', address_line2: '', city: '', postcode: '' })
+  const [vehicleType, setVehicleType] = useState<'bicycle' | 'moped' | 'car' | 'van' | ''>('')
   const [email, setEmail] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [status, setStatus] = useState('')
@@ -99,6 +102,7 @@ export default function DriverProfile() {
       setBankName(row?.bank_account_name || '')
       setSortCode(row?.bank_sort_code || '')
       setAccountNumber(row?.bank_account_number || '')
+      setVehicleType((row?.vehicle_type as 'bicycle' | 'moped' | 'car' | 'van' | null) || '')
       setOrig({ fullName: p?.full_name || '', address_line1: loadedAddress.address_line1, address_line2: loadedAddress.address_line2, city: loadedAddress.city })
       setLoading(false)
     }
@@ -125,6 +129,7 @@ export default function DriverProfile() {
       address_line2: address.address_line2.trim() || null,
       city: address.city.trim() || null,
       postcode: address.postcode.trim().toUpperCase() || null,
+      vehicle_type: vehicleType || null,
     }
     if (willReapprove) update.status = 'pending'
 
@@ -214,8 +219,23 @@ export default function DriverProfile() {
           <p style={{fontSize:14, color:'rgba(255,255,255,0.55)'}}>Manage your driver account details.</p>
         </div>
 
+        {/* Profile completion card */}
+        <ProfileCompletionCard
+          role="driver"
+          variant="full"
+          result={calculateProfileCompletion(
+            {
+              full_name: fullName, phone, avatar_url: avatarUrl,
+              address_line1: address.address_line1, address_line2: address.address_line2, city: address.city, postcode: address.postcode,
+              bank_account_name: bankName, bank_sort_code: sortCode, bank_account_number: accountNumber,
+              vehicle_type: (vehicleType || null) as 'bicycle' | 'moped' | 'car' | 'van' | null,
+            },
+            'driver',
+          )}
+        />
+
         {/* Identity card */}
-        <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'28px 24px', border:'1px solid var(--border-subtle)', textAlign:'center', marginBottom:18}}>
+        <div id="pcc-avatar" className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, padding:'28px 24px', border:'1px solid var(--border-subtle)', textAlign:'center', marginBottom:18}}>
           <div style={{marginBottom:14}}>
             {user && <AvatarUpload userId={user.id} initialUrl={avatarUrl} initials={initials} dark onUploaded={setAvatarUrl}/>}
           </div>
@@ -247,19 +267,54 @@ export default function DriverProfile() {
         {/* Details form */}
         <form onSubmit={handleSave} className="fade-up" style={cardStyle}>
           <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)'}}>Account details</h3>
-          <div>
+          <div id="pcc-name">
             <label style={labelStyle}>Full name{reviewBadge}</label>
             <input value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle}/>
           </div>
-          <div>
+          <div id="pcc-phone">
             <label style={labelStyle}>Phone number</label>
             <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={inputStyle}/>
           </div>
 
-          <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
+          <div id="pcc-address" style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
             <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>Address{reviewBadge}</h4>
             <p style={{fontSize:12, color:'var(--text-secondary)', marginBottom:14}}>Your base location. Type your postcode and pick your address from the list.</p>
             <AddressLookup value={address} onChange={setAddress}/>
+          </div>
+
+          {/* Vehicle type — required for dispatch. Feeds profile completion. */}
+          <div id="pcc-vehicle" style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
+            <h4 style={{fontFamily:'Georgia,serif', fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>Vehicle <span style={{color:'#EF6A6A', fontWeight:800}}>*</span></h4>
+            <p style={{fontSize:12, color:'var(--text-secondary)', marginBottom:14}}>What are you delivering with? Cooks and buyers see this on the tracking screen.</p>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(120px, 1fr))', gap:10}}>
+              {[
+                { v: 'bicycle' as const, icon: '🚴', label: 'Bicycle' },
+                { v: 'moped' as const,   icon: '🛵', label: 'Moped' },
+                { v: 'car' as const,     icon: '🚗', label: 'Car' },
+                { v: 'van' as const,     icon: '🚐', label: 'Van' },
+              ].map(opt => {
+                const on = vehicleType === opt.v
+                return (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => setVehicleType(opt.v)}
+                    style={{
+                      display:'flex', flexDirection:'column', alignItems:'center', gap:6,
+                      padding:'14px 8px',
+                      background: on ? 'rgba(200,0,106,0.16)' : 'var(--bg-card)',
+                      border: on ? '2px solid #C8006A' : '1.5px solid var(--border-subtle)',
+                      borderRadius:14, cursor:'pointer',
+                      transition:'all 0.14s',
+                      boxShadow: on ? '0 4px 14px rgba(200,0,106,0.18)' : 'none',
+                    }}
+                  >
+                    <span style={{fontSize:28}}>{opt.icon}</span>
+                    <span style={{fontSize:13, fontWeight:700, color: on ? '#C8006A' : 'var(--text-primary)'}}>{opt.label}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
@@ -297,7 +352,7 @@ export default function DriverProfile() {
         </form>
 
         {/* Bank details for withdrawals */}
-        <form onSubmit={handleSaveBank} className="fade-up" style={{...cardStyle, gap:16}}>
+        <form id="pcc-bank" onSubmit={handleSaveBank} className="fade-up" style={{...cardStyle, gap:16}}>
           <div>
             <h3 style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:2}}>Bank details for withdrawals</h3>
             <p style={{fontSize:12, color:'var(--text-secondary)'}}>Where we send your earnings when you request a withdrawal.</p>

@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
+import ProfileCompletionCard from '@/components/ProfileCompletionCard'
+import { calculateProfileCompletion } from '@/lib/profileCompletion'
 import type { Profile, Listing, Order, Review } from '@/lib/types'
 
 const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
@@ -34,9 +36,11 @@ const NAV = [
 export default function SellerDashboard() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  // Sourced from get_my_profile_full because postcode isn't in the base RPC.
-  // Powers the "please add your postcode" warning below.
+  // Sourced from get_my_profile_full because postcode + bank aren't in the
+  // base RPC. Powers the "please add your postcode" warning below AND the
+  // profile completion card.
   const [sellerPostcode, setSellerPostcode] = useState<string | null>(null)
+  const [fullProfileRow, setFullProfileRow] = useState<Profile | null>(null)
   const [listings, setListings] = useState<Listing[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [orderCount, setOrderCount] = useState(0)
@@ -62,6 +66,7 @@ export default function SellerDashboard() {
       // so we can nag sellers who haven't set it.
       const { data: fullProfile } = await supabase.rpc('get_my_profile_full')
       setSellerPostcode(fullProfile?.postcode || null)
+      setFullProfileRow(fullProfile as Profile | null)
       const { data: listings } = await supabase.from('listings').select('*').eq('seller_id', user.id)
       setListings(listings || [])
       const { data: orders } = await supabase.from('orders').select('*, listings(name,cuisine), profiles:buyer_id(full_name)').eq('seller_id', user.id).neq('status', 'pending_payment').order('created_at', { ascending: false }).limit(5)
@@ -303,6 +308,16 @@ export default function SellerDashboard() {
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,34px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 👋</h1>
           <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>{today}</p>
         </div>
+
+        {/* Profile completion nag — dismissible per-session, hides at >=80%. */}
+        {fullProfileRow && (
+          <ProfileCompletionCard
+            role="seller"
+            variant="compact"
+            storageKey="pcc-dismiss-seller"
+            result={calculateProfileCompletion(fullProfileRow, 'seller', { hasListing: liveListings.length > 0 })}
+          />
+        )}
 
         {/* Missing-postcode nag — persistent link to profile so distance quotes
             actually work for buyers. */}
