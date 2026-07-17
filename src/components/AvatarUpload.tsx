@@ -82,21 +82,17 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
     setProgress(5)
     setSizeLabel(`${humanSize(file.size)} → …`)
     try {
-      // ── SESSION VERIFICATION ─────────────────────────────────────────
       // Re-derive user.id from the live session rather than trusting the
-      // userId prop. If the parent handed a stale/wrong id we'd try to
-      // update someone else's row and RLS would (correctly) reject with
-      // "permission denied for table profiles". The session also proves
-      // the JWT still has auth.uid() attached to the browser client.
-      const { data: sessionData } = await supabase.auth.getSession()
+      // userId prop — the prop was captured at mount and may drift if the
+      // JWT rotates. The storage RLS policy scopes uploads to the caller's
+      // own {auth.uid()}/ folder, so if the prop is stale the upload would
+      // fail with a misleading storage error.
       const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user ?? null
-      if (!user || !sessionData?.session) {
+      if (!user) {
         setError('Please sign in again — your session has expired.')
         setUploading(false); setProgress(0); return
       }
-      // Use the live session's id for BOTH the storage path and the
-      // profiles update. Never the prop.
       const authUid = user.id
 
       // Phase 1: client-side compression. compressToTarget iteratively steps
@@ -118,16 +114,12 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
       window.clearInterval(tickId)
       if (upErr) throw upErr
 
-      // Phase 3: publish + write URL back via the service-role API route.
-      //
-      // Auth model: send the session's access_token as an Authorization
-      // Bearer header rather than relying on the Supabase cookie flowing to
-      // the route. On Vercel same-origin fetches from a 'use client'
-      // component the cookie sometimes doesn't reach the handler cleanly;
-      // the Bearer token makes the call self-contained and independent of
-      // cookie plumbing. The API route verifies the JWT server-side with
-      // supabaseAdmin.auth.getUser(token) and does the write with the
-      // service role — bypasses RLS + column grants entirely.
+      // Phase 3: publish + write URL back via a security-definer RPC.
+      // Same pattern as get_my_profile / get_my_profile_full — the RPC's
+      // WHERE clause is hard-coded to auth.uid() so the caller can only
+      // ever mutate their own row. Bypasses RLS + column grants on
+      // public.profiles, so the recurring "permission denied for table
+      // profiles" bug can't touch this path.
       setProgress(96)
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
       // Cache-bust for the browser's <img> but strip it before persisting so
@@ -135,26 +127,10 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
       const persistedUrl = pub.publicUrl
       const displayUrl = `${pub.publicUrl}?v=${Date.now()}`
 
-      // Fresh session read — the JWT rotates in the background, so grab the
-      // current access_token right before we send it.
-      const { data: freshSession } = await supabase.auth.getSession()
-      const accessToken = freshSession?.session?.access_token
-      if (!accessToken) {
-        throw new Error('Please sign in again — your session has expired.')
-      }
-
-      const res = await fetch('/api/avatar/update', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ avatarUrl: persistedUrl }),
-      })
-      const payload = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        console.error('[AvatarUpload] api/avatar/update failed', { status: res.status, payload })
-        throw new Error(typeof payload?.error === 'string' ? payload.error : `Could not save avatar (${res.status})`)
+      const { error: rpcErr } = await supabase.rpc('update_my_avatar', { p_avatar_url: persistedUrl })
+      if (rpcErr) {
+        console.error('[AvatarUpload] update_my_avatar failed', rpcErr)
+        throw new Error(rpcErr.message || 'Could not save avatar')
       }
 
       setProgress(100)
