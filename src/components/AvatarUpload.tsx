@@ -88,19 +88,10 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
       // update someone else's row and RLS would (correctly) reject with
       // "permission denied for table profiles". The session also proves
       // the JWT still has auth.uid() attached to the browser client.
-      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession()
-      const session = sessionData?.session ?? null
-      const { data: userData, error: userErr } = await supabase.auth.getUser()
+      const { data: sessionData } = await supabase.auth.getSession()
+      const { data: userData } = await supabase.auth.getUser()
       const user = userData?.user ?? null
-      console.log('[AvatarUpload] auth check', {
-        propUserId: userId,
-        sessionUserId: user?.id,
-        hasSession: !!session,
-        propMatchesSession: user?.id === userId,
-        sessionErr: sessionErr?.message,
-        userErr: userErr?.message,
-      })
-      if (!user || !session) {
+      if (!user || !sessionData?.session) {
         setError('Please sign in again — your session has expired.')
         setUploading(false); setProgress(0); return
       }
@@ -121,54 +112,42 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
         setProgress((p) => (p < 92 ? Math.min(92, p + 3) : p))
       }, 120)
       const path = `${authUid}/avatar.jpg`
-      console.log('[AvatarUpload] storage upload', {
-        bucket: 'avatars',
-        path,
-        firstFolderIsAuthUid: path.split('/')[0] === authUid,
-        blobBytes: blob.size,
-      })
       const { error: upErr } = await supabase.storage
         .from('avatars')
         .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
       window.clearInterval(tickId)
-      if (upErr) {
-        console.error('[AvatarUpload] storage error', upErr)
-        throw upErr
-      }
+      if (upErr) throw upErr
 
-      // Phase 3: publish + write URL back to the profile row.
+      // Phase 3: publish + write URL back to the profile row via the
+      // service-role API route. Direct .update() on public.profiles from the
+      // browser kept tripping "permission denied for table profiles"
+      // whenever the base column/table grants drifted; the API route uses
+      // supabaseAdmin (bypasses RLS + grants) and scopes the write to the
+      // caller's own row via the session cookie — same pattern as
+      // /api/orders/create.
       setProgress(96)
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
-      const publicUrl = `${pub.publicUrl}?v=${Date.now()}` // cache-bust
-      console.log('[AvatarUpload] profiles update', {
-        rowId: authUid,
-        newAvatarUrl: publicUrl,
+      // Cache-bust for the browser's <img> but strip it before persisting so
+      // the URL doesn't grow every save.
+      const persistedUrl = pub.publicUrl
+      const displayUrl = `${pub.publicUrl}?v=${Date.now()}`
+
+      const res = await fetch('/api/avatar/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ avatarUrl: persistedUrl }),
+        // Keep the session cookie flowing to the route handler.
+        credentials: 'same-origin',
       })
-      const { data: updData, error: dbErr, count } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', authUid)
-        .select('id, avatar_url')
-      if (dbErr) {
-        console.error('[AvatarUpload] profiles update error', {
-          message: dbErr.message,
-          details: dbErr.details,
-          hint: dbErr.hint,
-          code: dbErr.code,
-        })
-        throw dbErr
-      }
-      // If the update ran but returned 0 rows, RLS filtered it silently —
-      // the row-level policy `auth.uid() = id` didn't match. Surface it
-      // clearly instead of pretending success.
-      if (!updData || updData.length === 0) {
-        console.warn('[AvatarUpload] profiles update returned 0 rows', { count })
-        throw new Error('Your session ID does not match this profile. Please sign in again.')
+      const payload = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        console.error('[AvatarUpload] api/avatar/update failed', { status: res.status, payload })
+        throw new Error(typeof payload?.error === 'string' ? payload.error : `Could not save avatar (${res.status})`)
       }
 
       setProgress(100)
-      setUrl(publicUrl)
-      onUploaded?.(publicUrl)
+      setUrl(displayUrl)
+      onUploaded?.(displayUrl)
       // Success checkmark bloom — clears after ~1.6s so the next click still
       // shows a clean UI.
       setShowSuccess(true)
