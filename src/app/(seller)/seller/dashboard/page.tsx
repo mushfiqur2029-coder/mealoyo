@@ -64,11 +64,12 @@ export default function SellerDashboard() {
       setUserId(user.id)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
-      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
-      setAvatarUrl(avatarRow?.avatar_url || null)
-      // Postcode isn't returned by get_my_profile — read it via the definer RPC
-      // so we can nag sellers who haven't set it.
+      // Full row via definer RPC — one call covers avatar_url + postcode +
+      // completion scoring, and avoids the direct .select() on profiles that
+      // was throwing "permission denied for table profiles" when the base
+      // column grant wasn't in place.
       const { data: fullProfile } = await supabase.rpc('get_my_profile_full')
+      setAvatarUrl(fullProfile?.avatar_url || null)
       setSellerPostcode(fullProfile?.postcode || null)
       setFullProfileRow(fullProfile as Profile | null)
       const { data: listings } = await supabase.from('listings').select('*').eq('seller_id', user.id)

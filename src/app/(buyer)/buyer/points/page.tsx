@@ -33,8 +33,11 @@ export default function BuyerPoints() {
       setUser(user)
       const { data: profile } = await supabase.rpc('get_my_profile')
       setProfile(profile)
-      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
-      setAvatarUrl(avatarRow?.avatar_url || null)
+      // Own avatar via definer RPC — dodges the fragile column grant on
+      // public.profiles that produces "permission denied for table profiles"
+      // when it's missing on a given environment.
+      const { data: fullProfile } = await supabase.rpc('get_my_profile_full')
+      setAvatarUrl(fullProfile?.avatar_url || null)
       // Balance + ledger. Both fail gracefully (0 / empty) until the SQL is run.
       const { data: bal } = await supabase.rpc('get_points_balance', { p_buyer_id: user.id })
       setBalance(typeof bal === 'number' ? bal : 0)

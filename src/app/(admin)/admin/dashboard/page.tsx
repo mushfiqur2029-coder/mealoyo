@@ -83,8 +83,11 @@ export default function AdminDashboard() {
       const { data: profile } = await supabase.rpc('get_my_profile')
       if ((profile as Profile | null)?.role !== 'admin') { router.push('/'); return }
       setProfile(profile)
-      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
-      setAvatarUrl(avatarRow?.avatar_url || null)
+      // Read own avatar via the definer RPC — the base column grant on
+      // profiles is fragile across environments and a direct .select() throws
+      // "permission denied for table profiles" whenever it's missing.
+      const { data: fullProfile } = await supabase.rpc('get_my_profile_full')
+      setAvatarUrl(fullProfile?.avatar_url || null)
 
       const [
         { data: pendingSellers }, { data: pendingDrivers }, { data: pendingListings },

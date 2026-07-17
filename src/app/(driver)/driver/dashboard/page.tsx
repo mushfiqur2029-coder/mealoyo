@@ -195,8 +195,10 @@ export default function DriverDashboard() {
       // Full row for completion scoring (address/bank/vehicle aren't in the base RPC).
       const { data: fullRow } = await supabase.rpc('get_my_profile_full')
       setFullProfileRow(fullRow as Profile | null)
-      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).maybeSingle()
-      setAvatarUrl(avatarRow?.avatar_url || null)
+      // Avatar comes from the same definer RPC — no direct .select() on
+      // profiles anywhere on this page, so the fragile base-table grant
+      // never trips a "permission denied for table profiles" on load.
+      setAvatarUrl(fullRow?.avatar_url || null)
       const { data } = await supabase.from('orders').select('*, listings(name,cuisine)').eq('driver_id', user.id).eq('status', 'delivered').order('created_at', { ascending: false })
       setHistoryOrders(data || [])
       await loadFeeds()

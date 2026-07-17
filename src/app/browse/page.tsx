@@ -216,8 +216,11 @@ function Browse() {
       if (!userId) { if (active) { setSaved([]); setHistoryCuisines([]); setAvatarUrl(null) } return }
       const { data: savedRows } = await supabase.from('saved_listings').select('listing_id').eq('buyer_id', userId)
       if (active) setSaved((savedRows || []).map(r => r.listing_id))
-      const { data: avatarRow } = await supabase.from('profiles').select('avatar_url').eq('id', userId).maybeSingle()
-      if (active) setAvatarUrl(avatarRow?.avatar_url || null)
+      // Own avatar via the definer RPC — no direct .select() on profiles
+      // means a fragile base-table grant can't throw "permission denied for
+      // table profiles" mid-browse.
+      const { data: fullProfile } = await supabase.rpc('get_my_profile_full')
+      if (active) setAvatarUrl(fullProfile?.avatar_url || null)
       // Past orders drive "Recommended for you". RLS scopes this to the buyer's own orders.
       const { data: orderRows } = await supabase.from('orders').select('listings(cuisine)').eq('buyer_id', userId)
       if (active) {
