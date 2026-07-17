@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { compressToTarget } from '@/lib/images'
@@ -12,15 +12,22 @@ import { compressToTarget } from '@/lib/images'
 //
 // Both accept any image/* mime (jpg/png/webp/heic/gif) so users don't have to
 // think about formats — we convert everything to a compact JPEG on the client
-// via the canvas API. Target: max 200KB at 400×400, quality steps down from
-// 0.9 to hit the byte cap (compressToTarget). The result uploads to Supabase
-// Storage at avatars/{userId}/avatar.jpg (matches the folder-scoped RLS
-// policies from 20260717_avatar_storage_rls.sql), then the public URL is
-// written back to profiles.avatar_url.
+// via the canvas API. Target: max 80KB at 400×400, quality steps 0.82 → 0.5
+// (see compressToTarget). Result uploads to Supabase Storage at
+// avatars/{userId}/avatar.jpg (matches the folder-scoped RLS policies from
+// 20260717_avatar_storage_rls.sql), then the public URL is written back to
+// profiles.avatar_url.
 
 const MAX_INPUT_BYTES = 15 * 1024 * 1024   // 15MB pre-compression ceiling
-const OUTPUT_MAX_BYTES = 200 * 1024        // 200KB post-compression target
+const OUTPUT_MAX_BYTES = 80 * 1024         // 80KB post-compression target
 const OUTPUT_MAX_DIM = 400                 // 400×400 output
+
+// "1.2 MB" / "68 KB" — friendly byte formatter for the compression readout.
+function humanSize(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${bytes} B`
+}
 
 type Props = {
   userId: string
@@ -33,44 +40,57 @@ type Props = {
 
 export default function AvatarUpload({ userId, initialUrl, initials, size = 96, dark = false, onUploaded }: Props) {
   const [url, setUrl] = useState<string | null>(initialUrl)
+  // Optimistic preview from the picked file — shown INSIDE the avatar circle
+  // the moment the buyer selects an image, before compression or upload
+  // finish. Object URL cleaned up on unmount and on new picks.
+  const [preview, setPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)  // 0–100, driven by the compress + upload phases
+  const [progress, setProgress] = useState(0)  // 0–100
+  // Human-readable "1.2 MB → 68 KB" during / after compression.
+  const [sizeLabel, setSizeLabel] = useState<string | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
   const [error, setError] = useState('')
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
 
-  // Same handler for both inputs — the input element only differs in whether
-  // it has the capture="user" hint.
+  // Revoke any leftover object URL on unmount so we don't leak.
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
+
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = '' // allow re-selecting the same file later
     if (!file) return
-    setError('')
+    setError(''); setShowSuccess(false)
 
     // Broad "any image" check. Some Android cameras report a generic
     // application/octet-stream, so we also fall back to the file extension.
     const mime = (file.type || '').toLowerCase()
     const looksLikeImage = mime.startsWith('image/')
       || /\.(jpe?g|png|webp|gif|heic|heif|bmp|avif)$/i.test(file.name)
-    if (!looksLikeImage) {
-      setError('Please choose an image file'); return
-    }
+    if (!looksLikeImage) { setError('Please choose an image file'); return }
     if (file.size > MAX_INPUT_BYTES) {
       setError(`Photo is too large — please keep it under ${Math.round(MAX_INPUT_BYTES / (1024 * 1024))}MB.`)
       return
     }
 
+    // Optimistic preview immediately.
+    if (preview) URL.revokeObjectURL(preview)
+    const objectUrl = URL.createObjectURL(file)
+    setPreview(objectUrl)
+
     setUploading(true)
     setProgress(5)
+    setSizeLabel(`${humanSize(file.size)} → …`)
     try {
-      // Phase 1: client-side compression. compressToTarget steps quality down
-      // (then dimensions if needed) until the JPEG fits under OUTPUT_MAX_BYTES.
+      // Phase 1: client-side compression. compressToTarget iteratively steps
+      // quality down (then dimensions if needed) until it fits under 80KB.
       const blob = await compressToTarget(file, OUTPUT_MAX_BYTES, OUTPUT_MAX_DIM)
       setProgress(40)
+      setSizeLabel(`${humanSize(file.size)} → ${humanSize(blob.size)}`)
 
       // Phase 2: storage upload. supabase-js doesn't emit browser upload
-      // progress, so we fake a linear tick between 40 and 92 — feels
-      // responsive without lying about state.
+      // progress so we tick 40 → 92 linearly — feels responsive without
+      // lying about state.
       const tickId = window.setInterval(() => {
         setProgress((p) => (p < 92 ? Math.min(92, p + 3) : p))
       }, 120)
@@ -91,6 +111,10 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
       setProgress(100)
       setUrl(publicUrl)
       onUploaded?.(publicUrl)
+      // Success checkmark bloom — clears after ~1.6s so the next click still
+      // shows a clean UI.
+      setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 1600)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
     } finally {
@@ -99,6 +123,8 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
   }
 
   const ring = dark ? 'linear-gradient(135deg,#C8006A 0%,#7A0042 100%)' : 'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)'
+  // The circle shows: freshly-picked preview during upload, or the persisted URL, or initials.
+  const displayImage = (uploading && preview) ? preview : url
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
@@ -110,6 +136,16 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
         .av-btn-selfie:hover { background: #FFE8F4 !important; }
         .av-btn-upload:hover { background: #A00055 !important; }
         @keyframes avspin { to { transform: rotate(360deg); } }
+        @keyframes avSuccessPop {
+          0% { opacity: 0; transform: scale(0.4); }
+          55% { transform: scale(1.16); }
+          100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes avSuccessRing {
+          0% { box-shadow: 0 0 0 0 rgba(45,168,78,0.55); }
+          70% { box-shadow: 0 0 0 18px rgba(45,168,78,0); }
+          100% { box-shadow: 0 0 0 0 rgba(45,168,78,0); }
+        }
         @media (max-width: 480px) {
           .av-btns { flex-direction: column !important; width: 100%; max-width: 260px; }
           .av-btns > button { width: 100% !important; }
@@ -125,9 +161,9 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
         aria-label="Change profile picture"
         style={{ width: size, height: size }}
       >
-        <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', position: 'relative', background: url ? '#eee' : ring, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 22px rgba(200,0,106,0.28)' }}>
-          {url ? (
-            <Image src={url} alt="Profile picture" fill sizes={`${size}px`} style={{ objectFit: 'cover' }} unoptimized />
+        <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', position: 'relative', background: displayImage ? '#eee' : ring, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 22px rgba(200,0,106,0.28)' }}>
+          {displayImage ? (
+            <Image src={displayImage} alt="Profile picture" fill sizes={`${size}px`} style={{ objectFit: 'cover' }} unoptimized />
           ) : (
             <span style={{ fontFamily: 'Georgia,serif', fontSize: size * 0.38, fontWeight: 700, color: '#fff' }}>{initials}</span>
           )}
@@ -158,6 +194,15 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
               </div>
             </div>
           )}
+
+          {/* Success burst — brief green check with pulse ring */}
+          {showSuccess && !uploading && (
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(45,168,78,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'avSuccessPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both, avSuccessRing 1.4s ease-out 0.3s 1' }}>
+              <svg width={size * 0.42} height={size * 0.42} viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            </div>
+          )}
         </div>
       </button>
 
@@ -183,14 +228,14 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
       />
 
       {/* ── VISIBLE BUTTONS ── */}
-      <div className="av-btns" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div className="av-btns" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
         <button
           type="button"
           className="av-btn-selfie"
           onClick={() => cameraInputRef.current?.click()}
           disabled={uploading}
           style={{
-            height: 44, padding: '0 18px',
+            height: 44, padding: '0 20px',
             background: 'transparent',
             color: '#C8006A',
             border: '1.5px solid #C8006A',
@@ -210,7 +255,7 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
           onClick={() => galleryInputRef.current?.click()}
           disabled={uploading}
           style={{
-            height: 44, padding: '0 18px',
+            height: 44, padding: '0 20px',
             background: '#C8006A',
             color: '#fff',
             border: 'none',
@@ -227,11 +272,18 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
         </button>
       </div>
 
+      {/* ── STATUS LINE — error / uploading / size / done ── */}
       {error
         ? <p style={{ fontSize: 12, color: '#C8006A', fontWeight: 600, textAlign: 'center', maxWidth: 260 }}>{error}</p>
         : uploading
-          ? <p style={{ fontSize: 12, color: dark ? 'rgba(255,255,255,0.65)' : '#1A1A1A', opacity: dark ? 1 : 0.7, fontWeight: 600 }}>Uploading… {progress}%</p>
-          : null}
+          ? (
+            <p style={{ fontSize: 12, color: dark ? 'rgba(255,255,255,0.75)' : '#1A1A1A', opacity: dark ? 1 : 0.7, fontWeight: 600, textAlign: 'center' }}>
+              Uploading… {progress}%{sizeLabel ? ` · ${sizeLabel}` : ''}
+            </p>
+          )
+          : showSuccess
+            ? <p style={{ fontSize: 12, color: '#157A33', fontWeight: 700 }}>✓ Photo updated{sizeLabel ? ` · ${sizeLabel}` : ''}</p>
+            : null}
     </div>
   )
 }

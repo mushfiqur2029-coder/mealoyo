@@ -58,8 +58,12 @@ export async function compressImage(file: File, maxDim = 400, quality = 0.85): P
 }
 
 // Resize to maxDim, then step quality (and, if needed, dimensions) down until
-// the JPEG fits under maxBytes. Used for listing photos (default < 80KB at
-// 600px max). Returns the smallest acceptable result, or the best achievable.
+// the JPEG fits under maxBytes. Used for BOTH listing photos and avatars —
+// both share the same 80KB target so nothing burns storage. Quality starts
+// at 0.82 (mid-tier — visually crisp without wasting bytes on invisible
+// detail) and floors at 0.5 (still readable text / faces before we start
+// pixelating). Returns the smallest acceptable result, or the best achievable
+// when even shrinking + minimum quality can't hit the byte cap.
 export async function compressToTarget(
   file: File,
   maxBytes = 80 * 1024,
@@ -68,12 +72,12 @@ export async function compressToTarget(
   const img = await loadImage(file)
   let dim = maxDim
   let canvas = drawScaled(img, dim)
-  let quality = 0.9
+  let quality = 0.82
   let blob = await toJpegBlob(canvas, quality)
 
   // Phase 1: drop quality at full dimensions (cheap, keeps it sharp).
-  while (blob.size > maxBytes && quality > 0.4) {
-    quality = Math.round((quality - 0.1) * 100) / 100
+  while (blob.size > maxBytes && quality > 0.5) {
+    quality = Math.round((quality - 0.08) * 100) / 100
     blob = await toJpegBlob(canvas, quality)
   }
 
@@ -83,8 +87,8 @@ export async function compressToTarget(
     canvas = drawScaled(img, dim)
     quality = 0.7
     blob = await toJpegBlob(canvas, quality)
-    while (blob.size > maxBytes && quality > 0.4) {
-      quality = Math.round((quality - 0.1) * 100) / 100
+    while (blob.size > maxBytes && quality > 0.5) {
+      quality = Math.round((quality - 0.08) * 100) / 100
       blob = await toJpegBlob(canvas, quality)
     }
   }
