@@ -82,6 +82,32 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
     setProgress(5)
     setSizeLabel(`${humanSize(file.size)} → …`)
     try {
+      // ── SESSION VERIFICATION ─────────────────────────────────────────
+      // Re-derive user.id from the live session rather than trusting the
+      // userId prop. If the parent handed a stale/wrong id we'd try to
+      // update someone else's row and RLS would (correctly) reject with
+      // "permission denied for table profiles". The session also proves
+      // the JWT still has auth.uid() attached to the browser client.
+      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession()
+      const session = sessionData?.session ?? null
+      const { data: userData, error: userErr } = await supabase.auth.getUser()
+      const user = userData?.user ?? null
+      console.log('[AvatarUpload] auth check', {
+        propUserId: userId,
+        sessionUserId: user?.id,
+        hasSession: !!session,
+        propMatchesSession: user?.id === userId,
+        sessionErr: sessionErr?.message,
+        userErr: userErr?.message,
+      })
+      if (!user || !session) {
+        setError('Please sign in again — your session has expired.')
+        setUploading(false); setProgress(0); return
+      }
+      // Use the live session's id for BOTH the storage path and the
+      // profiles update. Never the prop.
+      const authUid = user.id
+
       // Phase 1: client-side compression. compressToTarget iteratively steps
       // quality down (then dimensions if needed) until it fits under 80KB.
       const blob = await compressToTarget(file, OUTPUT_MAX_BYTES, OUTPUT_MAX_DIM)
@@ -94,19 +120,51 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
       const tickId = window.setInterval(() => {
         setProgress((p) => (p < 92 ? Math.min(92, p + 3) : p))
       }, 120)
-      const path = `${userId}/avatar.jpg`
+      const path = `${authUid}/avatar.jpg`
+      console.log('[AvatarUpload] storage upload', {
+        bucket: 'avatars',
+        path,
+        firstFolderIsAuthUid: path.split('/')[0] === authUid,
+        blobBytes: blob.size,
+      })
       const { error: upErr } = await supabase.storage
         .from('avatars')
         .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
       window.clearInterval(tickId)
-      if (upErr) throw upErr
+      if (upErr) {
+        console.error('[AvatarUpload] storage error', upErr)
+        throw upErr
+      }
 
       // Phase 3: publish + write URL back to the profile row.
       setProgress(96)
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
       const publicUrl = `${pub.publicUrl}?v=${Date.now()}` // cache-bust
-      const { error: dbErr } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId)
-      if (dbErr) throw dbErr
+      console.log('[AvatarUpload] profiles update', {
+        rowId: authUid,
+        newAvatarUrl: publicUrl,
+      })
+      const { data: updData, error: dbErr, count } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', authUid)
+        .select('id, avatar_url')
+      if (dbErr) {
+        console.error('[AvatarUpload] profiles update error', {
+          message: dbErr.message,
+          details: dbErr.details,
+          hint: dbErr.hint,
+          code: dbErr.code,
+        })
+        throw dbErr
+      }
+      // If the update ran but returned 0 rows, RLS filtered it silently —
+      // the row-level policy `auth.uid() = id` didn't match. Surface it
+      // clearly instead of pretending success.
+      if (!updData || updData.length === 0) {
+        console.warn('[AvatarUpload] profiles update returned 0 rows', { count })
+        throw new Error('Your session ID does not match this profile. Please sign in again.')
+      }
 
       setProgress(100)
       setUrl(publicUrl)
