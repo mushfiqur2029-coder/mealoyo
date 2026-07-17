@@ -7,6 +7,7 @@ import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
 import ProfileCompletionCard from '@/components/ProfileCompletionCard'
 import { calculateProfileCompletion } from '@/lib/profileCompletion'
+import { playNotificationBeep } from '@/lib/beep'
 import type { Profile, Listing, Order, Review } from '@/lib/types'
 
 const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
@@ -41,6 +42,9 @@ export default function SellerDashboard() {
   // profile completion card.
   const [sellerPostcode, setSellerPostcode] = useState<string | null>(null)
   const [fullProfileRow, setFullProfileRow] = useState<Profile | null>(null)
+  // Persistent "new orders arrived" counter — increments per realtime hit,
+  // dismissed by the seller (not per-session sticky).
+  const [newOrderBanner, setNewOrderBanner] = useState(0)
   const [listings, setListings] = useState<Listing[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [orderCount, setOrderCount] = useState(0)
@@ -99,14 +103,19 @@ export default function SellerDashboard() {
     }
 
     const notify = async (listingId: string | undefined, amount: string | undefined) => {
+      // Beep + banner bump always — even without notification permission the
+      // seller sees the persistent banner and hears the ping when the tab is
+      // focused.
+      playNotificationBeep()
+      setNewOrderBanner(n => n + 1)
       if (Notification.permission !== 'granted') return
       let dish = 'A new dish'
       if (listingId) {
         const { data } = await supabase.from('listings').select('name').eq('id', listingId).maybeSingle()
         if (data?.name) dish = data.name
       }
-      const money = amount ? ` · £${parseFloat(amount).toFixed(2)}` : ''
-      new Notification('New order on meaLoyo', { body: `${dish}${money}`, icon: '/favicon.png' })
+      const money = amount ? ` — £${parseFloat(amount).toFixed(2)}` : ''
+      new Notification('New order! 🍽️', { body: `${dish}${money}`, icon: '/favicon.png' })
     }
 
     const channel = supabase
@@ -308,6 +317,20 @@ export default function SellerDashboard() {
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,34px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>{greeting}, {firstName} 👋</h1>
           <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>{today}</p>
         </div>
+
+        {/* Persistent "new order" banner — stays until dismissed. Bumps every
+            time a paid order lands via realtime. */}
+        {newOrderBanner > 0 && (
+          <div role="alert" className="fade-up" style={{display:'flex', alignItems:'center', gap:14, background:'linear-gradient(135deg,#FFE8F4 0%,#FFF4FA 100%)', border:'2px solid #C8006A', borderRadius:16, padding:'14px 18px', marginBottom:20, boxShadow:'0 8px 24px rgba(200,0,106,0.18)'}}>
+            <span style={{fontSize:26, display:'inline-flex', width:44, height:44, borderRadius:'50%', background:'#fff', alignItems:'center', justifyContent:'center', flexShrink:0}}>🔔</span>
+            <div style={{flex:1, minWidth:0}}>
+              <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#C8006A'}}>{newOrderBanner === 1 ? '1 new order received' : `${newOrderBanner} new orders received`}</div>
+              <div style={{fontSize:13, color:'var(--text-primary)', marginTop:2}}>Jump into Orders to accept them before the buyer changes their mind.</div>
+            </div>
+            <Link href="/seller/orders" style={{flexShrink:0, height:40, padding:'0 16px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', display:'inline-flex', alignItems:'center'}}>Open orders →</Link>
+            <button onClick={() => setNewOrderBanner(0)} aria-label="Dismiss" style={{flexShrink:0, width:30, height:30, borderRadius:'50%', border:'none', background:'rgba(0,0,0,0.06)', color:'#1A1A1A', fontSize:14, cursor:'pointer'}}>✕</button>
+          </div>
+        )}
 
         {/* Profile completion nag — dismissible per-session, hides at >=80%. */}
         {fullProfileRow && (

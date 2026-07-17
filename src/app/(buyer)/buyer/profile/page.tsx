@@ -31,6 +31,10 @@ export default function BuyerProfile() {
   // One AddressValue holds the whole delivery address — AddressLookup handles
   // the postcode search + dropdown + manual fallback in one place.
   const [address, setAddress] = useState<AddressValue>({ address_line1: '', address_line2: '', city: '', postcode: '' })
+  // Original email at load time — compared on save to detect a change and
+  // trigger Supabase's built-in email-verification flow only when needed.
+  const [origEmail, setOrigEmail] = useState('')
+  const [emailPending, setEmailPending] = useState<string | null>(null)
   const [email, setEmail] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [status, setStatus] = useState('')
@@ -56,7 +60,9 @@ export default function BuyerProfile() {
       const p = profile as Profile | null
       setFullName(p?.full_name || '')
       setPhone(p?.phone || '')
-      setEmail(p?.email || user.email || '')
+      const loadedEmail = p?.email || user.email || ''
+      setEmail(loadedEmail)
+      setOrigEmail(loadedEmail)
       setStatus(p?.status || 'active')
       // Address columns aren't part of the get_my_profile RPC's fixed column
       // list, and aren't granted for direct reads post-lockdown, so read the
@@ -78,7 +84,7 @@ export default function BuyerProfile() {
     e.preventDefault()
     if (!fullName.trim()) { setError('Please enter your full name'); return }
     if (!user) return
-    setSaving(true); setError(''); setSavedOk(false)
+    setSaving(true); setError(''); setSavedOk(false); setEmailPending(null)
     const { error: dbError } = await supabase.from('profiles').update({
       full_name: fullName.trim(),
       phone: phone.trim(),
@@ -88,7 +94,21 @@ export default function BuyerProfile() {
       postcode: address.postcode.trim().toUpperCase() || null,
     }).eq('id', user.id)
     if (dbError) { setError(dbError.message); setSaving(false); return }
-    setSavedOk(true); setSaving(false)
+    // If the email changed, ask Supabase to send the verification link to the
+    // new address. The old email stays active for sign-in until confirmed.
+    const trimmedEmail = email.trim().toLowerCase()
+    const trimmedOrig = origEmail.trim().toLowerCase()
+    if (trimmedEmail && trimmedEmail !== trimmedOrig) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        setError('Please enter a valid email address'); setSaving(false); return
+      }
+      const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail })
+      if (emailErr) { setError(emailErr.message); setSaving(false); return }
+      setEmailPending(trimmedEmail)
+    } else {
+      setSavedOk(true)
+    }
+    setSaving(false)
   }
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -232,12 +252,14 @@ export default function BuyerProfile() {
           </div>
 
           <div id="pcc-email" style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
-            <label style={{...labelStyle, display:'flex', alignItems:'center', gap:6}}>Email address <span style={{fontSize:12}}>🔒</span></label>
-            <div style={{position:'relative'}}>
-              <input value={email} disabled style={{...inputStyle, padding:'0 40px 0 14px', opacity:0.7, background:'var(--bg-secondary)', cursor:'not-allowed'}}/>
-              <span style={{position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', fontSize:15, opacity:0.6}}>🔒</span>
-            </div>
-            <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.6, marginTop:6}}>Your email is used to sign in and can&apos;t be changed here.</p>
+            <label style={labelStyle}>Email address</label>
+            <input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" style={inputStyle}/>
+            <p style={{fontSize:12, color:'#8C5500', opacity:0.9, fontWeight:600, marginTop:6, lineHeight:1.5}}>⚠️ Changing your email requires verification. You&apos;ll receive a link at the new address; the old email keeps working until you confirm.</p>
+            {emailPending && (
+              <div role="status" style={{background:'#E4F6EA', border:'1.5px solid rgba(45,168,78,0.28)', borderRadius:12, padding:'10px 14px', marginTop:10, fontSize:13, color:'#1A6030', fontWeight:600, lineHeight:1.5}}>
+                ✅ Verification email sent to <strong>{emailPending}</strong>. Please check your inbox to confirm the change.
+              </div>
+            )}
           </div>
           <button type="submit" disabled={saving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:saving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:saving ? 0.8 : 1, marginTop:4}}>{saving ? 'Saving…' : 'Save changes'}</button>
         </form>

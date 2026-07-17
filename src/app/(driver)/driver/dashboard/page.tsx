@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import ProfileCompletionCard from '@/components/ProfileCompletionCard'
 import { calculateProfileCompletion } from '@/lib/profileCompletion'
+import { playNotificationBeep } from '@/lib/beep'
 import NavAvatar from '@/components/NavAvatar'
 import { haversineDistance, lookupPostcode, isValidUKPostcode } from '@/lib/pricing'
 import type { Profile, Order } from '@/lib/types'
@@ -18,6 +19,11 @@ const NAV = [
 ]
 
 // Rows returned by get_available_delivery_jobs — kept flat by the RPC.
+// 8-digit codes (100M combinations) — matches the DB varchar(8) column type
+// and the generate_secure_code() PL/pgSQL function. Keep this in sync with
+// the schema — changing to 6 here without an ALTER TABLE would break verify.
+const CODE_LEN = 8
+
 interface AvailableJob {
   order_id: string
   listing_name: string
@@ -86,6 +92,9 @@ export default function DriverDashboard() {
   const [historyOrders, setHistoryOrders] = useState<Order[]>([])
   const [jobs, setJobs] = useState<AvailableJob[]>([])
   const [active, setActive] = useState<ActiveDelivery[]>([])
+  // Ref shadow of `active` so imperative handlers (openDeliver) can look up
+  // the current status without stale-closure headaches.
+  const mineActiveRef = useRef<ActiveDelivery[]>([])
   const [online, setOnline] = useState(true)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -103,12 +112,12 @@ export default function DriverDashboard() {
   const [hiddenJobIds, setHiddenJobIds] = useState<Set<string>>(new Set())
   // Handshake modals
   const [pickupOrderId, setPickupOrderId] = useState<string | null>(null)
-  const [pickupDigits, setPickupDigits] = useState<string[]>(['', '', '', '', '', ''])
+  const [pickupDigits, setPickupDigits] = useState<string[]>(new Array(CODE_LEN).fill('') as string[])
   const [pickupVerifying, setPickupVerifying] = useState(false)
   const [pickupError, setPickupError] = useState('')
   const [deliverOrderId, setDeliverOrderId] = useState<string | null>(null)
   const [deliverCode, setDeliverCode] = useState<string>('')
-  const [deliverDigits, setDeliverDigits] = useState<string[]>(['', '', '', '', '', ''])
+  const [deliverDigits, setDeliverDigits] = useState<string[]>(new Array(CODE_LEN).fill('') as string[])
   const [deliverGenerating, setDeliverGenerating] = useState(false)
   const [deliverVerifying, setDeliverVerifying] = useState(false)
   const [deliverError, setDeliverError] = useState('')
@@ -119,33 +128,34 @@ export default function DriverDashboard() {
   // Stable ref-setters so React's rules-of-refs don't complain about creating
   // callback refs during render.
   const pickupRefSetters = useMemo(
-    () => Array.from({ length: 6 }, (_, i) => (el: HTMLInputElement | null) => { pickupRefs.current[i] = el }),
+    () => Array.from({ length: CODE_LEN }, (_, i) => (el: HTMLInputElement | null) => { pickupRefs.current[i] = el }),
     [],
   )
   const deliverRefSetters = useMemo(
-    () => Array.from({ length: 6 }, (_, i) => (el: HTMLInputElement | null) => { deliverRefs.current[i] = el }),
+    () => Array.from({ length: CODE_LEN }, (_, i) => (el: HTMLInputElement | null) => { deliverRefs.current[i] = el }),
     [],
   )
 
-  // A short 880Hz beep — same trick as the seller notification. Wrapped so
-  // failures (autoplay policy, unsupported context) never throw.
-  const beep = useCallback(() => {
-    try {
-      const W = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }
-      const AudioCtx = W.AudioContext || W.webkitAudioContext
-      if (!AudioCtx) return
-      const ctx = new AudioCtx()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = 880
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5)
-      osc.connect(gain).connect(ctx.destination)
-      osc.start(); osc.stop(ctx.currentTime + 0.55)
-      osc.onended = () => ctx.close().catch(() => {})
-    } catch { /* ignore */ }
+  // Announce a new delivery job — beep + browser notification if permitted.
+  // Shared beep helper (lib/beep.ts) keeps this identical to the seller side.
+  const announceNewJob = useCallback((deliveryFee?: string) => {
+    playNotificationBeep()
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        const fee = deliveryFee ? ` — £${parseFloat(deliveryFee).toFixed(2)}` : ''
+        new Notification('New delivery job available! 🚴', { body: `Tap to accept${fee}.`, icon: '/favicon.png' })
+      } catch { /* Safari/iOS Notification quirks — non-fatal */ }
+    }
+  }, [])
+
+  // Request notification permission once per session so the permission
+  // dialog isn't triggered in an unexpected spot.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    if (Notification.permission === 'default' && !localStorage.getItem('mealoyo_notif_asked')) {
+      localStorage.setItem('mealoyo_notif_asked', '1')
+      Notification.requestPermission().catch(() => {})
+    }
   }, [])
 
   // Fetch order + job feeds. Extracted so a poll / realtime / refresh button can
@@ -157,21 +167,24 @@ export default function DriverDashboard() {
     ])
     const list = (available as AvailableJob[] | null) || []
     setJobs(list)
-    setActive(((mine as ActiveDelivery[] | null) || []))
+    const mineList = ((mine as ActiveDelivery[] | null) || [])
+    setActive(mineList)
+    mineActiveRef.current = mineList
     setLastRefreshAt(Date.now())
-    // Beep for any job we hadn't seen before this refresh; then record it so we
-    // don't re-beep on the next poll. Skip the very first refresh — everything
-    // is "new" then, and we don't want a beep the moment the page loads.
+    // Beep + browser notification for any job we hadn't seen before this
+    // refresh; then record it so we don't re-fire on the next poll. Skip
+    // the very first refresh — everything is "new" then, and we don't want
+    // a beep the moment the page loads.
     const firstRun = seenJobIds.current.size === 0
-    let announced = false
+    let firstNewFee: string | undefined
     for (const j of list) {
       if (!seenJobIds.current.has(j.order_id)) {
         seenJobIds.current.add(j.order_id)
-        if (!firstRun) announced = true
+        if (!firstRun && firstNewFee === undefined) firstNewFee = j.delivery_fee
       }
     }
-    if (announced) beep()
-  }, [beep])
+    if (firstNewFee !== undefined) announceNewJob(firstNewFee)
+  }, [announceNewJob])
 
   useEffect(() => {
     const getData = async () => {
@@ -246,33 +259,33 @@ export default function DriverDashboard() {
 
   // ── PICKUP CODE ENTRY (driver keys in what seller shows) ──
   const openPickup = (orderId: string) => {
-    setPickupOrderId(orderId); setPickupDigits(['', '', '', '', '', '']); setPickupError('')
+    setPickupOrderId(orderId); setPickupDigits(new Array(CODE_LEN).fill('') as string[]); setPickupError('')
     setTimeout(() => pickupRefs.current[0]?.focus(), 60)
   }
-  const closePickup = () => { setPickupOrderId(null); setPickupDigits(['', '', '', '', '', '']); setPickupError('') }
+  const closePickup = () => { setPickupOrderId(null); setPickupDigits(new Array(CODE_LEN).fill('') as string[]); setPickupError('') }
   const setPickupDigit = (i: number, v: string) => {
     const d = v.replace(/\D/g, '').slice(-1)
     setPickupDigits(p => { const n = [...p]; n[i] = d; return n })
-    if (d && i < 5) pickupRefs.current[i + 1]?.focus()
+    if (d && i < CODE_LEN - 1) pickupRefs.current[i + 1]?.focus()
   }
   const pickupKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !pickupDigits[i] && i > 0) pickupRefs.current[i - 1]?.focus()
     else if (e.key === 'ArrowLeft' && i > 0) pickupRefs.current[i - 1]?.focus()
-    else if (e.key === 'ArrowRight' && i < 5) pickupRefs.current[i + 1]?.focus()
+    else if (e.key === 'ArrowRight' && i < CODE_LEN - 1) pickupRefs.current[i + 1]?.focus()
   }
   const pickupPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, CODE_LEN)
     if (!txt) return
     e.preventDefault()
-    const next = ['', '', '', '', '', '']
+    const next = new Array(CODE_LEN).fill('') as string[]
     for (let i = 0; i < txt.length; i++) next[i] = txt[i]
     setPickupDigits(next)
-    pickupRefs.current[Math.min(txt.length, 5)]?.focus()
+    pickupRefs.current[Math.min(txt.length, CODE_LEN - 1)]?.focus()
   }
   const submitPickup = async () => {
     if (!pickupOrderId) return
     const code = pickupDigits.join('')
-    if (code.length !== 6) { setPickupError('Enter the full 6-digit code'); return }
+    if (code.length !== CODE_LEN) { setPickupError(`Enter the full ${CODE_LEN}-digit code`); return }
     setPickupVerifying(true); setPickupError('')
     const { data, error } = await supabase.rpc('verify_pickup_code', { p_order_id: pickupOrderId, p_code: code })
     setPickupVerifying(false)
@@ -280,45 +293,53 @@ export default function DriverDashboard() {
     if (data === true) { await loadFeeds(); closePickup() }
     else {
       setPickupError('Incorrect code, please try again')
-      setPickupDigits(['', '', '', '', '', ''])
+      setPickupDigits(new Array(CODE_LEN).fill('') as string[])
       pickupRefs.current[0]?.focus()
     }
   }
 
-  // ── DELIVERY CODE (driver generates then verifies what buyer shows) ──
+  // ── DELIVERY CODE (driver marks Reached → RPC flips status + generates code) ──
   const openDeliver = async (orderId: string) => {
-    setDeliverOrderId(orderId); setDeliverDigits(['', '', '', '', '', '']); setDeliverError(''); setDeliverCode('')
+    setDeliverOrderId(orderId); setDeliverDigits(new Array(CODE_LEN).fill('') as string[]); setDeliverError(''); setDeliverCode('')
     setDeliverGenerating(true)
-    const { data, error } = await supabase.rpc('generate_delivery_code', { p_order_id: orderId })
+    // First-time open: use mark_driver_reached which flips status='reached' AND
+    // generates the delivery code atomically, so the buyer's realtime UPDATE
+    // sees both together. Subsequent re-opens (order already at 'reached')
+    // fall back to generate_delivery_code for a fresh code.
+    const active = mineActiveRef.current.find(a => a.order_id === orderId)
+    const rpcName = (active?.status === 'reached') ? 'generate_delivery_code' : 'mark_driver_reached'
+    const { data, error } = await supabase.rpc(rpcName, { p_order_id: orderId })
     setDeliverGenerating(false)
     if (error) { setDeliverError(error.message.replace(/^.*?:\s*/, '') || 'Could not generate code'); return }
     setDeliverCode(typeof data === 'string' ? data : '')
+    // Refresh the active list so the status pill updates from picked_up → reached.
+    loadFeeds()
     setTimeout(() => deliverRefs.current[0]?.focus(), 60)
   }
-  const closeDeliver = () => { setDeliverOrderId(null); setDeliverDigits(['', '', '', '', '', '']); setDeliverError(''); setDeliverCode('') }
+  const closeDeliver = () => { setDeliverOrderId(null); setDeliverDigits(new Array(CODE_LEN).fill('') as string[]); setDeliverError(''); setDeliverCode('') }
   const setDeliverDigit = (i: number, v: string) => {
     const d = v.replace(/\D/g, '').slice(-1)
     setDeliverDigits(p => { const n = [...p]; n[i] = d; return n })
-    if (d && i < 5) deliverRefs.current[i + 1]?.focus()
+    if (d && i < CODE_LEN - 1) deliverRefs.current[i + 1]?.focus()
   }
   const deliverKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !deliverDigits[i] && i > 0) deliverRefs.current[i - 1]?.focus()
     else if (e.key === 'ArrowLeft' && i > 0) deliverRefs.current[i - 1]?.focus()
-    else if (e.key === 'ArrowRight' && i < 5) deliverRefs.current[i + 1]?.focus()
+    else if (e.key === 'ArrowRight' && i < CODE_LEN - 1) deliverRefs.current[i + 1]?.focus()
   }
   const deliverPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, CODE_LEN)
     if (!txt) return
     e.preventDefault()
-    const next = ['', '', '', '', '', '']
+    const next = new Array(CODE_LEN).fill('') as string[]
     for (let i = 0; i < txt.length; i++) next[i] = txt[i]
     setDeliverDigits(next)
-    deliverRefs.current[Math.min(txt.length, 5)]?.focus()
+    deliverRefs.current[Math.min(txt.length, CODE_LEN - 1)]?.focus()
   }
   const submitDeliver = async () => {
     if (!deliverOrderId) return
     const code = deliverDigits.join('')
-    if (code.length !== 6) { setDeliverError('Enter the full 6-digit code'); return }
+    if (code.length !== CODE_LEN) { setDeliverError(`Enter the full ${CODE_LEN}-digit code`); return }
     setDeliverVerifying(true); setDeliverError('')
     const { data, error } = await supabase.rpc('verify_delivery_code', { p_order_id: deliverOrderId, p_code: code })
     setDeliverVerifying(false)
@@ -326,7 +347,7 @@ export default function DriverDashboard() {
     if (data === true) { await loadFeeds(); closeDeliver() }
     else {
       setDeliverError('Incorrect code, please try again')
-      setDeliverDigits(['', '', '', '', '', ''])
+      setDeliverDigits(new Array(CODE_LEN).fill('') as string[])
       deliverRefs.current[0]?.focus()
     }
   }
@@ -494,7 +515,8 @@ export default function DriverDashboard() {
             <div style={{padding:'12px 16px 16px', display:'flex', flexDirection:'column', gap:12}}>
               {active.map(a => {
                 const atSeller = a.status === 'ready' // driver needs to collect from cook
-                const atBuyer = a.status === 'picked_up' // driver at buyer, needs to hand over
+                const atBuyer = a.status === 'picked_up' || a.status === 'reached' // driver either heading to or at buyer
+                const alreadyReached = a.status === 'reached'
                 return (
                   <div key={a.order_id} className="job" style={{background:'var(--bg-page)', border:'1px solid var(--border-subtle)', borderRadius:14, padding:'16px 18px'}}>
                     <div style={{display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap'}}>
@@ -511,8 +533,8 @@ export default function DriverDashboard() {
                       </div>
                     </div>
                     <div style={{display:'flex', gap:10, alignItems:'center', marginTop:14, flexWrap:'wrap'}}>
-                      <span style={{background: atSeller ? 'rgba(24,110,204,0.16)' : 'rgba(122,63,176,0.16)', color: atSeller ? '#5AA3FA' : '#B389E8', padding:'5px 12px', borderRadius:100, fontSize:11.5, fontWeight:700}}>
-                        {atSeller ? '↳ Collect from cook' : '↳ Deliver to buyer'}
+                      <span style={{background: atSeller ? 'rgba(24,110,204,0.16)' : alreadyReached ? 'rgba(52,211,153,0.16)' : 'rgba(122,63,176,0.16)', color: atSeller ? '#5AA3FA' : alreadyReached ? '#34D399' : '#B389E8', padding:'5px 12px', borderRadius:100, fontSize:11.5, fontWeight:700}}>
+                        {atSeller ? '↳ Collect from cook' : alreadyReached ? '↳ At buyer — confirm delivery' : '↳ Deliver to buyer'}
                       </span>
                       {atSeller && (
                         <button onClick={() => openPickup(a.order_id)} className="accept" style={{marginLeft:'auto', height:40, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 12px rgba(200,0,106,0.28)'}}>
@@ -520,8 +542,8 @@ export default function DriverDashboard() {
                         </button>
                       )}
                       {atBuyer && (
-                        <button onClick={() => openDeliver(a.order_id)} className="accept" style={{marginLeft:'auto', height:40, padding:'0 18px', background:'#34D399', color:'#0A1F14', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 12px rgba(52,211,153,0.28)'}}>
-                          Confirm delivery
+                        <button onClick={() => openDeliver(a.order_id)} className="accept" style={{marginLeft:'auto', height:40, padding:'0 18px', background:alreadyReached ? '#34D399' : '#C8006A', color:alreadyReached ? '#0A1F14' : '#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow: alreadyReached ? '0 4px 12px rgba(52,211,153,0.28)' : '0 4px 12px rgba(200,0,106,0.28)'}}>
+                          {alreadyReached ? 'Confirm delivery' : '📍 Mark as Reached'}
                         </button>
                       )}
                     </div>
@@ -598,7 +620,7 @@ export default function DriverDashboard() {
               <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Pickup code</h2>
               <button onClick={closePickup} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
             </div>
-            <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:22}}>Ask the cook for their <strong style={{color:'#C8006A'}}>6-digit pickup code</strong> and enter it below.</p>
+            <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:22}}>Ask the cook for their <strong style={{color:'#C8006A'}}>8-digit pickup code</strong> and enter it below.</p>
             <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16}}>
               {pickupDigits.map((d, i) => (
                 <input
@@ -614,7 +636,7 @@ export default function DriverDashboard() {
                   maxLength={1}
                   disabled={pickupVerifying}
                   aria-label={`Digit ${i + 1}`}
-                  style={{width:48, height:60, borderRadius:12, border:pickupError ? '2px solid #C0392B' : '2px solid rgba(200,0,106,0.35)', background:'var(--bg-page)', fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#C8006A', textAlign:'center', outline:'none', letterSpacing:'-0.02em'}}
+                  style={{width:38, height:52, borderRadius:10, border:pickupError ? '2px solid #C0392B' : '2px solid rgba(200,0,106,0.35)', background:'var(--bg-page)', fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#C8006A', textAlign:'center', outline:'none', letterSpacing:'-0.02em', minWidth:0}}
                 />
               ))}
             </div>
@@ -635,7 +657,7 @@ export default function DriverDashboard() {
               <button onClick={closeDeliver} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
             </div>
             <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:18}}>
-              A <strong style={{color:'#C8006A'}}>6-digit code</strong> has been sent to the buyer&apos;s app. Ask them to read it out to you and enter it below.
+              An <strong style={{color:'#C8006A'}}>8-digit code</strong> has been sent to the buyer&apos;s app. Ask them to read it out to you and enter it below.
             </p>
             {deliverGenerating && <div style={{fontSize:12, color:'var(--text-secondary)', textAlign:'center', marginBottom:14, fontWeight:600}}>Sending code to buyer…</div>}
             {deliverCode && (
@@ -656,7 +678,7 @@ export default function DriverDashboard() {
                   maxLength={1}
                   disabled={deliverVerifying || deliverGenerating}
                   aria-label={`Digit ${i + 1}`}
-                  style={{width:48, height:60, borderRadius:12, border:deliverError ? '2px solid #C0392B' : '2px solid rgba(52,211,153,0.4)', background:'var(--bg-page)', fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#34D399', textAlign:'center', outline:'none', letterSpacing:'-0.02em'}}
+                  style={{width:38, height:52, borderRadius:10, border:deliverError ? '2px solid #C0392B' : '2px solid rgba(52,211,153,0.4)', background:'var(--bg-page)', fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#34D399', textAlign:'center', outline:'none', letterSpacing:'-0.02em', minWidth:0}}
                 />
               ))}
             </div>

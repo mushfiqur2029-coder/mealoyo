@@ -56,6 +56,8 @@ export default function DriverProfile() {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [status, setStatus] = useState('')
   const [orig, setOrig] = useState({ fullName:'', address_line1:'', address_line2:'', city:'' })
+  const [origEmail, setOrigEmail] = useState('')
+  const [emailPending, setEmailPending] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
@@ -85,7 +87,9 @@ export default function DriverProfile() {
       const p = profile as Profile | null
       setFullName(p?.full_name || '')
       setPhone(p?.phone || '')
-      setEmail(p?.email || user.email || '')
+      const loadedEmail = p?.email || user.email || ''
+      setEmail(loadedEmail)
+      setOrigEmail(loadedEmail)
       setStatus(p?.status || '')
       // Address + bank columns aren't part of the get_my_profile RPC, and aren't
       // granted for direct reads post-lockdown, so read the caller's own full row
@@ -112,6 +116,7 @@ export default function DriverProfile() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!fullName.trim()) { setError('Please enter your full name'); return }
+    if (!phone.trim()) { setError('Phone number is required for drivers'); return }
     if (!user) return
     setSaving(true); setError(''); setSavedOk(false); setReapprovalNote(false)
 
@@ -136,8 +141,22 @@ export default function DriverProfile() {
     const { error: dbError } = await supabase.from('profiles').update(update).eq('id', user.id)
     if (dbError) { setError(dbError.message); setSaving(false); return }
 
+    // Email change → Supabase verification email.
+    setEmailPending(null)
+    const trimmedEmail = email.trim().toLowerCase()
+    const trimmedOrig = origEmail.trim().toLowerCase()
+    let didSendEmail = false
+    if (trimmedEmail && trimmedEmail !== trimmedOrig) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        setError('Please enter a valid email address'); setSaving(false); return
+      }
+      const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail })
+      if (emailErr) { setError(emailErr.message); setSaving(false); return }
+      setEmailPending(trimmedEmail); didSendEmail = true
+    }
+
     if (willReapprove) { setStatus('pending'); setReapprovalNote(true) }
-    else { setSavedOk(true) }
+    else if (!didSendEmail) { setSavedOk(true) }
     setOrig({ fullName: fullName.trim(), address_line1: address.address_line1.trim(), address_line2: address.address_line2.trim(), city: address.city.trim() })
     setSaving(false)
   }
@@ -272,8 +291,8 @@ export default function DriverProfile() {
             <input value={fullName} onChange={e => setFullName(e.target.value)} style={inputStyle}/>
           </div>
           <div id="pcc-phone">
-            <label style={labelStyle}>Phone number</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" style={inputStyle}/>
+            <label style={labelStyle}>Phone number <span style={{color:'#EF6A6A', fontWeight:800}}>*</span></label>
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+44 7700 000000" required style={inputStyle}/>
           </div>
 
           <div id="pcc-address" style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
@@ -317,13 +336,15 @@ export default function DriverProfile() {
             </div>
           </div>
 
-          <div style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
-            <label style={{...labelStyle, display:'flex', alignItems:'center', gap:6}}>Email address <span style={{fontSize:12}}>🔒</span></label>
-            <div style={{position:'relative'}}>
-              <input value={email} disabled style={{...inputStyle, padding:'0 40px 0 14px', opacity:0.6, cursor:'not-allowed'}}/>
-              <span style={{position:'absolute', right:14, top:'50%', transform:'translateY(-50%)', fontSize:15, opacity:0.5}}>🔒</span>
-            </div>
-            <p style={{fontSize:12, color:'var(--text-secondary)', marginTop:6}}>Your email is used to sign in and can&apos;t be changed here.</p>
+          <div id="pcc-email" style={{borderTop:'1px solid var(--border-subtle)', paddingTop:18}}>
+            <label style={labelStyle}>Email address</label>
+            <input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" style={inputStyle}/>
+            <p style={{fontSize:12, color:'#FBBF24', fontWeight:600, marginTop:6, lineHeight:1.5}}>⚠️ Changing your email requires verification. You&apos;ll receive a link at the new address; the old email keeps working until you confirm.</p>
+            {emailPending && (
+              <div role="status" style={{background:'rgba(45,168,78,0.14)', border:'1.5px solid rgba(45,168,78,0.35)', borderRadius:12, padding:'10px 14px', marginTop:10, fontSize:13, color:'#34D399', fontWeight:600, lineHeight:1.5}}>
+                ✅ Verification email sent to <strong>{emailPending}</strong>. Please check your inbox to confirm the change.
+              </div>
+            )}
           </div>
           <button type="submit" disabled={saving} className="save-btn" style={{height:50, background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:saving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:saving ? 0.8 : 1, marginTop:4}}>{saving ? 'Saving…' : 'Save changes'}</button>
         </form>

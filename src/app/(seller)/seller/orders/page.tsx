@@ -6,6 +6,10 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import type { Order, Profile } from '@/lib/types'
 
+// 8-digit codes — matches the DB varchar(8) column type and the
+// generate_secure_code() PL/pgSQL function.
+const CODE_LEN = 8
+
 const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
   pending: { next: 'accepted', label: 'Accept order' },
   accepted: { next: 'cooking', label: 'Start cooking' },
@@ -49,7 +53,7 @@ export default function SellerOrders() {
   // auto-dismissing toast because busy sellers may miss the transient one.
   const [newOrderBanner, setNewOrderBanner] = useState(0)
   const [collectionOrder, setCollectionOrder] = useState<Order | null>(null)
-  const [collectionDigits, setCollectionDigits] = useState<string[]>(['', '', '', '', '', ''])
+  const [collectionDigits, setCollectionDigits] = useState<string[]>(new Array(CODE_LEN).fill('') as string[])
   const [collectionGenerating, setCollectionGenerating] = useState(false)
   const [collectionVerifying, setCollectionVerifying] = useState(false)
   const [collectionError, setCollectionError] = useState('')
@@ -208,7 +212,7 @@ export default function SellerOrders() {
   // Stable ref-setters — one per input slot — so the JSX ref callback doesn't
   // rebuild on every render.
   const digitRefSetters = useMemo(
-    () => Array.from({ length: 6 }, (_, i) => (el: HTMLInputElement | null) => { digitRefs.current[i] = el }),
+    () => Array.from({ length: CODE_LEN }, (_, i) => (el: HTMLInputElement | null) => { digitRefs.current[i] = el }),
     []
   )
 
@@ -221,7 +225,7 @@ export default function SellerOrders() {
   // the DB (which the buyer sees live via realtime) then open the verify modal.
   const openCollection = async (order: Order) => {
     setCollectionOrder(order)
-    setCollectionDigits(['', '', '', '', '', ''])
+    setCollectionDigits(new Array(CODE_LEN).fill('') as string[])
     setCollectionError('')
     setCollectionGenerating(true)
     await supabase.rpc('generate_collection_code', { p_order_id: order.id })
@@ -230,7 +234,7 @@ export default function SellerOrders() {
 
   const closeCollection = () => {
     setCollectionOrder(null)
-    setCollectionDigits(['', '', '', '', '', ''])
+    setCollectionDigits(new Array(CODE_LEN).fill('') as string[])
     setCollectionError('')
   }
 
@@ -255,7 +259,7 @@ export default function SellerOrders() {
       next[i] = d
       return next
     })
-    if (d && i < 5) digitRefs.current[i + 1]?.focus()
+    if (d && i < CODE_LEN - 1) digitRefs.current[i + 1]?.focus()
   }
 
   const digitKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -263,26 +267,26 @@ export default function SellerOrders() {
       digitRefs.current[i - 1]?.focus()
     } else if (e.key === 'ArrowLeft' && i > 0) {
       digitRefs.current[i - 1]?.focus()
-    } else if (e.key === 'ArrowRight' && i < 5) {
+    } else if (e.key === 'ArrowRight' && i < CODE_LEN - 1) {
       digitRefs.current[i + 1]?.focus()
     }
   }
 
   const digitPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    const txt = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, CODE_LEN)
     if (!txt) return
     e.preventDefault()
-    const next = ['', '', '', '', '', '']
+    const next = new Array(CODE_LEN).fill('') as string[]
     for (let i = 0; i < txt.length; i++) next[i] = txt[i]
     setCollectionDigits(next)
-    const focusIdx = Math.min(txt.length, 5)
+    const focusIdx = Math.min(txt.length, CODE_LEN - 1)
     digitRefs.current[focusIdx]?.focus()
   }
 
   const submitCollection = async () => {
     if (!collectionOrder) return
     const code = collectionDigits.join('')
-    if (code.length !== 6) { setCollectionError('Enter the full 6-digit code'); return }
+    if (code.length !== CODE_LEN) { setCollectionError(`Enter the full ${CODE_LEN}-digit code`); return }
     setCollectionError('')
     setCollectionVerifying(true)
     const { data, error } = await supabase.rpc('verify_collection_code', { p_order_id: collectionOrder.id, p_code: code })
@@ -293,7 +297,7 @@ export default function SellerOrders() {
       closeCollection()
     } else {
       setCollectionError('Incorrect code, please try again')
-      setCollectionDigits(['', '', '', '', '', ''])
+      setCollectionDigits(new Array(CODE_LEN).fill('') as string[])
       digitRefs.current[0]?.focus()
     }
   }
@@ -589,7 +593,7 @@ export default function SellerOrders() {
               <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Confirm collection</h2>
               <button onClick={closeCollection} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'var(--bg-card)', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
             </div>
-            <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.6, marginBottom:22}}>Ask the buyer for their <strong style={{color:'#C8006A'}}>6-digit collection code</strong> and enter it below to confirm the handover.</p>
+            <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.6, marginBottom:22}}>Ask the buyer for their <strong style={{color:'#C8006A'}}>8-digit collection code</strong> and enter it below to confirm the handover.</p>
 
             <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16}}>
               {collectionDigits.map((d, i) => (
@@ -606,7 +610,7 @@ export default function SellerOrders() {
                   maxLength={1}
                   disabled={collectionGenerating || collectionVerifying}
                   aria-label={`Digit ${i + 1}`}
-                  style={{width:48, height:60, borderRadius:12, border:collectionError ? '2px solid #C0392B' : '2px solid rgba(200,0,106,0.28)', background:'var(--bg-card)', fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'#C8006A', textAlign:'center', outline:'none', letterSpacing:'-0.02em', boxShadow:'0 2px 8px rgba(200,0,106,0.08)'}}
+                  style={{width:38, height:52, borderRadius:10, border:collectionError ? '2px solid #C0392B' : '2px solid rgba(200,0,106,0.28)', background:'var(--bg-card)', fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'#C8006A', textAlign:'center', outline:'none', letterSpacing:'-0.02em', boxShadow:'0 2px 8px rgba(200,0,106,0.08)', minWidth:0}}
                 />
               ))}
             </div>
@@ -644,7 +648,7 @@ export default function SellerOrders() {
             ) : (
               <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16, flexWrap:'wrap'}}>
                 {pickupCode.split('').map((d, i) => (
-                  <span key={i} style={{width:52, height:64, borderRadius:12, background:'var(--bg-page)', border:'2px solid rgba(200,0,106,0.3)', boxShadow:'0 2px 10px rgba(200,0,106,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>{d}</span>
+                  <span key={i} style={{width:38, height:54, borderRadius:10, background:'var(--bg-page)', border:'2px solid rgba(200,0,106,0.3)', boxShadow:'0 2px 10px rgba(200,0,106,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:26, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em', minWidth:0}}>{d}</span>
                 ))}
               </div>
             )}

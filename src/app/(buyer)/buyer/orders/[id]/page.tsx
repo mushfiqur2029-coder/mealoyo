@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import { useCartStore } from '@/lib/cartStore'
+import { playNotificationBeep } from '@/lib/beep'
 import type { Order, Listing, Profile } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -13,7 +14,7 @@ const cuisineEmoji: Record<string, string> = {
   'Afghan':'🥟','East African':'🍲','Chinese':'🥡','Other':'🍽️',
 }
 
-const statusSteps = ['pending', 'accepted', 'cooking', 'ready', 'picked_up', 'delivered']
+const statusSteps = ['pending', 'accepted', 'cooking', 'ready', 'picked_up', 'reached', 'delivered']
 const statusLabels: Record<string, string> = {
   pending_payment: 'Order placed',
   pending: 'Order placed',
@@ -21,6 +22,7 @@ const statusLabels: Record<string, string> = {
   cooking: 'Being cooked',
   ready: 'Ready for pickup',
   picked_up: 'Out for delivery',
+  reached: 'Driver is at your door',
   delivered: 'Delivered',
 }
 const statusShort: Record<string, string> = {
@@ -29,10 +31,11 @@ const statusShort: Record<string, string> = {
   cooking: 'Cooking',
   ready: 'Ready',
   picked_up: 'On its way',
+  reached: 'Arrived',
   delivered: 'Delivered',
 }
 const statusIcons: Record<string, string> = {
-  pending_payment: '🕐', pending: '🕐', accepted: '✅', cooking: '👩‍🍳', ready: '📦', picked_up: '🚴', delivered: '🏠',
+  pending_payment: '🕐', pending: '🕐', accepted: '✅', cooking: '👩‍🍳', ready: '📦', picked_up: '🚴', reached: '🚪', delivered: '🏠',
 }
 // Simple, friendly estimated delivery / progress message per status.
 const etaMessages: Record<string, string> = {
@@ -42,6 +45,7 @@ const etaMessages: Record<string, string> = {
   cooking: 'Being cooked fresh for you — ready in ~45 mins',
   ready: 'Ready — driver will collect shortly',
   picked_up: 'On the way to you — arriving soon',
+  reached: 'Driver is here — read out your delivery code',
   delivered: 'Delivered — enjoy your meal!',
 }
 
@@ -126,11 +130,29 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   // Ticker for whichever handover-code countdown is currently visible.
   useEffect(() => {
     const collectionActive = order?.status === 'ready' && order?.delivery_type === 'collection' && !!order?.collection_code_expires_at
-    const deliveryActive = order?.status === 'picked_up' && order?.delivery_type === 'delivery' && !!order?.delivery_code_expires_at
+    const deliveryActive = (order?.status === 'picked_up' || order?.status === 'reached') && order?.delivery_type === 'delivery' && !!order?.delivery_code_expires_at
     if (!collectionActive && !deliveryActive) return
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [order?.status, order?.delivery_type, order?.collection_code_expires_at, order?.delivery_code_expires_at])
+
+  // Ask for notification permission on mount so buyer alerts don't get
+  // silently dropped when the driver events fire.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    if (Notification.permission === 'default' && !localStorage.getItem('mealoyo_notif_asked')) {
+      localStorage.setItem('mealoyo_notif_asked', '1')
+      Notification.requestPermission().catch(() => {})
+    }
+  }, [])
+
+  // Small helper for the two "your order moved" browser notifications.
+  const notifyBuyer = (title: string, body: string) => {
+    playNotificationBeep()
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(title, { body, icon: '/favicon.png' }) } catch { /* iOS Safari quirks */ }
+    }
+  }
 
   // ── REALTIME: live status updates from the seller, no refresh needed ──
   useEffect(() => {
@@ -142,10 +164,23 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
         (payload) => {
           // Merge the new base-order columns over existing state, keeping the
           // already-joined listing/seller data we loaded on mount.
+          const prevRow = payload.old as Partial<Order>
           const next = payload.new as Order
           setOrder(prev => (prev ? { ...prev, ...next } : prev))
           // Award points live the moment the status flips to delivered.
           if (next.status === 'delivered') supabase.rpc('award_loyalty_points', { p_order_id: next.id })
+          // Buyer notifications — bracketed by "was this different before?"
+          // so a page reload doesn't re-fire them on the same row state.
+          if (prevRow.status !== 'picked_up' && next.status === 'picked_up' && next.delivery_type === 'delivery') {
+            notifyBuyer('Your order is on the way! 🚴', 'The driver has picked up your food and is heading to you.')
+          }
+          if (prevRow.status !== 'reached' && next.status === 'reached' && next.delivery_type === 'delivery') {
+            notifyBuyer('Driver is nearby! 🏠', 'They\'ll ask for your delivery code — open your order to see it.')
+          }
+          // Delivery code just appeared (driver generated it without status flip).
+          if (!prevRow.delivery_code && next.delivery_code && next.delivery_type === 'delivery' && next.status !== 'reached') {
+            notifyBuyer('Driver is nearby! 🏠', 'Open your order to see your delivery code.')
+          }
         }
       )
       .subscribe()
@@ -287,7 +322,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const subtotal = total - deliveryFee - serviceFeeAmt
   const isDelivery = order.delivery_type === 'delivery'
   const showCollectionCode = order.status === 'ready' && order.delivery_type === 'collection'
-  const showDeliveryCode = order.status === 'picked_up' && order.delivery_type === 'delivery'
+  const showDeliveryCode = (order.status === 'picked_up' || order.status === 'reached') && order.delivery_type === 'delivery'
 
   return (
     <div style={{minHeight:'100vh', background:'var(--bg-page)', fontFamily:'Inter,system-ui,sans-serif'}}>
@@ -376,7 +411,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                     <>
                       <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:14, flexWrap:'wrap'}}>
                         {code.split('').map((d, i) => (
-                          <span key={i} style={{width:52, height:64, borderRadius:12, background:'var(--bg-card)', border:'2px solid rgba(200,0,106,0.3)', boxShadow:'0 2px 10px rgba(200,0,106,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>{d}</span>
+                          <span key={i} style={{width:38, height:54, borderRadius:10, background:'var(--bg-card)', border:'2px solid rgba(200,0,106,0.3)', boxShadow:'0 2px 10px rgba(200,0,106,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:26, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em', minWidth:0}}>{d}</span>
                         ))}
                       </div>
                       <div style={{textAlign:'center', fontSize:13, fontWeight:700, color:expired ? '#C0392B' : '#8B0047'}}>
@@ -417,7 +452,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                     <>
                       <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:14, flexWrap:'wrap'}}>
                         {code.split('').map((d, i) => (
-                          <span key={i} style={{width:52, height:64, borderRadius:12, background:'var(--bg-card)', border:'2px solid rgba(200,0,106,0.3)', boxShadow:'0 2px 10px rgba(200,0,106,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em'}}>{d}</span>
+                          <span key={i} style={{width:38, height:54, borderRadius:10, background:'var(--bg-card)', border:'2px solid rgba(200,0,106,0.3)', boxShadow:'0 2px 10px rgba(200,0,106,0.14)', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:26, fontWeight:700, color:'#C8006A', letterSpacing:'-0.02em', minWidth:0}}>{d}</span>
                         ))}
                       </div>
                       <div style={{textAlign:'center', fontSize:13, fontWeight:700, color:expired ? '#C0392B' : '#8B0047'}}>

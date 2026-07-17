@@ -32,7 +32,8 @@ export interface CompletionResult {
 const BUYER_ITEMS: ChecklistItem[] = [
   { field: 'avatar_url',         label: 'Profile photo',       points: 10, required: false, anchor: 'avatar' },
   { field: 'full_name',          label: 'Full name',           points: 15, required: true,  anchor: 'name' },
-  { field: 'phone',              label: 'Phone number',        points: 15, required: true,  anchor: 'phone' },
+  // Phone is optional for buyers — they can order without one.
+  { field: 'phone',              label: 'Phone number',        points: 15, required: false, anchor: 'phone' },
   { field: 'address_line1',      label: 'Street address',      points: 15, required: true,  anchor: 'address' },
   { field: 'postcode',           label: 'Postcode',            points: 15, required: true,  anchor: 'address' },
   { field: 'city',               label: 'City / Town',         points: 10, required: true,  anchor: 'address' },
