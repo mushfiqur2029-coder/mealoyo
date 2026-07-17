@@ -2,16 +2,25 @@
 import { useRef, useState } from 'react'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabase'
-import { compressImage } from '@/lib/images'
+import { compressToTarget } from '@/lib/images'
 
-// Profile-photo uploader. Click to pick → validate → compress to 400×400 JPEG
-// at q=0.9 → upload to the "avatars" bucket at {userId}/avatar.jpg → save the
-// public URL back to profiles.avatar_url. Mobile-selfie feel: JPEG only, no
-// PNG/WebP that could arrive as a screenshot.
+// Profile-photo uploader.
+//
+// Two ways in:
+//   • 📷 Selfie  — capture="user" hint opens the front camera on mobile.
+//   • 🖼️ Upload — plain file picker for the gallery / filesystem.
+//
+// Both accept any image/* mime (jpg/png/webp/heic/gif) so users don't have to
+// think about formats — we convert everything to a compact JPEG on the client
+// via the canvas API. Target: max 200KB at 400×400, quality steps down from
+// 0.9 to hit the byte cap (compressToTarget). The result uploads to Supabase
+// Storage at avatars/{userId}/avatar.jpg (matches the folder-scoped RLS
+// policies from 20260717_avatar_storage_rls.sql), then the public URL is
+// written back to profiles.avatar_url.
 
-const MAX_BYTES = 5 * 1024 * 1024        // 5MB hard limit on the original file
-const COMPRESSED_MAX_DIM = 400           // 400×400 output
-const COMPRESSED_QUALITY = 0.9           // higher quality for faces
+const MAX_INPUT_BYTES = 15 * 1024 * 1024   // 15MB pre-compression ceiling
+const OUTPUT_MAX_BYTES = 200 * 1024        // 200KB post-compression target
+const OUTPUT_MAX_DIM = 400                 // 400×400 output
 
 type Props = {
   userId: string
@@ -25,40 +34,43 @@ type Props = {
 export default function AvatarUpload({ userId, initialUrl, initials, size = 96, dark = false, onUploaded }: Props) {
   const [url, setUrl] = useState<string | null>(initialUrl)
   const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)   // 0–100, driven by the compress + upload phases
+  const [progress, setProgress] = useState(0)  // 0–100, driven by the compress + upload phases
   const [error, setError] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
 
+  // Same handler for both inputs — the input element only differs in whether
+  // it has the capture="user" hint.
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = '' // allow re-selecting the same file later
     if (!file) return
     setError('')
 
-    // JPEG only — matches the "mobile selfie" feel the design brief asked for.
-    // MIME comparison is case-insensitive to handle image/JPEG from some
-    // Android cameras.
+    // Broad "any image" check. Some Android cameras report a generic
+    // application/octet-stream, so we also fall back to the file extension.
     const mime = (file.type || '').toLowerCase()
-    if (mime !== 'image/jpeg' && mime !== 'image/jpg') {
-      setError('Photo must be a JPEG image')
-      return
+    const looksLikeImage = mime.startsWith('image/')
+      || /\.(jpe?g|png|webp|gif|heic|heif|bmp|avif)$/i.test(file.name)
+    if (!looksLikeImage) {
+      setError('Please choose an image file'); return
     }
-    if (file.size > MAX_BYTES) {
-      setError(`Photo is too large — please keep it under ${Math.round(MAX_BYTES / (1024 * 1024))}MB.`)
+    if (file.size > MAX_INPUT_BYTES) {
+      setError(`Photo is too large — please keep it under ${Math.round(MAX_INPUT_BYTES / (1024 * 1024))}MB.`)
       return
     }
 
     setUploading(true)
     setProgress(5)
     try {
-      // Phase 1: client-side compress. The canvas API is synchronous under
-      // the hood so we don't get streaming progress — bump to 40% when done.
-      const blob = await compressImage(file, COMPRESSED_MAX_DIM, COMPRESSED_QUALITY)
+      // Phase 1: client-side compression. compressToTarget steps quality down
+      // (then dimensions if needed) until the JPEG fits under OUTPUT_MAX_BYTES.
+      const blob = await compressToTarget(file, OUTPUT_MAX_BYTES, OUTPUT_MAX_DIM)
       setProgress(40)
 
-      // Phase 2: upload to Supabase Storage. supabase-js doesn't expose upload
-      // progress on the browser SDK, so we fake a linear tick between 40 and
-      // 92 while the network call runs — it feels responsive without lying.
+      // Phase 2: storage upload. supabase-js doesn't emit browser upload
+      // progress, so we fake a linear tick between 40 and 92 — feels
+      // responsive without lying about state.
       const tickId = window.setInterval(() => {
         setProgress((p) => (p < 92 ? Math.min(92, p + 3) : p))
       }, 120)
@@ -82,7 +94,6 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
     } finally {
-      // Short beat at 100% so the buyer sees it complete.
       setTimeout(() => { setUploading(false); setProgress(0) }, 350)
     }
   }
@@ -90,18 +101,26 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
   const ring = dark ? 'linear-gradient(135deg,#C8006A 0%,#7A0042 100%)' : 'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
       <style>{`
         .avatar-upload { position: relative; cursor: pointer; border: none; padding: 0; background: transparent; border-radius: 50%; flex-shrink: 0; }
         .avatar-upload .cam-overlay { opacity: 0; transition: opacity 0.16s; }
         .avatar-upload:hover .cam-overlay, .avatar-upload:focus-visible .cam-overlay { opacity: 1; }
         .avatar-upload:focus-visible { outline: 3px solid rgba(200,0,106,0.5); outline-offset: 3px; }
+        .av-btn-selfie:hover { background: #FFE8F4 !important; }
+        .av-btn-upload:hover { background: #A00055 !important; }
+        @keyframes avspin { to { transform: rotate(360deg); } }
+        @media (max-width: 480px) {
+          .av-btns { flex-direction: column !important; width: 100%; max-width: 260px; }
+          .av-btns > button { width: 100% !important; }
+        }
       `}</style>
 
+      {/* ── AVATAR CIRCLE — clicking still opens the gallery picker ── */}
       <button
         type="button"
         className="avatar-upload"
-        onClick={() => inputRef.current?.click()}
+        onClick={() => galleryInputRef.current?.click()}
         disabled={uploading}
         aria-label="Change profile picture"
         style={{ width: size, height: size }}
@@ -122,7 +141,7 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
             <span style={{ fontSize: size * 0.11, color: '#fff', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Change</span>
           </div>
 
-          {/* Uploading overlay + circular progress + linear bar */}
+          {/* Uploading overlay + circular progress */}
           {uploading && (
             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
               <div style={{ position: 'relative', width: size * 0.44, height: size * 0.44 }}>
@@ -142,19 +161,77 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
         </div>
       </button>
 
-      <input ref={inputRef} type="file" accept="image/jpeg,.jpg,.jpeg" onChange={handleFile} style={{ display: 'none' }} />
+      {/* ── HIDDEN INPUTS ────────────────────────────────────────────────
+          Two inputs so a mobile browser can honour capture="user" (front
+          camera) on one path while the other stays a plain gallery picker.
+          accept="image/*" catches HEIC/HEIF/AVIF that iOS 17+ can hand back
+          from the camera roll. */}
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleFile}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        onChange={handleFile}
+        style={{ display: 'none' }}
+      />
 
-      {uploading && (
-        <div style={{ width: 160, height: 4, background: 'rgba(200,0,106,0.14)', borderRadius: 100, overflow: 'hidden' }} aria-label="Upload progress">
-          <div style={{ width: `${progress}%`, height: '100%', background: '#C8006A', transition: 'width 0.2s linear' }}/>
-        </div>
-      )}
+      {/* ── VISIBLE BUTTONS ── */}
+      <div className="av-btns" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button
+          type="button"
+          className="av-btn-selfie"
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            height: 44, padding: '0 18px',
+            background: 'transparent',
+            color: '#C8006A',
+            border: '1.5px solid #C8006A',
+            borderRadius: 100,
+            fontSize: 14, fontWeight: 700,
+            cursor: uploading ? 'not-allowed' : 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            transition: 'all 0.14s',
+            opacity: uploading ? 0.6 : 1,
+          }}
+        >
+          <span aria-hidden="true">📷</span> Selfie
+        </button>
+        <button
+          type="button"
+          className="av-btn-upload"
+          onClick={() => galleryInputRef.current?.click()}
+          disabled={uploading}
+          style={{
+            height: 44, padding: '0 18px',
+            background: '#C8006A',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 100,
+            fontSize: 14, fontWeight: 700,
+            cursor: uploading ? 'not-allowed' : 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            boxShadow: '0 4px 12px rgba(200,0,106,0.28)',
+            transition: 'all 0.14s',
+            opacity: uploading ? 0.6 : 1,
+          }}
+        >
+          <span aria-hidden="true">🖼️</span> Upload
+        </button>
+      </div>
 
       {error
-        ? <p style={{ fontSize: 12, color: '#C8006A', fontWeight: 600, textAlign: 'center', maxWidth: 220 }}>{error}</p>
-        : <p style={{ fontSize: 12, color: dark ? 'rgba(255,255,255,0.5)' : '#1A1A1A', opacity: dark ? 1 : 0.55, fontWeight: 600 }}>
-            {uploading ? 'Uploading…' : 'Tap to change photo · JPEG only'}
-          </p>}
+        ? <p style={{ fontSize: 12, color: '#C8006A', fontWeight: 600, textAlign: 'center', maxWidth: 260 }}>{error}</p>
+        : uploading
+          ? <p style={{ fontSize: 12, color: dark ? 'rgba(255,255,255,0.65)' : '#1A1A1A', opacity: dark ? 1 : 0.7, fontWeight: 600 }}>Uploading… {progress}%</p>
+          : null}
     </div>
   )
 }
