@@ -118,13 +118,16 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
       window.clearInterval(tickId)
       if (upErr) throw upErr
 
-      // Phase 3: publish + write URL back to the profile row via the
-      // service-role API route. Direct .update() on public.profiles from the
-      // browser kept tripping "permission denied for table profiles"
-      // whenever the base column/table grants drifted; the API route uses
-      // supabaseAdmin (bypasses RLS + grants) and scopes the write to the
-      // caller's own row via the session cookie — same pattern as
-      // /api/orders/create.
+      // Phase 3: publish + write URL back via the service-role API route.
+      //
+      // Auth model: send the session's access_token as an Authorization
+      // Bearer header rather than relying on the Supabase cookie flowing to
+      // the route. On Vercel same-origin fetches from a 'use client'
+      // component the cookie sometimes doesn't reach the handler cleanly;
+      // the Bearer token makes the call self-contained and independent of
+      // cookie plumbing. The API route verifies the JWT server-side with
+      // supabaseAdmin.auth.getUser(token) and does the write with the
+      // service role — bypasses RLS + column grants entirely.
       setProgress(96)
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
       // Cache-bust for the browser's <img> but strip it before persisting so
@@ -132,12 +135,21 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
       const persistedUrl = pub.publicUrl
       const displayUrl = `${pub.publicUrl}?v=${Date.now()}`
 
+      // Fresh session read — the JWT rotates in the background, so grab the
+      // current access_token right before we send it.
+      const { data: freshSession } = await supabase.auth.getSession()
+      const accessToken = freshSession?.session?.access_token
+      if (!accessToken) {
+        throw new Error('Please sign in again — your session has expired.')
+      }
+
       const res = await fetch('/api/avatar/update', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({ avatarUrl: persistedUrl }),
-        // Keep the session cookie flowing to the route handler.
-        credentials: 'same-origin',
       })
       const payload = await res.json().catch(() => ({}))
       if (!res.ok) {
