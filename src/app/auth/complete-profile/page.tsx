@@ -137,15 +137,12 @@ export default function CompleteProfile() {
     // Persist the address if the user picked one — best effort, doesn't block
     // completion. Uses the same profile row the RPC just touched.
     if (address.address_line1.trim() || address.postcode.trim()) {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        await supabase.from('profiles').update({
-          address_line1: address.address_line1.trim() || null,
-          address_line2: address.address_line2.trim() || null,
-          city: address.city.trim() || null,
-          postcode: address.postcode.trim().toUpperCase() || null,
-        }).eq('id', user.id)
-      }
+      await supabase.rpc('update_my_address', {
+        p_address_line1: address.address_line1.trim() || null,
+        p_address_line2: address.address_line2.trim() || null,
+        p_city: address.city.trim() || null,
+        p_postcode: address.postcode.trim().toUpperCase() || null,
+      })
     }
 
     // Credit a referrer if this buyer arrived via a referral link.

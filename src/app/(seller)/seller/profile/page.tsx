@@ -124,18 +124,19 @@ export default function SellerProfile() {
       address.city.trim() !== orig.city.trim()
     const willReapprove = sensitiveChanged && status === 'active'
 
-    const update: Record<string, string | null> = {
-      full_name: fullName.trim(),
-      phone: phone.trim(),
-      address_line1: address.address_line1.trim() || null,
-      address_line2: address.address_line2.trim() || null,
-      city: address.city.trim() || null,
-      postcode: address.postcode.trim().toUpperCase(),
+    const { error: dbError } = await supabase.rpc('update_my_profile_basics', {
+      p_full_name: fullName.trim(),
+      p_phone: phone.trim(),
+      p_address_line1: address.address_line1.trim() || null,
+      p_address_line2: address.address_line2.trim() || null,
+      p_city: address.city.trim() || null,
+      p_postcode: address.postcode.trim().toUpperCase(),
+      p_request_reapproval: willReapprove,
+    })
+    if (dbError) {
+      console.error('[SellerProfile] Save error:', { code: dbError.code, message: dbError.message, details: dbError.details, hint: dbError.hint, raw: JSON.stringify(dbError) })
+      setError(dbError.message); setSaving(false); return
     }
-    if (willReapprove) update.status = 'pending'
-
-    const { error: dbError } = await supabase.from('profiles').update(update).eq('id', user.id)
-    if (dbError) { setError(dbError.message); setSaving(false); return }
 
     // Email change → Supabase sends the verification link to the new address.
     setEmailPending(null)
@@ -187,12 +188,15 @@ export default function SellerProfile() {
     if (!isValidAccountNumber(accountNumber)) { setBankError('Account number must be 8 digits'); return }
     if (!user) return
     setBankSaving(true)
-    const { error: dbError } = await supabase.from('profiles').update({
-      bank_account_name: bankName.trim(),
-      bank_sort_code: formatSortCode(sortCode),
-      bank_account_number: accountNumber.replace(/\D/g, ''),
-    }).eq('id', user.id)
-    if (dbError) { setBankError(dbError.message); setBankSaving(false); return }
+    const { error: dbError } = await supabase.rpc('update_my_bank_details', {
+      p_bank_account_name: bankName.trim(),
+      p_bank_sort_code: formatSortCode(sortCode),
+      p_bank_account_number: accountNumber.replace(/\D/g, ''),
+    })
+    if (dbError) {
+      console.error('[SellerProfile] Bank save error:', { code: dbError.code, message: dbError.message, details: dbError.details, hint: dbError.hint, raw: JSON.stringify(dbError) })
+      setBankError(dbError.message); setBankSaving(false); return
+    }
     setBankOk(true); setBankSaving(false)
   }
 

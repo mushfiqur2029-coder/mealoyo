@@ -112,7 +112,10 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
         .from('avatars')
         .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
       window.clearInterval(tickId)
-      if (upErr) throw upErr
+      if (upErr) {
+        console.error('[AvatarUpload] Storage upload error:', { name: upErr.name, message: upErr.message, raw: JSON.stringify(upErr) })
+        throw upErr
+      }
 
       // Phase 3: publish + write URL back via a security-definer RPC.
       // Same pattern as get_my_profile / get_my_profile_full — the RPC's
@@ -129,7 +132,7 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
 
       const { error: rpcErr } = await supabase.rpc('update_my_avatar', { p_avatar_url: persistedUrl })
       if (rpcErr) {
-        console.error('[AvatarUpload] update_my_avatar failed', rpcErr)
+        console.error('[AvatarUpload] Avatar error:', { code: rpcErr.code, message: rpcErr.message, details: rpcErr.details, hint: rpcErr.hint, raw: JSON.stringify(rpcErr) })
         throw new Error(rpcErr.message || 'Could not save avatar')
       }
 
