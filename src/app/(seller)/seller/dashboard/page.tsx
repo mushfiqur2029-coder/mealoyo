@@ -213,7 +213,7 @@ export default function SellerDashboard() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center'}}>
-          <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || 'S'}/>
+          <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || 'S'} href="/seller/profile"/>
           <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)', cursor:'pointer', transition:'all 0.12s'}}>Sign out</button>
         </div>
       </div>

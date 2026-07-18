@@ -56,6 +56,50 @@ img, video { max-width: 100%; }
   input, select, textarea { font-size: 16px; }
 }
 
+/* ── Mobile dashboard grid stacking ────────────────────────────────
+   Every dashboard on the app builds its stats row with an inline
+   `grid-template-columns: repeat(4,1fr)` and a per-page className.
+   Below 640px those cards get too narrow to read, so we override the
+   inline rule to 2×2 for stat rows and 1× for the wide "how it
+   works / testimonials / recommended" content grids. The rules use
+   !important because they need to beat the inline style. */
+@media (max-width: 640px) {
+  .dash-grid, .dstats, .ustats, .ostats, .lstats, .earn-grid,
+  .summary-grid, .admin-grid, .quick-grid, .hstats {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .rec-grid, .hiw-grid, .ot-grid, .test-grid, .steps-grid, .benefits-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+@media (max-width: 420px) {
+  .dash-grid, .dstats, .ustats, .ostats, .lstats, .earn-grid,
+  .summary-grid, .admin-grid, .quick-grid, .hstats {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Tap-target minimums ──────────────────────────────────────────
+   Consumer-quality apps keep every tappable primary control at
+   ≥44px so a fingertip lands cleanly. Applies to touch pointers only
+   so mouse-driven UIs keep their tight desktop density. */
+@media (hover: none) and (pointer: coarse) {
+  button, [role="button"], input[type="submit"], input[type="button"], .tap-lg {
+    min-height: 44px;
+  }
+}
+
+/* ── Horizontal-scroll safety on tables ───────────────────────────
+   Admin list tables can overflow narrow screens — wrap them in
+   `.mobile-scroll-x` (already sprinkled through admin pages) OR the
+   default `table` element gets an auto-scroll container behaviour on
+   small viewports. */
+.mobile-scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 640px) {
+  table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+
 /* Theme-aware logo: colour mark in light mode, white mark in dark mode. Used by
    <Logo themed/> on surfaces (e.g. the admin nav) that flip with the theme. */
 .logo-themed-dark { display: none !important; }

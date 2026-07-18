@@ -415,7 +415,7 @@ function Browse() {
           <div className="nav-links" style={{display:'flex', alignItems:'center', gap:10, flexShrink:0}}>
             {user ? (
               <>
-                <NavAvatar url={avatarUrl} initial={user.email?.[0]?.toUpperCase() || 'B'} />
+                <NavAvatar url={avatarUrl} initial={user.email?.[0]?.toUpperCase() || 'B'} href="/buyer/profile" />
                 <Link href="/buyer/dashboard" className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-card)', display:'flex', alignItems:'center', transition:'all 0.12s'}}>Dashboard</Link>
               </>
             ) : (
