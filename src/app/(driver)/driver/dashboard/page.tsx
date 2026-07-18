@@ -109,6 +109,19 @@ export default function DriverDashboard() {
   // Client-side per-job hide timeouts. After 20s a job disappears from THIS
   // driver's view only; it stays available for other drivers in the DB.
   const [hiddenJobIds, setHiddenJobIds] = useState<Set<string>>(new Set())
+  // Persistent first-seen timestamp per order_id. Sits in a ref (not state) so
+  // a re-render or a JobCard remount can't reset the countdown. Populated when
+  // a job first appears in `jobs` and pruned when it disappears. Keyed by
+  // order_id which matches the JobCard React key.
+  const jobFirstSeenRef = useRef<Map<string, number>>(new Map())
+  // ── Pull-to-refresh ─────────────────────────────────────────────────
+  // Native-feeling downward drag when at the top of the page. Only fires on
+  // touch pointers; desktop mice use the Refresh button.
+  const [pullY, setPullY] = useState(0)
+  const pullStartYRef = useRef<number | null>(null)
+  const pullActiveRef = useRef(false)
+  const PULL_THRESHOLD = 64
+  const PULL_MAX = 110
   // Handshake modals
   const [pickupOrderId, setPickupOrderId] = useState<string | null>(null)
   const [pickupDigits, setPickupDigits] = useState<string[]>(new Array(CODE_LEN).fill('') as string[])
@@ -245,6 +258,49 @@ export default function DriverDashboard() {
   }, [])
 
   const refreshJobs = async () => { setRefreshing(true); await loadFeeds(); setRefreshing(false) }
+
+  // Track first-seen time for every job order_id. On every `jobs` change:
+  //   • any brand-new id gets a Date.now() stamp;
+  //   • any id no longer in the list (accepted / taken / expired server-side)
+  //     is pruned so the map doesn't grow forever.
+  useEffect(() => {
+    const map = jobFirstSeenRef.current
+    const now = Date.now()
+    for (const j of jobs) if (!map.has(j.order_id)) map.set(j.order_id, now)
+    const live = new Set(jobs.map(j => j.order_id))
+    for (const id of map.keys()) if (!live.has(id)) map.delete(id)
+  }, [jobs])
+
+  // ── Pull-to-refresh gesture handlers ──────────────────────────────
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (typeof window === 'undefined') return
+    // Only arm the gesture when the page is genuinely at the top — otherwise
+    // a mid-page swipe would fight normal vertical scrolling.
+    if (window.scrollY > 2) return
+    pullStartYRef.current = e.touches[0].clientY
+    pullActiveRef.current = false
+  }
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (pullStartYRef.current === null) return
+    const dy = e.touches[0].clientY - pullStartYRef.current
+    if (dy <= 0) { setPullY(0); return }
+    pullActiveRef.current = true
+    // Rubber-band the drag so past the threshold it feels heavier.
+    const damped = dy > PULL_MAX ? PULL_MAX + (dy - PULL_MAX) * 0.15 : dy
+    setPullY(Math.min(damped, PULL_MAX + 20))
+  }
+  const onTouchEnd = async () => {
+    const triggered = pullActiveRef.current && pullY >= PULL_THRESHOLD
+    pullStartYRef.current = null
+    pullActiveRef.current = false
+    if (triggered) {
+      // Snap the indicator up while the refresh runs so the user gets feedback.
+      setPullY(0)
+      await refreshJobs()
+    } else {
+      setPullY(0)
+    }
+  }
 
   const acceptJob = async (jobId: string) => {
     setAcceptingId(jobId); setAcceptError('')
@@ -438,10 +494,53 @@ export default function DriverDashboard() {
     </div>
   )
 
+  const pullTriggered = pullY >= PULL_THRESHOLD
+  const pullOpacity = Math.min(1, pullY / PULL_THRESHOLD)
+
   return (
-    <div className="map-bg" style={{minHeight:'100vh', fontFamily:'Inter,system-ui,sans-serif'}}>
+    <div
+      className="map-bg"
+      style={{minHeight:'100vh', fontFamily:'Inter,system-ui,sans-serif'}}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       <style>{dark}</style>{nav}
-      <div style={{maxWidth:1200, margin:'0 auto', padding:'28px 20px 72px'}}>
+
+      {/* ── Pull-to-refresh indicator ── */}
+      {pullY > 0 && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed', top: 64, left: 0, right: 0, zIndex: 90,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transform: `translateY(${Math.min(pullY, PULL_MAX)}px)`,
+            transition: pullStartYRef.current === null ? 'transform 0.24s cubic-bezier(0.34,1.2,0.64,1)' : 'none',
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 16px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 100,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            fontSize: 12.5, fontWeight: 700,
+            color: pullTriggered ? '#2DA84E' : 'var(--text-primary)',
+            opacity: pullOpacity,
+          }}>
+            <span style={{
+              display: 'inline-block',
+              transform: `rotate(${pullTriggered ? 180 : 0}deg)`,
+              transition: 'transform 0.2s',
+            }}>↓</span>
+            {pullTriggered ? 'Release to refresh' : 'Pull to refresh'}
+          </div>
+        </div>
+      )}
+
+      <div style={{maxWidth:1200, margin:'0 auto', padding:'28px 20px 72px', transform: `translateY(${Math.min(pullY * 0.5, PULL_MAX * 0.5)}px)`, transition: pullStartYRef.current === null ? 'transform 0.24s cubic-bezier(0.34,1.2,0.64,1)' : 'none'}}>
 
         {/* Greeting + online pill */}
         <div className="fade-up" style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, flexWrap:'wrap', marginBottom:22}}>
@@ -600,6 +699,7 @@ export default function DriverDashboard() {
                   <JobCard
                     key={j.order_id}
                     job={j}
+                    firstSeenAt={jobFirstSeenRef.current.get(j.order_id) ?? Date.now()}
                     myLocation={myLocation}
                     onAccept={() => acceptJob(j.order_id)}
                     accepting={acceptingId === j.order_id}
@@ -698,36 +798,40 @@ export default function DriverDashboard() {
 // the job disappears from THIS driver's view (still exists in the DB for
 // other drivers to pick up).
 const JOB_COUNTDOWN_SECS = 20
+// At and below this many seconds remaining the ring flips to red and the card
+// border pulses. Keep this in sync with the "urgent" state below.
+const JOB_URGENT_AT_SECS = 5
 
-// One job card. Kept as a small component so the distance calc can look up the
-// seller's postcode async without re-rendering the whole list.
-function JobCard({ job, myLocation, onAccept, accepting, onTimeout }: {
+// One job card. `firstSeenAt` comes from the parent's ref-Map keyed by
+// order_id so the countdown survives re-renders and remounts — the timer is
+// per-job, never restarted by React reconciliation quirks.
+function JobCard({ job, firstSeenAt, myLocation, onAccept, accepting, onTimeout }: {
   job: AvailableJob
+  firstSeenAt: number
   myLocation: { lat: number; lng: number } | null
   onAccept: () => void
   accepting: boolean
   onTimeout: () => void
 }) {
   const [distance, setDistance] = useState<number | null>(null)
-  // "now" snapshot for the placed-ago + countdown. Ticks every second so the
-  // countdown ring animates smoothly. Never read directly during render (React
-  // 19's rules-of-purity forbids Date.now() at render time).
+  // 1-second tick snapshot for the countdown. Ticks every second via
+  // setInterval — the seconds display and ring progress both derive from this.
+  // Never read Date.now() during render (React 19 rules-of-purity).
   const [now, setNow] = useState<number | null>(null)
-  const appearedAtRef = useRef<number | null>(null)
   useEffect(() => {
-    appearedAtRef.current = Date.now()
+    // Kick a first tick on the next animation frame so the ring animates in.
     const raf = requestAnimationFrame(() => setNow(Date.now()))
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => { cancelAnimationFrame(raf); clearInterval(t) }
   }, [])
-  // When the countdown hits zero, notify the parent to hide this card from the
-  // driver's view. Fires exactly once.
+  // When the countdown hits zero, notify the parent to hide this card from
+  // the driver's view. Fires exactly once per card lifetime.
   const timedOutRef = useRef(false)
   useEffect(() => {
-    if (timedOutRef.current || now === null || appearedAtRef.current === null) return
-    const remaining = JOB_COUNTDOWN_SECS - Math.floor((now - appearedAtRef.current) / 1000)
+    if (timedOutRef.current || now === null) return
+    const remaining = JOB_COUNTDOWN_SECS - Math.floor((now - firstSeenAt) / 1000)
     if (remaining <= 0) { timedOutRef.current = true; onTimeout() }
-  }, [now, onTimeout])
+  }, [now, firstSeenAt, onTimeout])
 
   useEffect(() => {
     let alive = true
@@ -740,74 +844,138 @@ function JobCard({ job, myLocation, onAccept, accepting, onTimeout }: {
     return () => { alive = false }
   }, [myLocation, job.seller_postcode])
 
-  const placedAgo = (() => {
-    if (now === null) return 'just now'
-    const mins = Math.max(1, Math.round((now - new Date(job.created_at).getTime()) / 60000))
-    if (mins < 60) return `${mins} min ago`
-    const hrs = Math.round(mins / 60)
-    return `${hrs}h ago`
-  })()
-
-  // Countdown UI values — clamped so they render sensibly before the first tick.
-  const elapsed = now !== null && appearedAtRef.current !== null ? Math.max(0, (now - appearedAtRef.current) / 1000) : 0
+  // Countdown values — clamped so the ring renders sensibly before the first tick.
+  const elapsed = now !== null ? Math.max(0, (now - firstSeenAt) / 1000) : 0
   const remaining = Math.max(0, JOB_COUNTDOWN_SECS - elapsed)
   const remainingRounded = Math.ceil(remaining)
-  const urgent = remaining <= 5 && remaining > 0
-  // Progress bar width — full at 20s, empty at 0s.
-  const progressPct = Math.max(0, Math.min(100, (remaining / JOB_COUNTDOWN_SECS) * 100))
-  const ringColor = urgent ? '#EF4444' : remaining <= 10 ? '#F59E0B' : '#34D399'
+  const urgent = remaining <= JOB_URGENT_AT_SECS && remaining > 0
+
+  // Ring geometry: 48px circle, strokeWidth 4. r = 22 leaves 2px of padding.
+  const RING_SIZE = 48
+  const RING_R = 22
+  const RING_CIRC = 2 * Math.PI * RING_R
+  const RING_COLOR = urgent ? '#DC2626' : '#2DA84E'
+  const OUTER_STROKE = 'var(--border-subtle)'
+
+  // Fee that the driver actually pockets — 80% of the delivery fee.
+  const driverFee = driverShare(job.delivery_fee)
 
   return (
-    <div className="job" style={{background:'var(--bg-page)', border: urgent ? '2px solid #EF4444' : '1px solid var(--border-subtle)', borderRadius:14, padding:'16px 18px', position:'relative', overflow:'hidden', animation: urgent ? 'jobUrgent 0.9s ease-in-out infinite' : 'none'}}>
+    <div
+      className="job"
+      style={{
+        background: 'var(--bg-card)',
+        border: urgent ? '1.5px solid #DC2626' : '1px solid var(--border-subtle)',
+        borderRadius: 16,
+        padding: '16px 18px',
+        position: 'relative',
+        animation: urgent ? 'jobUrgent 0.9s ease-in-out infinite' : 'none',
+        transition: 'border-color 0.2s',
+      }}
+    >
       <style>{`
-        @keyframes jobUrgent { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.55); } 50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); } }
+        @keyframes jobUrgent { 0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.55); } 50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); } }
+        @keyframes ringspin { to { transform: rotate(360deg); } }
       `}</style>
-      {/* Countdown progress bar along the top edge */}
-      <div aria-hidden="true" style={{position:'absolute', top:0, left:0, right:0, height:3, background:'rgba(255,255,255,0.06)'}}>
-        <div style={{height:'100%', width:`${progressPct}%`, background:ringColor, transition:'width 1s linear, background 0.3s'}}/>
+
+      {/* ── Header: dish name (left) + fee badge (right) ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {job.listing_name}
+        </div>
+        <span style={{
+          background: 'rgba(45,168,78,0.15)', color: '#2DA84E',
+          fontSize: 12.5, fontWeight: 800, padding: '4px 11px', borderRadius: 100,
+          flexShrink: 0,
+        }}>£{driverFee.toFixed(2)}</span>
       </div>
 
-      <div style={{display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap'}}>
-        <div style={{flex:1, minWidth:0}}>
-          <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:6, flexWrap:'wrap'}}>
-            <span style={{fontSize:15, fontWeight:700, color:'var(--text-primary)'}}>{job.listing_name}</span>
-            <span style={{background:'rgba(200,0,106,0.16)', color:'#FF8AC4', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:100}}>{placedAgo}</span>
-            {distance !== null && (
-              <span style={{background:'rgba(52,211,153,0.14)', color:'#34D399', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:100}}>~{distance.toFixed(1)} mi away</span>
-            )}
-            <span aria-label={`${remainingRounded} seconds to accept`} style={{background: urgent ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.06)', color: ringColor, fontSize:11, fontWeight:800, padding:'3px 9px', borderRadius:100, marginLeft:'auto'}}>
-              ⏱ {remainingRounded}s
-            </span>
-          </div>
-          <div style={{fontSize:12, color:'var(--text-secondary)', lineHeight:1.6}}>
-            <div>🍲 <strong style={{color:'var(--text-primary)'}}>{job.seller_name}</strong> · {job.seller_address || '—'}{job.seller_postcode ? ` · ${job.seller_postcode}` : ''}</div>
-            <div>🏠 To: {job.delivery_address || '—'}</div>
-          </div>
+      {/* ── Pickup + delivery rows ── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: 'var(--text-primary)', lineHeight: 1.5 }}>
+          <span style={{ flexShrink: 0 }}>📍</span>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <strong style={{ fontWeight: 700 }}>{job.seller_name}</strong>{' '}
+            <span style={{ opacity: 0.75 }}>· {job.seller_address || 'address unavailable'}{job.seller_postcode ? ` · ${job.seller_postcode}` : ''}</span>
+          </span>
         </div>
-        {/* Circular countdown ring around the earnings */}
-        <div style={{position:'relative', width:78, height:78, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center'}}>
-          <svg width="78" height="78" style={{position:'absolute', inset:0, transform:'rotate(-90deg)'}} aria-hidden="true">
-            <circle cx="39" cy="39" r="34" stroke="rgba(255,255,255,0.08)" strokeWidth="5" fill="none"/>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 12.5, color: 'var(--text-primary)', lineHeight: 1.5 }}>
+          <span style={{ flexShrink: 0 }}>🏠</span>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
+            {job.delivery_address || 'delivery address unavailable'}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Footer: distance chip · countdown ring ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        {distance !== null ? (
+          <span style={{ background: 'rgba(200,0,106,0.12)', color: '#C8006A', fontSize: 11.5, fontWeight: 800, padding: '4px 10px', borderRadius: 100 }}>
+            ~{distance.toFixed(1)} mi away
+          </span>
+        ) : (
+          <span style={{ background: 'var(--border-subtle)', color: 'var(--text-primary)', opacity: 0.6, fontSize: 11.5, fontWeight: 700, padding: '4px 10px', borderRadius: 100 }}>
+            Distance…
+          </span>
+        )}
+
+        <div style={{ marginLeft: 'auto', position: 'relative', width: RING_SIZE, height: RING_SIZE, flexShrink: 0 }}>
+          <svg width={RING_SIZE} height={RING_SIZE} style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
             <circle
-              cx="39" cy="39" r="34"
-              stroke={ringColor} strokeWidth="5" fill="none"
+              cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+              stroke={OUTER_STROKE} strokeWidth={4} fill="none"
+            />
+            <circle
+              cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R}
+              stroke={RING_COLOR} strokeWidth={4} fill="none"
               strokeLinecap="round"
-              strokeDasharray={2 * Math.PI * 34}
-              strokeDashoffset={2 * Math.PI * 34 * (1 - remaining / JOB_COUNTDOWN_SECS)}
-              style={{transition:'stroke-dashoffset 1s linear, stroke 0.3s'}}
+              strokeDasharray={RING_CIRC}
+              strokeDashoffset={RING_CIRC * (1 - remaining / JOB_COUNTDOWN_SECS)}
+              style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.3s' }}
             />
           </svg>
-          <div style={{textAlign:'center', position:'relative'}}>
-            <div style={{fontFamily:'Georgia,serif', fontSize:16, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{driverShare(job.delivery_fee).toFixed(2)}</div>
-            <div style={{fontSize:9, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:2, fontWeight:700}}>Earn</div>
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontFamily: 'Georgia,serif', fontSize: 16, fontWeight: 700,
+            color: RING_COLOR, letterSpacing: '-0.02em',
+          }} aria-label={`${remainingRounded} seconds to accept`}>
+            {remainingRounded}
           </div>
         </div>
       </div>
-      <div style={{marginTop:14, display:'flex', justifyContent:'flex-end'}}>
-        <button onClick={onAccept} disabled={accepting} className="accept" style={{height:42, padding:'0 22px', background: urgent ? '#EF4444' : '#34D399', color: urgent ? '#fff' : '#0A1F14', border:'none', borderRadius:11, fontSize:14, fontWeight:800, cursor:accepting ? 'wait' : 'pointer', boxShadow: urgent ? '0 4px 14px rgba(239,68,68,0.35)' : '0 4px 14px rgba(52,211,153,0.28)', opacity:accepting ? 0.7 : 1}}>
-          {accepting ? 'Accepting…' : urgent ? `Accept now! ${remainingRounded}s` : 'Accept job →'}
-        </button>
-      </div>
+
+      {/* ── Accept button (full width, 48px) ── */}
+      <button
+        onClick={onAccept}
+        disabled={accepting || remaining < 1}
+        style={{
+          width: '100%', height: 48,
+          background: urgent ? '#DC2626' : '#2DA84E',
+          color: '#fff',
+          border: 'none', borderRadius: 12,
+          fontSize: 15, fontWeight: 800,
+          cursor: accepting || remaining < 1 ? 'not-allowed' : 'pointer',
+          boxShadow: urgent ? '0 6px 18px rgba(220,38,38,0.35)' : '0 6px 18px rgba(45,168,78,0.28)',
+          opacity: accepting || remaining < 1 ? 0.7 : 1,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          transition: 'background 0.2s, opacity 0.2s',
+        }}
+      >
+        {accepting ? (
+          <>
+            <span style={{
+              display: 'inline-block',
+              width: 16, height: 16,
+              border: '2.5px solid rgba(255,255,255,0.4)',
+              borderTopColor: '#fff',
+              borderRadius: '50%',
+              animation: 'ringspin 0.7s linear infinite',
+            }}/>
+            Accepting…
+          </>
+        ) : remaining < 1 ? 'Expired' : urgent ? `Accept now (${remainingRounded}s)` : 'Accept job'}
+      </button>
     </div>
   )
 }
