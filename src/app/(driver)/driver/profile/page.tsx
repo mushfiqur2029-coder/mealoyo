@@ -118,7 +118,30 @@ export default function DriverProfile() {
     if (!fullName.trim()) { setError('Please enter your full name'); return }
     if (!phone.trim()) { setError('Phone number is required for drivers'); return }
     if (!user) return
-    setSaving(true); setError(''); setSavedOk(false); setReapprovalNote(false)
+    setSaving(true); setError(''); setSavedOk(false); setReapprovalNote(false); setEmailPending(null)
+
+    // Email change is fully separated from the profile RPC path — see the
+    // buyer profile page for the full reasoning. supabase.auth.updateUser({
+    // email }) trips an internal side-effect on public.profiles that fails
+    // with "permission denied for table profiles", so we only fire it when
+    // the email genuinely differs and we return early in the same click.
+    const trimmedEmail = email.trim().toLowerCase()
+    const trimmedOrig = origEmail.trim().toLowerCase()
+    const emailChanged = !!trimmedEmail && trimmedEmail !== trimmedOrig
+
+    if (emailChanged) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        setError('Please enter a valid email address'); setSaving(false); return
+      }
+      const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail })
+      if (emailErr) {
+        console.error('[DriverProfile] Save error (auth.updateUser email):', { name: emailErr.name, message: emailErr.message, raw: JSON.stringify(emailErr, Object.getOwnPropertyNames(emailErr)) })
+        setError(emailErr.message); setSaving(false); return
+      }
+      setEmailPending(trimmedEmail)
+      setSaving(false)
+      return
+    }
 
     const sensitiveChanged =
       fullName.trim() !== orig.fullName.trim() ||
@@ -138,26 +161,12 @@ export default function DriverProfile() {
       p_request_reapproval: willReapprove,
     })
     if (dbError) {
-      console.error('[DriverProfile] Save error:', { code: dbError.code, message: dbError.message, details: dbError.details, hint: dbError.hint, raw: JSON.stringify(dbError) })
+      console.error('[DriverProfile] Save error (basics RPC):', { code: dbError.code, message: dbError.message, details: dbError.details, hint: dbError.hint, raw: JSON.stringify(dbError) })
       setError(dbError.message); setSaving(false); return
     }
 
-    // Email change → Supabase verification email.
-    setEmailPending(null)
-    const trimmedEmail = email.trim().toLowerCase()
-    const trimmedOrig = origEmail.trim().toLowerCase()
-    let didSendEmail = false
-    if (trimmedEmail && trimmedEmail !== trimmedOrig) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-        setError('Please enter a valid email address'); setSaving(false); return
-      }
-      const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail })
-      if (emailErr) { setError(emailErr.message); setSaving(false); return }
-      setEmailPending(trimmedEmail); didSendEmail = true
-    }
-
     if (willReapprove) { setStatus('pending'); setReapprovalNote(true) }
-    else if (!didSendEmail) { setSavedOk(true) }
+    else { setSavedOk(true) }
     setOrig({ fullName: fullName.trim(), address_line1: address.address_line1.trim(), address_line2: address.address_line2.trim(), city: address.city.trim() })
     setSaving(false)
   }

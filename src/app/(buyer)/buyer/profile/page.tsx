@@ -85,6 +85,31 @@ export default function BuyerProfile() {
     if (!fullName.trim()) { setError('Please enter your full name'); return }
     if (!user) return
     setSaving(true); setError(''); setSavedOk(false); setEmailPending(null)
+
+    // Split the two writes. `auth.updateUser({ email })` triggers Supabase's
+    // internal machinery on auth.users which — in this project — ends up trying
+    // to touch public.profiles without the right grants and fails with
+    // "permission denied for table profiles". So we only invoke it when the
+    // email actually differs, and when it does, we bail out early so the
+    // profile RPC doesn't also fire in the same click.
+    const trimmedEmail = email.trim().toLowerCase()
+    const trimmedOrig = origEmail.trim().toLowerCase()
+    const emailChanged = !!trimmedEmail && trimmedEmail !== trimmedOrig
+
+    if (emailChanged) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        setError('Please enter a valid email address'); setSaving(false); return
+      }
+      const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail })
+      if (emailErr) {
+        console.error('[BuyerProfile] Save error (auth.updateUser email):', { name: emailErr.name, message: emailErr.message, raw: JSON.stringify(emailErr, Object.getOwnPropertyNames(emailErr)) })
+        setError(emailErr.message); setSaving(false); return
+      }
+      setEmailPending(trimmedEmail)
+      setSaving(false)
+      return
+    }
+
     const { error: dbError } = await supabase.rpc('update_my_profile_basics', {
       p_full_name: fullName.trim(),
       p_phone: phone.trim(),
@@ -94,23 +119,10 @@ export default function BuyerProfile() {
       p_postcode: address.postcode.trim().toUpperCase() || null,
     })
     if (dbError) {
-      console.error('[BuyerProfile] Save error:', { code: dbError.code, message: dbError.message, details: dbError.details, hint: dbError.hint, raw: JSON.stringify(dbError) })
+      console.error('[BuyerProfile] Save error (basics RPC):', { code: dbError.code, message: dbError.message, details: dbError.details, hint: dbError.hint, raw: JSON.stringify(dbError) })
       setError(dbError.message); setSaving(false); return
     }
-    // If the email changed, ask Supabase to send the verification link to the
-    // new address. The old email stays active for sign-in until confirmed.
-    const trimmedEmail = email.trim().toLowerCase()
-    const trimmedOrig = origEmail.trim().toLowerCase()
-    if (trimmedEmail && trimmedEmail !== trimmedOrig) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-        setError('Please enter a valid email address'); setSaving(false); return
-      }
-      const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail })
-      if (emailErr) { setError(emailErr.message); setSaving(false); return }
-      setEmailPending(trimmedEmail)
-    } else {
-      setSavedOk(true)
-    }
+    setSavedOk(true)
     setSaving(false)
   }
 

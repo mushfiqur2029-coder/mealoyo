@@ -113,7 +113,32 @@ export default function SellerProfile() {
     if (!address.postcode.trim()) { setError('Please enter your postcode — buyers need it to calculate delivery distance'); return }
     if (!isValidUKPostcode(address.postcode)) { setError('Please enter a valid UK postcode (e.g. E3 4SS)'); return }
     if (!user) return
-    setSaving(true); setError(''); setSavedOk(false); setReapprovalNote(false)
+    setSaving(true); setError(''); setSavedOk(false); setReapprovalNote(false); setEmailPending(null)
+
+    // Email change is fully separated from the profile RPC path — see the
+    // buyer profile page for the full reasoning. Short version:
+    // supabase.auth.updateUser({ email }) trips an internal side-effect on
+    // public.profiles that fails with "permission denied for table profiles",
+    // so we only fire it when the email genuinely differs and we return early
+    // (no RPC + no listings re-approval) in the same click. The seller can hit
+    // Save again after confirming the email to update their profile details.
+    const trimmedEmail = email.trim().toLowerCase()
+    const trimmedOrig = origEmail.trim().toLowerCase()
+    const emailChanged = !!trimmedEmail && trimmedEmail !== trimmedOrig
+
+    if (emailChanged) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        setError('Please enter a valid email address'); setSaving(false); return
+      }
+      const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail })
+      if (emailErr) {
+        console.error('[SellerProfile] Save error (auth.updateUser email):', { name: emailErr.name, message: emailErr.message, raw: JSON.stringify(emailErr, Object.getOwnPropertyNames(emailErr)) })
+        setError(emailErr.message); setSaving(false); return
+      }
+      setEmailPending(trimmedEmail)
+      setSaving(false)
+      return
+    }
 
     // Re-approval is only required when a sensitive field (name or address)
     // changes. Phone + postcode can be updated freely.
@@ -134,21 +159,8 @@ export default function SellerProfile() {
       p_request_reapproval: willReapprove,
     })
     if (dbError) {
-      console.error('[SellerProfile] Save error:', { code: dbError.code, message: dbError.message, details: dbError.details, hint: dbError.hint, raw: JSON.stringify(dbError) })
+      console.error('[SellerProfile] Save error (basics RPC):', { code: dbError.code, message: dbError.message, details: dbError.details, hint: dbError.hint, raw: JSON.stringify(dbError) })
       setError(dbError.message); setSaving(false); return
-    }
-
-    // Email change → Supabase sends the verification link to the new address.
-    setEmailPending(null)
-    const trimmedEmail = email.trim().toLowerCase()
-    const trimmedOrig = origEmail.trim().toLowerCase()
-    if (trimmedEmail && trimmedEmail !== trimmedOrig) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-        setError('Please enter a valid email address'); setSaving(false); return
-      }
-      const { error: emailErr } = await supabase.auth.updateUser({ email: trimmedEmail })
-      if (emailErr) { setError(emailErr.message); setSaving(false); return }
-      setEmailPending(trimmedEmail)
     }
 
     if (willReapprove) {
@@ -156,7 +168,7 @@ export default function SellerProfile() {
       await supabase.from('listings').update({ status: 'pending' }).eq('seller_id', user.id).eq('status', 'active')
       setStatus('pending')
       setReapprovalNote(true)
-    } else if (!emailPending) {
+    } else {
       setSavedOk(true)
     }
     // Re-baseline so a second save of the same values doesn't re-trigger review.
