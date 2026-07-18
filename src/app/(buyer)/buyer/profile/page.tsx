@@ -52,6 +52,9 @@ export default function BuyerProfile() {
   // bug hunt. Remove once root cause is confirmed.
   const [diag, setDiag] = useState('')
   const [diagRunning, setDiagRunning] = useState(false)
+  // TEMPORARY — auto-diagnostic result banner. Populated on mount by the useEffect
+  // below so the user doesn't have to click anything or open DevTools.
+  const [autoDiag, setAutoDiag] = useState('Waiting for auto-diagnostic to run…')
   const [pwError, setPwError] = useState('')
   const router = useRouter()
 
@@ -60,6 +63,29 @@ export default function BuyerProfile() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUser(user)
+
+      // ── TEMPORARY DIAGNOSTIC ──────────────────────────────────────────────
+      // Auto-runs on every profile page load. Fires the security-definer RPC
+      // and the direct-table update side-by-side so we can see which one (or
+      // both) is producing "permission denied for table profiles". Delete
+      // this whole block once the bug is confirmed fixed.
+      try {
+        const diagResult = await supabase.rpc('update_my_avatar', { p_avatar_url: 'https://diagnostic-test.com/test.jpg' })
+        console.error('DIAGNOSTIC RPC TEST:', JSON.stringify(diagResult))
+        const diagUpdate = await supabase.from('profiles').update({ avatar_url: 'https://diagnostic-test.com/test.jpg' }).eq('id', user.id)
+        console.error('DIAGNOSTIC DIRECT UPDATE:', JSON.stringify(diagUpdate))
+        setAutoDiag(
+          `▸ RPC update_my_avatar\n` +
+          `  ${JSON.stringify(diagResult)}\n\n` +
+          `▸ DIRECT .from('profiles').update()\n` +
+          `  ${JSON.stringify(diagUpdate)}`
+        )
+      } catch (e) {
+        console.error('DIAGNOSTIC THREW:', e)
+        setAutoDiag(`THREW: ${e instanceof Error ? e.message : String(e)}`)
+      }
+      // ── END TEMPORARY DIAGNOSTIC ──────────────────────────────────────────
+
       const { data: profile } = await supabase.rpc('get_my_profile')
       const p = profile as Profile | null
       setFullName(p?.full_name || '')
@@ -242,6 +268,16 @@ export default function BuyerProfile() {
     </nav>
   )
 
+  // TEMPORARY — fixed-position auto-diagnostic banner. Sits above every other
+  // element (z-index 9999) and is rendered in both the loading and loaded
+  // returns so it can't be hidden or scrolled past. Remove when bug is fixed.
+  const diagBanner = (
+    <div style={{position:'fixed', bottom:0, left:0, right:0, zIndex:9999, background:'#B8001A', color:'#fff', padding:'10px 14px', borderTop:'4px solid #FFD400', boxShadow:'0 -4px 20px rgba(0,0,0,0.35)', maxHeight:'40vh', overflow:'auto', fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace'}}>
+      <div style={{fontWeight:800, fontSize:12, letterSpacing:'0.05em', textTransform:'uppercase', marginBottom:6, color:'#FFD400'}}>🧪 AUTO-DIAGNOSTIC (temporary)</div>
+      <pre style={{margin:0, fontSize:11.5, whiteSpace:'pre-wrap', wordBreak:'break-all', color:'#fff', lineHeight:1.4}}>{autoDiag}</pre>
+    </div>
+  )
+
   if (loading) return (
     <div style={{minHeight:'100vh', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
@@ -251,6 +287,7 @@ export default function BuyerProfile() {
         <div className="skel" style={{height:15, width:240, borderRadius:6, marginBottom:24}}/>
         <div className="skel" style={{height:420, borderRadius:22}}/>
       </div>
+      {diagBanner}
     </div>
   )
 
@@ -258,6 +295,7 @@ export default function BuyerProfile() {
     <div style={{minHeight:'100vh', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
+      {diagBanner}
 
       <div style={{maxWidth:600, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{marginBottom:22}}>
