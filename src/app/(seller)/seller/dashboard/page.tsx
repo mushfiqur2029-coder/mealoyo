@@ -31,7 +31,6 @@ const NAV = [
   { l:'My listings', h:'/seller/listings' },
   { l:'Orders', h:'/seller/orders' },
   { l:'Earnings', h:'/seller/earnings' },
-  { l:'Profile', h:'/seller/profile' },
 ]
 
 export default function SellerDashboard() {

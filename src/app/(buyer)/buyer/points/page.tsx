@@ -14,7 +14,6 @@ const NAV = [
   { l:'My orders', h:'/buyer/orders' },
   { l:'Points', h:'/buyer/points' },
   { l:'Saved', h:'/buyer/saved' },
-  { l:'Profile', h:'/buyer/profile' },
 ]
 
 export default function BuyerPoints() {

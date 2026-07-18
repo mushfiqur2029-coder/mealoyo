@@ -18,7 +18,6 @@ const NAV = [
   { l:'My listings', h:'/seller/listings' },
   { l:'Orders', h:'/seller/orders' },
   { l:'Earnings', h:'/seller/earnings' },
-  { l:'Profile', h:'/seller/profile' },
 ]
 
 const inputStyle: React.CSSProperties = { height:48, border:'1.5px solid var(--border-subtle)', borderRadius:11, padding:'0 14px', fontSize:14, color:'var(--text-primary)', background:'var(--bg-secondary)', width:'100%', transition:'border-color 0.14s' }

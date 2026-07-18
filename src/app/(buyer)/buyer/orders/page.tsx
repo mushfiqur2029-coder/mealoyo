@@ -19,7 +19,6 @@ const NAV = [
   { l:'My orders', h:'/buyer/orders' },
   { l:'Points', h:'/buyer/points' },
   { l:'Saved', h:'/buyer/saved' },
-  { l:'Profile', h:'/buyer/profile' },
 ]
 
 const FILTERS: { key: string; label: string; statuses: string[] | null }[] = [

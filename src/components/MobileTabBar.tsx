@@ -14,20 +14,17 @@ const AREAS: { match: string; tabs: Tab[] }[] = [
     { l: 'Browse', i: '🔍', h: '/browse' },
     { l: 'Orders', i: '📦', h: '/buyer/orders' },
     { l: 'Saved', i: '❤️', h: '/buyer/saved' },
-    { l: 'Profile', i: '👤', h: '/buyer/profile' },
   ] },
   { match: '/seller', tabs: [
     { l: 'Home', i: '🏠', h: '/seller/dashboard' },
     { l: 'Dishes', i: '🍽️', h: '/seller/listings' },
     { l: 'Orders', i: '📦', h: '/seller/orders' },
     { l: 'Earnings', i: '💷', h: '/seller/earnings' },
-    { l: 'Profile', i: '👤', h: '/seller/profile' },
   ] },
   { match: '/driver', tabs: [
     { l: 'Home', i: '🏠', h: '/driver/dashboard' },
     { l: 'Earnings', i: '💷', h: '/driver/earnings' },
     { l: 'History', i: '🕑', h: '/driver/history' },
-    { l: 'Profile', i: '👤', h: '/driver/profile' },
   ] },
 ]
 

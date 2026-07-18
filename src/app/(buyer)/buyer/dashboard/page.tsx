@@ -24,7 +24,6 @@ const NAV = [
   { l:'My orders', h:'/buyer/orders' },
   { l:'Points', h:'/buyer/points' },
   { l:'Saved', h:'/buyer/saved' },
-  { l:'Profile', h:'/buyer/profile' },
 ]
 
 type SavedRow = { id: string; listings: Pick<Listing, 'id' | 'name' | 'cuisine' | 'price' | 'image_url'> | null }

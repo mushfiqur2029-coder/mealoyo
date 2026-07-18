@@ -15,7 +15,6 @@ const NAV = [
   { l:'Dashboard', h:'/driver/dashboard' },
   { l:'My earnings', h:'/driver/earnings' },
   { l:'History', h:'/driver/history' },
-  { l:'Profile', h:'/driver/profile' },
 ]
 
 // Rows returned by get_available_delivery_jobs — kept flat by the RPC.
