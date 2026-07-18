@@ -48,13 +48,6 @@ export default function BuyerProfile() {
   const [confirmPw, setConfirmPw] = useState('')
   const [pwSaving, setPwSaving] = useState(false)
   const [pwOk, setPwOk] = useState(false)
-  // TEMPORARY — diagnostic panel for the "permission denied for table profiles"
-  // bug hunt. Remove once root cause is confirmed.
-  const [diag, setDiag] = useState('')
-  const [diagRunning, setDiagRunning] = useState(false)
-  // TEMPORARY — auto-diagnostic result banner. Populated on mount by the useEffect
-  // below so the user doesn't have to click anything or open DevTools.
-  const [autoDiag, setAutoDiag] = useState('Waiting for auto-diagnostic to run…')
   const [pwError, setPwError] = useState('')
   const router = useRouter()
 
@@ -63,29 +56,6 @@ export default function BuyerProfile() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUser(user)
-
-      // ── TEMPORARY DIAGNOSTIC ──────────────────────────────────────────────
-      // Auto-runs on every profile page load. Fires the security-definer RPC
-      // and the direct-table update side-by-side so we can see which one (or
-      // both) is producing "permission denied for table profiles". Delete
-      // this whole block once the bug is confirmed fixed.
-      try {
-        const diagResult = await supabase.rpc('update_my_avatar', { p_avatar_url: 'https://diagnostic-test.com/test.jpg' })
-        console.error('DIAGNOSTIC RPC TEST:', JSON.stringify(diagResult))
-        const diagUpdate = await supabase.from('profiles').update({ avatar_url: 'https://diagnostic-test.com/test.jpg' }).eq('id', user.id)
-        console.error('DIAGNOSTIC DIRECT UPDATE:', JSON.stringify(diagUpdate))
-        setAutoDiag(
-          `▸ RPC update_my_avatar\n` +
-          `  ${JSON.stringify(diagResult)}\n\n` +
-          `▸ DIRECT .from('profiles').update()\n` +
-          `  ${JSON.stringify(diagUpdate)}`
-        )
-      } catch (e) {
-        console.error('DIAGNOSTIC THREW:', e)
-        setAutoDiag(`THREW: ${e instanceof Error ? e.message : String(e)}`)
-      }
-      // ── END TEMPORARY DIAGNOSTIC ──────────────────────────────────────────
-
       const { data: profile } = await supabase.rpc('get_my_profile')
       const p = profile as Profile | null
       setFullName(p?.full_name || '')
@@ -161,67 +131,6 @@ export default function BuyerProfile() {
     setCurPw(''); setNewPw(''); setConfirmPw('')
   }
 
-  // TEMPORARY diagnostic — probes the exact failure mode of the profiles-write
-  // path. Logs session identity, then calls the two RPCs and dumps every field
-  // of the PostgrestError (code, message, details, hint) so we can tell whether
-  // the error is a real "permission denied", a missing function (PGRST202), or
-  // something else. Delete this block after the bug is fixed.
-  const runDiagnostic = async () => {
-    setDiagRunning(true); setDiag('Running…')
-    const lines: string[] = []
-    try {
-      const { data: sessData } = await supabase.auth.getSession()
-      const session = sessData?.session
-      const uid = session?.user?.id ?? '(none)'
-      const tokPrefix = session?.access_token?.substring(0, 20) ?? '(none)'
-      console.log('[DIAG] session.user.id =', uid, 'token[:20] =', tokPrefix)
-      lines.push(`session.user.id = ${uid}`)
-      lines.push(`token[:20]      = ${tokPrefix}`)
-
-      const avatar = await supabase.rpc('update_my_avatar', { p_avatar_url: 'https://test.com/test.jpg' })
-      console.log('[DIAG] update_my_avatar full result:', avatar)
-      lines.push('')
-      lines.push('▸ update_my_avatar')
-      lines.push(`  data  = ${JSON.stringify(avatar.data)}`)
-      if (avatar.error) {
-        lines.push(`  error.code    = ${avatar.error.code}`)
-        lines.push(`  error.message = ${avatar.error.message}`)
-        lines.push(`  error.details = ${avatar.error.details}`)
-        lines.push(`  error.hint    = ${avatar.error.hint}`)
-      } else {
-        lines.push(`  error = null`)
-      }
-
-      const basics = await supabase.rpc('update_my_profile_basics', {
-        p_full_name: fullName.trim() || 'Diag',
-        p_phone: phone.trim() || '+44 0000000000',
-        p_address_line1: address.address_line1.trim() || null,
-        p_address_line2: address.address_line2.trim() || null,
-        p_city: address.city.trim() || null,
-        p_postcode: address.postcode.trim().toUpperCase() || null,
-      })
-      console.log('[DIAG] update_my_profile_basics full result:', basics)
-      lines.push('')
-      lines.push('▸ update_my_profile_basics')
-      lines.push(`  data  = ${JSON.stringify(basics.data)}`)
-      if (basics.error) {
-        lines.push(`  error.code    = ${basics.error.code}`)
-        lines.push(`  error.message = ${basics.error.message}`)
-        lines.push(`  error.details = ${basics.error.details}`)
-        lines.push(`  error.hint    = ${basics.error.hint}`)
-      } else {
-        lines.push(`  error = null`)
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      console.error('[DIAG] threw:', e)
-      lines.push('')
-      lines.push(`THREW: ${msg}`)
-    }
-    setDiag(lines.join('\n'))
-    setDiagRunning(false)
-  }
-
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
   const initials = (fullName.trim() || email).split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'B'
@@ -268,16 +177,6 @@ export default function BuyerProfile() {
     </nav>
   )
 
-  // TEMPORARY — fixed-position auto-diagnostic banner. Sits above every other
-  // element (z-index 9999) and is rendered in both the loading and loaded
-  // returns so it can't be hidden or scrolled past. Remove when bug is fixed.
-  const diagBanner = (
-    <div style={{position:'fixed', bottom:0, left:0, right:0, zIndex:9999, background:'#B8001A', color:'#fff', padding:'10px 14px', borderTop:'4px solid #FFD400', boxShadow:'0 -4px 20px rgba(0,0,0,0.35)', maxHeight:'40vh', overflow:'auto', fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace'}}>
-      <div style={{fontWeight:800, fontSize:12, letterSpacing:'0.05em', textTransform:'uppercase', marginBottom:6, color:'#FFD400'}}>🧪 AUTO-DIAGNOSTIC (temporary)</div>
-      <pre style={{margin:0, fontSize:11.5, whiteSpace:'pre-wrap', wordBreak:'break-all', color:'#fff', lineHeight:1.4}}>{autoDiag}</pre>
-    </div>
-  )
-
   if (loading) return (
     <div style={{minHeight:'100vh', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
@@ -287,7 +186,6 @@ export default function BuyerProfile() {
         <div className="skel" style={{height:15, width:240, borderRadius:6, marginBottom:24}}/>
         <div className="skel" style={{height:420, borderRadius:22}}/>
       </div>
-      {diagBanner}
     </div>
   )
 
@@ -295,20 +193,11 @@ export default function BuyerProfile() {
     <div style={{minHeight:'100vh', background:'var(--bg-secondary)', fontFamily:'Inter,system-ui,sans-serif'}}>
       {pageStyles}
       {nav}
-      {diagBanner}
 
       <div style={{maxWidth:600, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{marginBottom:22}}>
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,30px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>My profile</h1>
           <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85}}>Manage your account details.</p>
-        </div>
-
-        {/* TEMPORARY — diagnostic panel. Remove once bug is fixed. */}
-        <div className="fade-up" style={{background:'#FFF4E0', border:'2px solid #B8730A', borderRadius:12, padding:'16px', marginBottom:18}}>
-          <h3 style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'#B8730A', marginBottom:6}}>🧪 Diagnostic (temporary)</h3>
-          <p style={{fontSize:12, color:'#5A3900', marginBottom:10}}>Runs update_my_avatar + update_my_profile_basics and dumps the raw PostgrestError fields. Also logged to the browser console.</p>
-          <button type="button" onClick={runDiagnostic} disabled={diagRunning} style={{background:'#B8730A', color:'#fff', border:'none', borderRadius:8, padding:'10px 16px', fontWeight:700, fontSize:13, cursor:diagRunning ? 'not-allowed' : 'pointer', marginBottom:12, opacity:diagRunning ? 0.7 : 1}}>{diagRunning ? 'Running…' : 'Run RPC test'}</button>
-          {diag && <pre style={{background:'#fff', padding:12, borderRadius:8, fontSize:11.5, whiteSpace:'pre-wrap', wordBreak:'break-all', color:'#1A1A1A', margin:0, fontFamily:'ui-monospace,SFMono-Regular,Menlo,monospace'}}>{diag}</pre>}
         </div>
 
         {/* Profile completion card */}
