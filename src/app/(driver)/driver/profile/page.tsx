@@ -223,7 +223,7 @@ export default function DriverProfile() {
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
           <NavAvatar url={avatarUrl} initial={initials[0]}/>
-          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.7)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>
     </nav>
@@ -247,7 +247,7 @@ export default function DriverProfile() {
       <div style={{maxWidth:600, margin:'0 auto', padding:'32px 20px 56px'}}>
         <div className="fade-up" style={{marginBottom:22}}>
           <h1 style={{fontFamily:'Georgia,serif', fontSize:'clamp(24px,3vw,30px)', fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:4}}>My profile</h1>
-          <p style={{fontSize:14, color:'rgba(255,255,255,0.55)'}}>Manage your driver account details.</p>
+          <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.75}}>Manage your driver account details.</p>
         </div>
 
         {/* Profile completion card */}
@@ -358,7 +358,7 @@ export default function DriverProfile() {
               </div>
             )}
           </div>
-          <button type="submit" disabled={saving} className="save-btn" style={{height:50, background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:saving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:saving ? 0.8 : 1, marginTop:4}}>{saving ? 'Saving…' : 'Save changes'}</button>
+          <button type="submit" disabled={saving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:saving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:saving ? 0.8 : 1, marginTop:4}}>{saving ? 'Saving…' : 'Save changes'}</button>
         </form>
 
         {/* Change password */}
@@ -381,7 +381,7 @@ export default function DriverProfile() {
             <label style={labelStyle}>Confirm new password</label>
             <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" style={inputStyle}/>
           </div>
-          <button type="submit" disabled={pwSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:pwSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:pwSaving ? 0.8 : 1, marginTop:4}}>{pwSaving ? 'Saving…' : 'Save password'}</button>
+          <button type="submit" disabled={pwSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:pwSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:pwSaving ? 0.8 : 1, marginTop:4}}>{pwSaving ? 'Saving…' : 'Save password'}</button>
         </form>
 
         {/* Bank details for withdrawals */}
@@ -410,7 +410,7 @@ export default function DriverProfile() {
             <span style={{fontSize:14, lineHeight:1.4}}>🔒</span>
             <p style={{fontSize:12, color:'var(--text-secondary)', lineHeight:1.5, margin:0}}>Your bank details are encrypted and only used for manual payouts.</p>
           </div>
-          <button type="submit" disabled={bankSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:bankSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:bankSaving ? 0.8 : 1, marginTop:4}}>{bankSaving ? 'Saving…' : 'Save bank details'}</button>
+          <button type="submit" disabled={bankSaving} className="save-btn" style={{height:50, background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:bankSaving ? 'not-allowed' : 'pointer', boxShadow:'0 6px 20px rgba(200,0,106,0.3)', transition:'background 0.14s', opacity:bankSaving ? 0.8 : 1, marginTop:4}}>{bankSaving ? 'Saving…' : 'Save bank details'}</button>
         </form>
 
         {/* Danger zone */}

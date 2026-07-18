@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NavAvatar from '@/components/NavAvatar'
 import type { Order, Profile } from '@/lib/types'
 
 const NAV = [
@@ -42,9 +43,9 @@ const dark = `
 
 type Range = 'all' | '7d' | '30d'
 const RANGES: { v: Range; l: string }[] = [
-  { v: 'all', l: 'All time' },
-  { v: '30d', l: 'Last 30 days' },
-  { v: '7d', l: 'Last 7 days' },
+  { v: 'all', l: 'All' },
+  { v: '7d', l: 'This week' },
+  { v: '30d', l: 'This month' },
 ]
 
 export default function DriverHistory() {
@@ -88,8 +89,8 @@ export default function DriverHistory() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
-          <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'var(--text-primary)'}}>{profile?.full_name?.[0]?.toUpperCase() || 'D'}</div>
-          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-secondary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+          <NavAvatar url={profile?.avatar_url} initial={profile?.full_name?.[0]?.toUpperCase() || 'D'} href="/driver/profile"/>
+          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>
     </nav>
@@ -114,7 +115,7 @@ export default function DriverHistory() {
         <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,rgba(200,0,106,0.25),rgba(200,0,106,0.08))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, margin:'0 auto 18px'}}>⏳</div>
         <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Awaiting approval</h2>
         <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.7, marginBottom:24}}>Your driver account is under review. We&apos;ll notify you within <strong style={{color:'#C8006A'}}>24–48 hours</strong>.</p>
-        <button onClick={signOut} className="prim" style={{height:46, padding:'0 26px', background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Sign out</button>
+        <button onClick={signOut} className="prim" style={{height:46, padding:'0 26px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Sign out</button>
       </div>
     </div>
   )
@@ -133,10 +134,11 @@ export default function DriverHistory() {
   const totalEarned = delivered.reduce((s, o) => s + driverFee(o), 0)
   const cancelledCount = filtered.filter(o => o.status === 'cancelled').length
 
+  const avgPerDrop = delivered.length > 0 ? totalEarned / delivered.length : 0
   const stats = [
-    { value:String(delivered.length), label:'Completed', color:'var(--text-primary)' },
+    { value:String(delivered.length), label:'Total drops', color:'var(--text-primary)' },
     { value:`£${totalEarned.toFixed(2)}`, label:'Total earned', color:'#34D399' },
-    { value:String(cancelledCount), label:'Cancelled', color:'#FF8A8A' },
+    { value:`£${avgPerDrop.toFixed(2)}`, label:'Avg per drop', color:'var(--text-primary)' },
   ]
 
   // Group into a timeline by calendar day (already sorted newest-first).

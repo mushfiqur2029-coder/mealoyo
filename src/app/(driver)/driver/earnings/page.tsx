@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import NavAvatar from '@/components/NavAvatar'
 import WeeklyBarChart from '@/components/WeeklyBarChart'
 import type { Order, Profile, WithdrawalRequest } from '@/lib/types'
 
@@ -108,8 +109,8 @@ export default function DriverEarnings() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
-          <div style={{width:34, height:34, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'var(--text-primary)'}}>{profile?.full_name?.[0]?.toUpperCase() || 'D'}</div>
-          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-secondary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
+          <NavAvatar url={profile?.avatar_url} initial={profile?.full_name?.[0]?.toUpperCase() || 'D'} href="/driver/profile"/>
+          <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1.5px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
         </div>
       </div>
     </nav>
@@ -134,7 +135,7 @@ export default function DriverEarnings() {
         <div style={{width:84, height:84, borderRadius:'50%', background:'linear-gradient(135deg,rgba(200,0,106,0.25),rgba(200,0,106,0.08))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:40, margin:'0 auto 18px'}}>⏳</div>
         <h2 style={{fontFamily:'Georgia,serif', fontSize:24, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Awaiting approval</h2>
         <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.7, marginBottom:24}}>Your driver account is under review. We&apos;ll notify you within <strong style={{color:'#C8006A'}}>24–48 hours</strong>.</p>
-        <button onClick={signOut} className="prim" style={{height:46, padding:'0 26px', background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Sign out</button>
+        <button onClick={signOut} className="prim" style={{height:46, padding:'0 26px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', transition:'background 0.14s'}}>Sign out</button>
       </div>
     </div>
   )
@@ -294,7 +295,7 @@ export default function DriverEarnings() {
                 <div style={{width:64, height:64, borderRadius:'50%', background:'rgba(45,168,78,0.18)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, margin:'0 auto 18px'}}>✅</div>
                 <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Withdrawal request submitted</h2>
                 <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:24}}>Admin will review and process within 2–3 business days. You&apos;ll see the status update here once it&apos;s paid.</p>
-                <button onClick={closeModal} className="prim" style={{height:46, padding:'0 32px', background:'#C8006A', color:'var(--text-primary)', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer'}}>Done</button>
+                <button onClick={closeModal} className="prim" style={{height:46, padding:'0 32px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer'}}>Done</button>
               </div>
             ) : (
               <div style={{padding:'26px 28px 28px'}}>

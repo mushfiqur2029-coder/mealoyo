@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
+import AdminUserModal from '@/components/AdminUserModal'
 import type { Profile } from '@/lib/types'
 
 // Pending sellers, drivers and listings are all rendered through the same row
@@ -73,6 +74,7 @@ export default function AdminDashboard() {
   const [listings, setListings] = useState<PendingItem[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [recentOrders, setRecentOrders] = useState<AdminOrderRow[]>([])
+  const [profileTarget, setProfileTarget] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -278,7 +280,10 @@ export default function AdminDashboard() {
                   <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', marginBottom:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.full_name || item.name || 'Unknown'}</div>
                   <div style={{fontSize:12, color:'var(--text-secondary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{item.email || item.cuisine || ''} · applied {timeAgo(item.created_at)}</div>
                 </div>
-                <div style={{display:'flex', gap:8, flexShrink:0}}>
+                <div style={{display:'flex', gap:8, flexShrink:0, flexWrap:'wrap'}}>
+                  {section.type === 'profile' && (
+                    <button onClick={() => setProfileTarget(item as Profile)} style={{height:34, padding:'0 14px', background:'transparent', color:'var(--text-primary)', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View</button>
+                  )}
                   <button className="approve" onClick={() => approve(item.id, section.type)} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s'}}>Approve</button>
                   <button className="reject" onClick={() => reject(item.id, section.type)} style={{height:34, padding:'0 14px', background:'rgba(192,57,43,0.85)', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s'}}>Reject</button>
                 </div>
@@ -310,6 +315,14 @@ export default function AdminDashboard() {
           })}
         </div>
       </div>
+
+      <AdminUserModal
+        isOpen={!!profileTarget}
+        user={profileTarget}
+        onApprove={profileTarget ? () => { const id = profileTarget.id; approve(id, 'profile'); setProfileTarget(null) } : undefined}
+        onSuspend={profileTarget ? () => { const id = profileTarget.id; reject(id, 'profile'); setProfileTarget(null) } : undefined}
+        onClose={() => setProfileTarget(null)}
+      />
     </div>
   )
 }

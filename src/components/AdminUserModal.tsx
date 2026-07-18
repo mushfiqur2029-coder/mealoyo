@@ -215,7 +215,7 @@ export default function AdminUserModal({ isOpen, user, stats, onApprove, onSuspe
                   style={{ flex: '1 1 120px', minHeight: 44, padding: '0 16px', background: '#2DA84E', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: isBusy ? 'wait' : 'pointer', opacity: isBusy ? 0.7 : 1 }}
                 >Approve</button>
               )}
-              {onSuspend && user.status === 'active' && (
+              {onSuspend && user.status !== 'suspended' && (
                 <button
                   className="aum-btn"
                   onClick={onSuspend}
