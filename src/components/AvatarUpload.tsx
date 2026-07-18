@@ -81,29 +81,33 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
     setUploading(true)
     setProgress(5)
     setSizeLabel(`${humanSize(file.size)} → …`)
+    // Track which step is executing so the catch block can tell the user WHICH
+    // phase blew up, and console logs make the source obvious.
+    let step: 'getUser' | 'compress' | 'storage' | 'publicUrl' | 'rpc' = 'getUser'
     try {
-      // Re-derive user.id from the live session rather than trusting the
-      // userId prop — the prop was captured at mount and may drift if the
-      // JWT rotates. The storage RLS policy scopes uploads to the caller's
-      // own {auth.uid()}/ folder, so if the prop is stale the upload would
-      // fail with a misleading storage error.
-      const { data: userData } = await supabase.auth.getUser()
+      console.log('[AvatarUpload] step 1: getUser')
+      const { data: userData, error: getUserErr } = await supabase.auth.getUser()
+      if (getUserErr) {
+        console.error('[AvatarUpload] getUser error:', { name: getUserErr.name, message: getUserErr.message, raw: JSON.stringify(getUserErr, Object.getOwnPropertyNames(getUserErr)) })
+        throw new Error(`[getUser] ${getUserErr.message}`)
+      }
       const user = userData?.user ?? null
       if (!user) {
         setError('Please sign in again — your session has expired.')
         setUploading(false); setProgress(0); return
       }
       const authUid = user.id
+      console.log('[AvatarUpload] step 1 OK — authUid=', authUid)
 
-      // Phase 1: client-side compression. compressToTarget iteratively steps
-      // quality down (then dimensions if needed) until it fits under 80KB.
+      step = 'compress'
+      console.log('[AvatarUpload] step 2: compressToTarget')
       const blob = await compressToTarget(file, OUTPUT_MAX_BYTES, OUTPUT_MAX_DIM)
       setProgress(40)
       setSizeLabel(`${humanSize(file.size)} → ${humanSize(blob.size)}`)
+      console.log('[AvatarUpload] step 2 OK — size=', blob.size)
 
-      // Phase 2: storage upload. supabase-js doesn't emit browser upload
-      // progress so we tick 40 → 92 linearly — feels responsive without
-      // lying about state.
+      step = 'storage'
+      console.log('[AvatarUpload] step 3: storage upload')
       const tickId = window.setInterval(() => {
         setProgress((p) => (p < 92 ? Math.min(92, p + 3) : p))
       }, 120)
@@ -113,38 +117,41 @@ export default function AvatarUpload({ userId, initialUrl, initials, size = 96, 
         .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
       window.clearInterval(tickId)
       if (upErr) {
-        console.error('[AvatarUpload] Storage upload error:', { name: upErr.name, message: upErr.message, raw: JSON.stringify(upErr) })
-        throw upErr
+        console.error('[AvatarUpload] Storage upload error:', { name: upErr.name, message: upErr.message, raw: JSON.stringify(upErr, Object.getOwnPropertyNames(upErr)) })
+        throw new Error(`[storage] ${upErr.message}`)
       }
+      console.log('[AvatarUpload] step 3 OK')
 
-      // Phase 3: publish + write URL back via a security-definer RPC.
-      // Same pattern as get_my_profile / get_my_profile_full — the RPC's
-      // WHERE clause is hard-coded to auth.uid() so the caller can only
-      // ever mutate their own row. Bypasses RLS + column grants on
-      // public.profiles, so the recurring "permission denied for table
-      // profiles" bug can't touch this path.
+      step = 'publicUrl'
       setProgress(96)
       const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path)
-      // Cache-bust for the browser's <img> but strip it before persisting so
-      // the URL doesn't grow every save.
       const persistedUrl = pub.publicUrl
       const displayUrl = `${pub.publicUrl}?v=${Date.now()}`
+      console.log('[AvatarUpload] step 4 OK — persistedUrl=', persistedUrl)
 
+      step = 'rpc'
+      console.log('[AvatarUpload] step 5: update_my_avatar RPC')
       const { error: rpcErr } = await supabase.rpc('update_my_avatar', { p_avatar_url: persistedUrl })
       if (rpcErr) {
-        console.error('[AvatarUpload] Avatar error:', { code: rpcErr.code, message: rpcErr.message, details: rpcErr.details, hint: rpcErr.hint, raw: JSON.stringify(rpcErr) })
-        throw new Error(rpcErr.message || 'Could not save avatar')
+        console.error('[AvatarUpload] RPC error:', { code: rpcErr.code, message: rpcErr.message, details: rpcErr.details, hint: rpcErr.hint, raw: JSON.stringify(rpcErr) })
+        throw new Error(`[rpc] ${rpcErr.message || 'Could not save avatar'}`)
       }
+      console.log('[AvatarUpload] step 5 OK — upload complete')
 
       setProgress(100)
       setUrl(displayUrl)
       onUploaded?.(displayUrl)
-      // Success checkmark bloom — clears after ~1.6s so the next click still
-      // shows a clean UI.
       setShowSuccess(true)
       setTimeout(() => setShowSuccess(false), 1600)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed. Please try again.')
+      // Log the raw error object even for non-Error throws, so we can see
+      // anything weird the SDK might have surfaced.
+      console.error(`[AvatarUpload] CAUGHT at step "${step}":`, err, 'JSON:', JSON.stringify(err, err instanceof Error ? Object.getOwnPropertyNames(err) : undefined))
+      const message = err instanceof Error ? err.message : 'Upload failed. Please try again.'
+      // Prefix with the step so the user's on-screen error names the exact
+      // phase that blew up. Once we know what step is failing we can strip
+      // this back out.
+      setError(message.startsWith('[') ? message : `[${step}] ${message}`)
     } finally {
       setTimeout(() => { setUploading(false); setProgress(0) }, 350)
     }
