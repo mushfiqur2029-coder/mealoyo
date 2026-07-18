@@ -50,10 +50,18 @@ input, select, textarea { font-family: Inter, system-ui, sans-serif; }
    keeps images/videos inside their containers on small screens. */
 html, body { max-width: 100%; overflow-x: hidden; }
 img, video { max-width: 100%; }
-/* iOS zooms the page when focusing an input whose font is < 16px. Bump the
-   effective size on touch widths only — desktop styling is untouched. */
-@media (max-width: 768px) {
-  input, select, textarea { font-size: 16px; }
+/* iOS zooms the page when focusing an input whose font is < 16px. Enforcing
+   16px globally (not just on touch widths) covers desktops-in-devtools-mobile,
+   Safari on iPadOS, and any embedded webview that inherits desktop widths. */
+input, select, textarea { font-size: 16px !important; }
+
+/* Global haptic-style press feedback — every button feels alive on tap.
+   Scoped to :active so it doesn't fire on hover and only lasts long enough
+   to register on a fingertip. */
+button:active:not(:disabled),
+[role="button"]:active:not(:disabled) {
+  transform: scale(0.97);
+  transition: transform 0.1s;
 }
 
 /* ── Mobile dashboard grid stacking ────────────────────────────────

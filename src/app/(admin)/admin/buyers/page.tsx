@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import AdminDeleteModal from '@/components/AdminDeleteModal'
 import AdminSuspendModal from '@/components/AdminSuspendModal'
+import AdminUserModal from '@/components/AdminUserModal'
 import type { Profile } from '@/lib/types'
 
 // admin_get_all_orders returns flattened rows (FK ids + joined names). We use it
@@ -69,6 +70,7 @@ export default function AdminBuyers() {
   const [buyers, setBuyers] = useState<Profile[]>([])
   const [orders, setOrders] = useState<BuyerOrder[]>([])
   const [viewBuyer, setViewBuyer] = useState<Profile | null>(null)
+  const [profileTarget, setProfileTarget] = useState<Profile | null>(null)
   const [search, setSearch] = useState('')
   const [tab, setTab] = useState('all')
   const [loading, setLoading] = useState(true)
@@ -260,6 +262,7 @@ export default function AdminBuyers() {
                 </div>
               </div>
               <div className="action-row" style={{display:'flex', gap:8, flexShrink:0, flexWrap:'wrap'}}>
+                <button className="view-btn action-btn" onClick={() => setProfileTarget(b)} style={{height:34, padding:'0 14px', background:'transparent', color:'var(--text-primary)', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>Profile</button>
                 <button className="view-btn action-btn" onClick={() => setViewBuyer(b)} style={{height:34, padding:'0 14px', background:'transparent', color:'#2563EB', border:'1px solid rgba(37,99,235,0.5)', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'all 0.12s'}}>View orders</button>
                 {b.status !== 'active' && (
                   <button className="approve" disabled={busyId === b.id} onClick={() => setStatus(b.id, 'active')} style={{height:34, padding:'0 16px', background:'#2DA84E', color:'#fff', border:'none', borderRadius:8, fontSize:12.5, fontWeight:700, cursor:'pointer', transition:'background 0.12s', opacity:busyId === b.id ? 0.6 : 1}}>Reactivate</button>
@@ -321,6 +324,20 @@ export default function AdminBuyers() {
         onConfirm={confirmDelete}
         onCancel={() => { if (!deleting) setDeleteTarget(null) }}
         isDeleting={deleting}
+      />
+
+      <AdminUserModal
+        isOpen={!!profileTarget}
+        user={profileTarget}
+        stats={profileTarget ? [
+          { label: 'Orders', value: orderCounts[profileTarget.id] || 0 },
+          { label: 'Spent', value: `£${(spentTotals[profileTarget.id] || 0).toFixed(2)}` },
+        ] : undefined}
+        onApprove={profileTarget && profileTarget.status !== 'active' ? () => { const id = profileTarget.id; setStatus(id, 'active'); setProfileTarget(null) } : undefined}
+        onSuspend={profileTarget && profileTarget.status === 'active' ? () => { const t = profileTarget; setProfileTarget(null); setSuspendTarget(t) } : undefined}
+        onDelete={profileTarget ? () => { const t = profileTarget; setProfileTarget(null); setDeleteTarget(t) } : undefined}
+        onClose={() => setProfileTarget(null)}
+        isBusy={busyId === profileTarget?.id}
       />
     </div>
   )
