@@ -30,9 +30,9 @@ const css = `
 `
 
 const wBadge: Record<string, { bg: string; c: string; l: string }> = {
-  pending: { bg:'#FFF4E0', c:'#B8730A', l:'Pending' },
-  approved: { bg:'#E5F0FF', c:'#1E5FBF', l:'Approved' },
-  paid: { bg:'#E4F6EA', c:'#1A6030', l:'Paid' },
+  pending:  { bg:'#FFF4E0', c:'#B8730A', l:'Awaiting review' },
+  approved: { bg:'#E5F0FF', c:'#1E5FBF', l:'Approved · processing' },
+  paid:     { bg:'#E4F6EA', c:'#1A6030', l:'Paid ✓' },
   rejected: { bg:'#FDE8E8', c:'#C0392B', l:'Rejected' },
 }
 
@@ -141,8 +141,15 @@ export default function SellerEarnings() {
   const totalCommission = orders.reduce((sum, o) => sum + parseFloat(o.platform_commission || '0'), 0)
   // Money already tied up in a pending/approved/paid withdrawal isn't available again.
   const activeWithdrawn = withdrawals.filter(w => w.status !== 'rejected').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
+  // Split the "tied up" amount into buckets so the summary can distinguish
+  // "already left our platform" (paid) from "still queued" (pending / approved).
+  const totalPaid    = withdrawals.filter(w => w.status === 'paid').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
+  const totalPending = withdrawals.filter(w => w.status === 'pending' || w.status === 'approved').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
   const available = Math.max(0, totalEarned - activeWithdrawn)
-  const canWithdraw = available >= 0.01 && bankSaved && !requesting
+  // Consumer-app-standard £5 floor on manual withdrawals so admin isn't
+  // reviewing sub-pound requests.
+  const MIN_WITHDRAWAL = 5
+  const canWithdraw = available >= MIN_WITHDRAWAL && bankSaved && !requesting
 
   const now = new Date()
   const thisMonthOrders = orders.filter(o => {
@@ -207,9 +214,35 @@ export default function SellerEarnings() {
           <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, boxShadow:'0 2px 10px rgba(200,0,106,0.06)', border:'1.5px solid rgba(200,0,106,0.07)', padding:'22px'}}>
             <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6}}>Available to withdraw</div>
             <div style={{fontFamily:'Georgia,serif', fontSize:32, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em', marginBottom:14}}>£{available.toFixed(2)}</div>
+
+            {/* Cash-flow summary — pins the four numbers together so it's
+                obvious that Available = Earned − (Paid + Pending). Kept in
+                a compact 2-row grid so it fits the sidebar. */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 14 }}>
+              <div style={{ background: 'var(--bg-secondary)', padding: '8px 10px', borderRadius: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(26,26,26,0.55)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total earned</div>
+                <div style={{ fontFamily: 'Georgia,serif', fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)', marginTop: 2 }}>£{totalEarned.toFixed(2)}</div>
+              </div>
+              <div style={{ background: 'var(--bg-secondary)', padding: '8px 10px', borderRadius: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(26,26,26,0.55)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total withdrawn</div>
+                <div style={{ fontFamily: 'Georgia,serif', fontSize: 14.5, fontWeight: 700, color: '#1A6030', marginTop: 2 }}>£{totalPaid.toFixed(2)}</div>
+              </div>
+              <div style={{ background: 'var(--bg-secondary)', padding: '8px 10px', borderRadius: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(26,26,26,0.55)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Available</div>
+                <div style={{ fontFamily: 'Georgia,serif', fontSize: 14.5, fontWeight: 700, color: '#C8006A', marginTop: 2 }}>£{available.toFixed(2)}</div>
+              </div>
+              <div style={{ background: 'var(--bg-secondary)', padding: '8px 10px', borderRadius: 8 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(26,26,26,0.55)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending</div>
+                <div style={{ fontFamily: 'Georgia,serif', fontSize: 14.5, fontWeight: 700, color: '#B8730A', marginTop: 2 }}>£{totalPending.toFixed(2)}</div>
+              </div>
+            </div>
+
             {wError && <div style={{background:'#FFE8F4', border:'1px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'10px 12px', marginBottom:12, fontSize:12.5, color:'#C8006A', fontWeight:600}}>{wError}</div>}
-            <button onClick={openModal} disabled={!canWithdraw} style={{width:'100%', height:46, background:canWithdraw ? '#C8006A' : '#E7D6E0', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:canWithdraw ? 'pointer' : 'not-allowed', marginBottom:10}}>Withdraw funds</button>
+            {available > 0 && (
+              <button onClick={openModal} disabled={!canWithdraw} style={{width:'100%', height:46, background:canWithdraw ? '#C8006A' : '#E7D6E0', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:canWithdraw ? 'pointer' : 'not-allowed', marginBottom:10}}>Request withdrawal</button>
+            )}
             {!bankSaved && <p style={{fontSize:12, color:'rgba(26,26,26,0.6)', lineHeight:1.5, marginBottom:14}}>Add your bank details in <Link href="/seller/profile" style={{color:'#C8006A', fontWeight:600}}>your profile</Link> to request a withdrawal.</p>}
+            {bankSaved && available > 0 && available < MIN_WITHDRAWAL && <p style={{fontSize:12, color:'#B8730A', fontWeight:600, marginBottom:14, lineHeight:1.5}}>Minimum withdrawal is £{MIN_WITHDRAWAL.toFixed(2)} (you have £{available.toFixed(2)} available).</p>}
             {bankSaved && available < 0.01 && <p style={{fontSize:12, color:'rgba(26,26,26,0.5)', marginBottom:14}}>No funds available to withdraw right now.</p>}
 
             <div style={{borderTop:'1px solid var(--bg-secondary)', paddingTop:16}}>
@@ -227,11 +260,15 @@ export default function SellerEarnings() {
                       </div>
                       <span style={{background:badge.bg, color:badge.c, fontSize:10.5, fontWeight:800, padding:'3px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.03em', flexShrink:0}}>{badge.l}</span>
                     </div>
-                    {w.status === 'rejected' && (w.rejection_reason || w.admin_note) && <div style={{fontSize:11, color:'#C0392B', marginTop:4}}>Reason: {w.rejection_reason || w.admin_note}</div>}
+                    {w.status === 'rejected' && (w.rejection_reason || w.admin_note) && <div style={{fontSize:11, color:'#C0392B', marginTop:4, lineHeight:1.5}}><strong>Reason:</strong> {w.rejection_reason || w.admin_note}</div>}
                     {w.status === 'paid' && (
-                      <div style={{marginTop:6, background:'#E4F6EA', border:'1px solid rgba(26,96,48,0.2)', borderRadius:8, padding:'8px 10px'}}>
-                        <div style={{fontSize:11.5, color:'#1A6030', fontWeight:700}}>✅ Payment confirmed — check your bank account</div>
-                        {w.receipt_url && <a href={w.receipt_url} target="_blank" rel="noopener noreferrer" style={{fontSize:11.5, color:'#1A6030', fontWeight:600, textDecoration:'underline', display:'inline-block', marginTop:3}}>Download receipt →</a>}
+                      <div style={{marginTop:6, background:'#E4F6EA', border:'1px solid rgba(26,96,48,0.25)', borderRadius:8, padding:'10px 12px'}}>
+                        <div style={{fontSize:11.5, color:'#1A6030', fontWeight:700}}>✅ Paid on {w.paid_at ? new Date(w.paid_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : new Date(w.requested_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}</div>
+                        {w.receipt_url && (
+                          <a href={w.receipt_url} target="_blank" rel="noopener noreferrer" style={{display:'inline-flex', alignItems:'center', gap:5, marginTop:6, height:32, padding:'0 12px', background:'#1A6030', color:'#fff', borderRadius:8, fontSize:11.5, fontWeight:700, textDecoration:'none'}}>
+                            ↓ Download receipt
+                          </a>
+                        )}
                       </div>
                     )}
                   </div>
