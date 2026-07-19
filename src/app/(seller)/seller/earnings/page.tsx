@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import WithdrawalRequestModal from '@/components/WithdrawalRequestModal'
 import type { Order, Profile, WithdrawalRequest } from '@/lib/types'
 
 const NAV = [
@@ -49,8 +50,21 @@ export default function SellerEarnings() {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  const loadWithdrawals = async () => {
-    const { data } = await supabase.rpc('get_my_withdrawals')
+  // Direct-table read now that RLS is in place — bypasses the old
+  // get_my_withdrawals RPC that wasn't returning the receipt_url/paid_at
+  // columns needed for the "Paid" UI. eq(user_id, uid) is enforced twice:
+  // once here for clarity, and once by the "users view own withdrawals"
+  // policy on the table.
+  const loadWithdrawals = async (uid: string) => {
+    const { data, error } = await supabase
+      .from('withdrawal_requests')
+      .select('*')
+      .eq('user_id', uid)
+      .order('requested_at', { ascending: false })
+    if (error) {
+      console.error('[SellerEarnings] loadWithdrawals error:', { code: error.code, message: error.message, details: error.details, hint: error.hint, raw: JSON.stringify(error) })
+      return
+    }
     setWithdrawals((data as WithdrawalRequest[]) || [])
   }
 
@@ -73,23 +87,34 @@ export default function SellerEarnings() {
         .eq('status', 'delivered')
         .order('created_at', { ascending: false })
       setOrders(data || [])
-      await loadWithdrawals()
+      await loadWithdrawals(user.id)
       setLoading(false)
     }
     getData()
   }, [router])
 
-  const handleRequestWithdrawal = async (amount: number) => {
+  const submitWithdrawal = async (amount: number): Promise<{ ok: boolean; error?: string }> => {
     setWError(''); setRequesting(true)
     const { error } = await supabase.rpc('request_withdrawal', { p_amount: amount })
-    if (error) { setWError(error.message.replace(/^.*?:\s*/, '')); setRequesting(false); return }
-    await loadWithdrawals()
     setRequesting(false)
-    setSubmitted(true)
+    if (error) {
+      console.error('[SellerEarnings] request_withdrawal error:', { code: error.code, message: error.message, details: error.details, hint: error.hint })
+      return { ok: false, error: error.message.replace(/^.*?:\s*/, '') }
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) await loadWithdrawals(user.id)
+    return { ok: true }
   }
 
   const openModal = () => { setWError(''); setSubmitted(false); setModalOpen(true) }
-  const closeModal = () => { setModalOpen(false); setSubmitted(false); setWError('') }
+  const closeModal = () => { setModalOpen(false); setWError('') }
+  // Auto-dismiss the "submitted" toast a few seconds after the modal closes.
+  useEffect(() => {
+    if (submitted && !modalOpen) {
+      const t = setTimeout(() => setSubmitted(false), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [submitted, modalOpen])
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
@@ -279,56 +304,20 @@ export default function SellerEarnings() {
         </div>
       </div>
 
-      {modalOpen && (
-        <div onClick={closeModal} style={{position:'fixed', inset:0, background:'rgba(26,26,26,0.5)', backdropFilter:'blur(3px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-          <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, width:'100%', maxWidth:440, maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
-            {submitted ? (
-              <div style={{padding:'40px 32px', textAlign:'center'}}>
-                <div style={{width:64, height:64, borderRadius:'50%', background:'#E4F6EA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, margin:'0 auto 18px'}}>✅</div>
-                <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Withdrawal request submitted</h2>
-                <p style={{fontSize:14, color:'rgba(26,26,26,0.65)', lineHeight:1.6, marginBottom:24}}>Admin will review and process within 2–3 business days. You&apos;ll see the status update here once it&apos;s paid.</p>
-                <button onClick={closeModal} style={{height:46, padding:'0 32px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer'}}>Done</button>
-              </div>
-            ) : (
-              <div style={{padding:'26px 28px 28px'}}>
-                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:18}}>
-                  <h2 style={{fontFamily:'Georgia,serif', fontSize:21, fontWeight:700, color:'var(--text-primary)'}}>Withdraw funds</h2>
-                  <button onClick={closeModal} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid #E7D6E0', background:'var(--bg-card)', fontSize:16, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
-                </div>
+      <WithdrawalRequestModal
+        isOpen={modalOpen}
+        available={available}
+        bank={bank}
+        bankSaved={bankSaved}
+        profileHref="/seller/profile"
+        onSubmit={submitWithdrawal}
+        onClose={closeModal}
+        onSuccess={() => setSubmitted(true)}
+      />
 
-                <div style={{background:'#FBF3F8', borderRadius:14, padding:'16px 18px', marginBottom:18}}>
-                  <div style={{fontSize:11, fontWeight:700, color:'#C8006A', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4}}>Amount to withdraw</div>
-                  <div style={{fontFamily:'Georgia,serif', fontSize:30, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em'}}>£{available.toFixed(2)}</div>
-                </div>
-
-                {!bankSaved ? (
-                  <div style={{background:'#FFF4E0', border:'1px solid rgba(184,115,10,0.3)', borderRadius:12, padding:'14px 16px', marginBottom:18}}>
-                    <p style={{fontSize:13, color:'#8A5600', fontWeight:600, lineHeight:1.5, marginBottom:8}}>Please add your bank details in Profile first.</p>
-                    <Link href="/seller/profile" style={{fontSize:13, color:'#C8006A', fontWeight:700, textDecoration:'underline'}}>Go to Profile settings →</Link>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:10}}>Payment goes to</div>
-                    {[
-                      { l:'Account holder name', v:bank.name },
-                      { l:'Sort code', v:bank.sort },
-                      { l:'Account number', v:bank.acct },
-                    ].map(f => (
-                      <div key={f.l} style={{marginBottom:12}}>
-                        <label style={{display:'block', fontSize:11, fontWeight:600, color:'rgba(26,26,26,0.55)', marginBottom:5}}>{f.l}</label>
-                        <input value={f.v || ''} readOnly style={{width:'100%', height:42, border:'1px solid #EADCE5', borderRadius:10, padding:'0 14px', fontSize:14, fontWeight:600, color:'var(--text-primary)', background:'var(--bg-page)', cursor:'not-allowed'}}/>
-                      </div>
-                    ))}
-                    <p style={{fontSize:11.5, color:'rgba(26,26,26,0.55)', lineHeight:1.55, marginTop:6, marginBottom:18}}>Payments are only made to the account registered under your name. For security, bank details can only be changed in your <Link href="/seller/profile" style={{color:'#C8006A', fontWeight:600}}>Profile settings</Link>.</p>
-                  </>
-                )}
-
-                {wError && <div style={{background:'#FFE8F4', border:'1px solid rgba(200,0,106,0.25)', borderRadius:10, padding:'10px 12px', marginBottom:14, fontSize:12.5, color:'#C8006A', fontWeight:600}}>{wError}</div>}
-
-                <button onClick={() => handleRequestWithdrawal(available)} disabled={!bankSaved || requesting || available < 0.01} style={{width:'100%', height:48, background:(!bankSaved || requesting || available < 0.01) ? '#E7D6E0' : '#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:15, fontWeight:700, cursor:(!bankSaved || requesting || available < 0.01) ? 'not-allowed' : 'pointer'}}>{requesting ? 'Submitting…' : 'Request withdrawal'}</button>
-              </div>
-            )}
-          </div>
+      {submitted && !modalOpen && (
+        <div role="status" style={{position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', zIndex:9998, background:'#E4F6EA', border:'1.5px solid #1A6030', color:'#1A6030', borderRadius:100, padding:'12px 22px', fontSize:13.5, fontWeight:700, boxShadow:'0 10px 30px rgba(26,96,48,0.3)'}}>
+          ✅ Withdrawal request submitted
         </div>
       )}
     </div>

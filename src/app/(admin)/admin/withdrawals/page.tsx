@@ -172,12 +172,24 @@ export default function AdminWithdrawals() {
               <span style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)'}}>£{parseFloat(w.amount || '0').toFixed(2)}</span>
               <span style={{background:badge.bg, color:badge.c, fontSize:10.5, fontWeight:800, padding:'3px 9px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.03em'}}>{badge.l}</span>
             </div>
-            <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:2}}>
+            <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:2, flexWrap:'wrap'}}>
               <span style={{fontSize:13, fontWeight:600, color:'var(--text-primary)'}}>{w.profiles?.full_name || w.profiles?.email || 'Unknown user'}</span>
-              <span style={{background:'var(--border-subtle)', color:'var(--text-secondary)', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em'}}>{roleLabel(w.profiles?.role)}</span>
+              <span style={{background:'var(--border-subtle)', color:'var(--text-primary)', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:100, textTransform:'uppercase', letterSpacing:'0.04em'}}>{roleLabel(w.profiles?.role)}</span>
             </div>
-            <div style={{fontSize:12.5, color:'var(--text-secondary)', lineHeight:1.6}}>
-              {w.bank_account_name || '—'} · Sort {w.bank_sort_code || '—'} · Acct {w.bank_account_number || '—'}
+            {(w.profiles?.email || (w.profiles as { phone?: string | null } | null | undefined)?.phone) && (
+              <div style={{fontSize:11.5, color:'var(--text-secondary)', marginBottom:4, lineHeight:1.5}}>
+                {w.profiles?.email && <span>{w.profiles.email}</span>}
+                {(w.profiles as { phone?: string | null } | null | undefined)?.phone && (
+                  <>
+                    {w.profiles?.email && <span> · </span>}
+                    <span>{(w.profiles as { phone?: string | null }).phone}</span>
+                  </>
+                )}
+              </div>
+            )}
+            <div style={{fontSize:12.5, color:'var(--text-primary)', lineHeight:1.6}}>
+              <strong style={{fontWeight:700}}>{w.bank_account_name || '—'}</strong>
+              <span style={{color:'var(--text-secondary)'}}> · Sort {w.bank_sort_code || '—'} · Acct {w.bank_account_number || '—'}</span>
             </div>
             <div style={{fontSize:11.5, color:'var(--text-secondary)', marginTop:4}}>
               Requested {new Date(w.requested_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })}
