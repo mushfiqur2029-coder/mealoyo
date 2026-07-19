@@ -347,7 +347,15 @@ export default function AdminDrivers() {
         stats={profileTarget ? [
           { label: 'Deliveries', value: deliveryCounts[profileTarget.id] || 0 },
         ] : undefined}
-        onApprove={profileTarget && profileTarget.status !== 'active' ? () => { const id = profileTarget.id; setStatus(id, 'active'); setProfileTarget(null) } : undefined}
+        onApprove={profileTarget && profileTarget.status !== 'active' ? async () => {
+          const id = profileTarget.id
+          setBusyId(id)
+          const { error } = await supabase.rpc('admin_approve_profile', { p_id: id })
+          setBusyId(null)
+          if (error) { alert('Could not approve: ' + error.message); return }
+          setDrivers(prev => prev.map(d => d.id === id ? { ...d, status: 'active' } : d))
+          setProfileTarget(null)
+        } : undefined}
         onSuspend={profileTarget && profileTarget.status === 'active' ? () => { const t = profileTarget; setProfileTarget(null); setSuspendTarget(t) } : undefined}
         onDelete={profileTarget ? () => { const t = profileTarget; setProfileTarget(null); setDeleteTarget(t) } : undefined}
         onClose={() => setProfileTarget(null)}

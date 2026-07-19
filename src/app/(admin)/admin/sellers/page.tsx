@@ -442,7 +442,15 @@ export default function AdminSellers() {
           { label: 'Listings', value: listingCounts[profileTarget.id] || 0 },
           { label: 'Orders', value: orderCounts[profileTarget.id] || 0 },
         ] : undefined}
-        onApprove={profileTarget && profileTarget.status !== 'active' ? () => { const id = profileTarget.id; setStatus(id, 'active'); setProfileTarget(null) } : undefined}
+        onApprove={profileTarget && profileTarget.status !== 'active' ? async () => {
+          const id = profileTarget.id
+          setBusyId(id)
+          const { error } = await supabase.rpc('admin_approve_profile', { p_id: id })
+          setBusyId(null)
+          if (error) { alert('Could not approve: ' + error.message); return }
+          setSellers(prev => prev.map(s => s.id === id ? { ...s, status: 'active' } : s))
+          setProfileTarget(null)
+        } : undefined}
         onSuspend={profileTarget && profileTarget.status === 'active' ? () => { const t = profileTarget; setProfileTarget(null); setSuspendTarget(t) } : undefined}
         onDelete={profileTarget ? () => { const t = profileTarget; setProfileTarget(null); setDeleteTarget(t) } : undefined}
         onClose={() => setProfileTarget(null)}

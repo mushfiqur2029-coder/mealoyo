@@ -29,6 +29,11 @@ export interface Profile {
   // Referrals (see 20260707_referrals_oauth.sql)
   referral_code?: string | null
   referred_by?: string | null
+  // Pending-changes diff shown to admins on the re-approval queue. Populated
+  // by update_my_profile_basics when a sensitive-field save flips an active
+  // account to pending. See 20260719_profile_pending_changes.sql.
+  pending_changes?: Record<string, { label?: string; old: unknown; new: unknown }> | null
+  changes_submitted_at?: string | null
 }
 
 export interface Listing {

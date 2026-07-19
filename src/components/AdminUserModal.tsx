@@ -1,7 +1,12 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { supabase } from '@/lib/supabase'
 import type { Profile } from '@/lib/types'
+
+// Shape returned by admin_get_pending_changes(p_user_id).
+type PendingChange = { label?: string; old: unknown; new: unknown }
+type PendingChangesMap = Record<string, PendingChange>
 
 // Comprehensive user-details modal for admin lists. Shown when an admin clicks
 // "View profile" on a row in /admin/sellers, /admin/drivers, /admin/buyers,
@@ -39,6 +44,22 @@ const formatDate = (iso: string | null | undefined): string => {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// "2h ago", "3d ago" — mirrors the same helper used elsewhere in admin.
+const timeAgo = (iso: string | null | undefined): string => {
+  if (!iso) return ''
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (s < 60) return 'just now'
+  const m = Math.floor(s / 60); if (m < 60) return `${m} min ago`
+  const h = Math.floor(m / 60); if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`
+  const d = Math.floor(h / 24); if (d < 30) return `${d} day${d === 1 ? '' : 's'} ago`
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const renderValue = (v: unknown): string => {
+  if (v === null || v === undefined || v === '') return '—'
+  return String(v)
+}
+
 const statusColor = (s: string) =>
   s === 'active' ? '#34D399'
   : s === 'pending' ? '#FBBF24'
@@ -66,12 +87,59 @@ export default function AdminUserModal({ isOpen, user, stats, onApprove, onSuspe
     return () => window.removeEventListener('keydown', onKey)
   }, [isOpen, isBusy, onClose])
 
+  // ── Side-channel: fetch pending_changes + changes_submitted_at for
+  // pending users. Uses a lightweight admin_get_pending_changes RPC so we
+  // don't have to also update admin_get_profiles_by_role. Nothing happens
+  // for active / suspended users.
+  const [pendingChanges, setPendingChanges] = useState<PendingChangesMap | null>(null)
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null)
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [pendingError, setPendingError] = useState('')
+
+  const userId = user?.id
+  const userStatus = user?.status
+  useEffect(() => {
+    if (!isOpen || !userId || userStatus !== 'pending') {
+      setPendingChanges(null); setSubmittedAt(null); setPendingError('')
+      return
+    }
+    let alive = true
+    setPendingLoading(true); setPendingError('')
+    ;(async () => {
+      // Fallback to whatever's already on the Profile row (if the caller
+      // already fetched it) so we render instantly if we can.
+      if (user?.pending_changes) setPendingChanges(user.pending_changes as PendingChangesMap)
+      if (user?.changes_submitted_at) setSubmittedAt(user.changes_submitted_at)
+
+      const { data, error } = await supabase.rpc('admin_get_pending_changes', { p_user_id: userId })
+      if (!alive) return
+      if (error) { setPendingError(error.message); setPendingLoading(false); return }
+      const row = Array.isArray(data) ? data[0] : data
+      setPendingChanges((row?.pending_changes as PendingChangesMap | null) ?? null)
+      setSubmittedAt((row?.changes_submitted_at as string | null) ?? null)
+      setPendingLoading(false)
+    })()
+    return () => { alive = false }
+  }, [isOpen, userId, userStatus, user?.pending_changes, user?.changes_submitted_at])
+
+  const changeEntries = useMemo(() => {
+    if (!pendingChanges) return []
+    return Object.entries(pendingChanges).map(([field, ch]) => ({
+      field,
+      label: ch.label ?? field.replace(/_/g, ' '),
+      old: ch.old,
+      new: ch.new,
+    }))
+  }, [pendingChanges])
+
   if (!isOpen || !user || typeof document === 'undefined') return null
 
   const initial = user.full_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || '?'
   const address = [user.address_line1, user.address_line2, user.city, user.postcode].filter(Boolean).join(', ')
 
   const isSellerOrDriver = user.role === 'seller' || user.role === 'driver'
+  const isPending = user.status === 'pending'
+  const hasPendingDiff = isPending && changeEntries.length > 0
 
   return createPortal(
     <div
@@ -149,6 +217,47 @@ export default function AdminUserModal({ isOpen, user, stats, onApprove, onSuspe
         </div>
 
         <div style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* ── Pending re-approval banner ─────────────────────────────
+              Renders three ways depending on what's known about the
+              pending user: the resubmitted-changes diff (most common),
+              a "new registration" call-out when the row is pending but
+              carries no diff (first-time signup or pre-migration data),
+              and a small error if the side-channel RPC failed. */}
+          {isPending && (
+            hasPendingDiff ? (
+              <div style={{ background: 'rgba(251,191,36,0.13)', border: '1.5px solid rgba(251,191,36,0.5)', borderRadius: 14, padding: '16px 18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 16 }}>⚠️</span>
+                  <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: '#B8730A' }}>Changes awaiting approval</div>
+                </div>
+                <div style={{ fontSize: 11.5, color: '#8C5500', fontWeight: 600, marginBottom: 12 }}>Submitted {timeAgo(submittedAt)}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {changeEntries.map(ch => (
+                    <div key={ch.field} style={{ background: '#fff', borderRadius: 10, padding: '10px 12px', border: '1px solid rgba(251,191,36,0.35)' }}>
+                      <div style={{ fontSize: 10.5, color: '#8C5500', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>{ch.label}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13.5 }}>
+                        <span style={{ color: '#DC2626', fontWeight: 600, textDecoration: 'line-through', wordBreak: 'break-word' }}>{renderValue(ch.old)}</span>
+                        <span style={{ color: '#8C5500', fontWeight: 700 }}>→</span>
+                        <span style={{ color: '#157A33', fontWeight: 800, wordBreak: 'break-word' }}>{renderValue(ch.new)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : pendingLoading ? (
+              <div style={{ background: 'rgba(251,191,36,0.1)', border: '1.5px solid rgba(251,191,36,0.4)', borderRadius: 14, padding: '14px 18px', fontSize: 13, fontWeight: 600, color: '#8C5500' }}>Loading pending changes…</div>
+            ) : (
+              <div style={{ background: 'rgba(251,191,36,0.13)', border: '1.5px solid rgba(251,191,36,0.5)', borderRadius: 14, padding: '16px 18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 16 }}>🆕</span>
+                  <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: '#B8730A' }}>New account registration</div>
+                </div>
+                <div style={{ fontSize: 13, color: '#8C5500', lineHeight: 1.55 }}>Please review the profile details below before approving.</div>
+                {pendingError && <div style={{ marginTop: 8, fontSize: 11.5, color: '#B8730A', opacity: 0.85 }}>Note: could not load resubmission diff — {pendingError}</div>}
+              </div>
+            )
+          )}
+
           {/* Stats grid (role-specific numbers passed in by caller) */}
           {stats && stats.length > 0 && (
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(stats.length, 3)}, 1fr)`, gap: 10 }}>
@@ -213,7 +322,7 @@ export default function AdminUserModal({ isOpen, user, stats, onApprove, onSuspe
                   onClick={onApprove}
                   disabled={isBusy}
                   style={{ flex: '1 1 120px', minHeight: 44, padding: '0 16px', background: '#2DA84E', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: isBusy ? 'wait' : 'pointer', opacity: isBusy ? 0.7 : 1 }}
-                >Approve</button>
+                >{isBusy ? (hasPendingDiff ? 'Approving changes…' : 'Approving…') : hasPendingDiff ? 'Approve changes' : 'Approve'}</button>
               )}
               {onSuspend && user.status !== 'suspended' && (
                 <button

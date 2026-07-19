@@ -66,6 +66,11 @@ export default function SellerProfile() {
   const [bankSaving, setBankSaving] = useState(false)
   const [bankOk, setBankOk] = useState(false)
   const [bankError, setBankError] = useState('')
+  // Pending-changes tracking — populated by get_my_pending_changes so we can
+  // show a banner if this seller has submitted resubmitted changes awaiting
+  // admin approval. Falsy when clean.
+  const [pendingSubmittedAt, setPendingSubmittedAt] = useState<string | null>(null)
+  const [pendingHasDiff, setPendingHasDiff] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -100,6 +105,13 @@ export default function SellerProfile() {
       // Live listing count — head request is cheap; only need to know >=1.
       const { count: liveCount } = await supabase.from('listings').select('id', { count: 'exact', head: true }).eq('seller_id', user.id).eq('status', 'live')
       setHasListing((liveCount ?? 0) > 0)
+      // Own pending-changes state (side-channel RPC so we don't have to also
+      // amend get_my_profile_full's returned columns).
+      const { data: pc } = await supabase.rpc('get_my_pending_changes')
+      const pcRow = Array.isArray(pc) ? pc[0] : pc
+      const diff = (pcRow?.pending_changes ?? null) as Record<string, unknown> | null
+      setPendingHasDiff(!!diff && Object.keys(diff).length > 0)
+      setPendingSubmittedAt((pcRow?.changes_submitted_at as string | null) ?? null)
       setLoading(false)
     }
     getData()
@@ -310,6 +322,17 @@ export default function SellerProfile() {
         {error && <div className="fade-up" style={{background:'#FFE8F4', border:'1.5px solid rgba(200,0,106,0.25)', borderRadius:12, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#C8006A', fontWeight:600}}>{error}</div>}
         {savedOk && <div className="fade-up" style={{background:'#E4F6EA', border:'1.5px solid rgba(45,168,78,0.25)', borderRadius:12, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#1A6030', fontWeight:600}}>✅ Profile updated</div>}
         {reapprovalNote && <div className="fade-up" style={{background:'#FFF4E0', border:'1.5px solid rgba(184,115,10,0.3)', borderRadius:12, padding:'14px 16px', marginBottom:16, fontSize:13, color:'#8C5500', fontWeight:600, lineHeight:1.6}}>⏳ Your changes have been submitted. An admin will review and reapprove your account within 24 hours. Your listings have been paused until then.</div>}
+
+        {/* Persistent "pending admin approval" banner — shown when the row
+            already carries pending_changes from an earlier submission that
+            hasn't been reviewed yet. Distinct from the transient
+            reapprovalNote above (which fires only on this session's save). */}
+        {pendingHasDiff && !reapprovalNote && (
+          <div className="fade-up" style={{background:'#FFF4E0', border:'1.5px solid rgba(184,115,10,0.5)', borderRadius:12, padding:'14px 16px', marginBottom:16, fontSize:13, color:'#8C5500', fontWeight:600, lineHeight:1.6}}>
+            ⏳ Your changes are pending admin approval
+            {pendingSubmittedAt ? ` — submitted ${new Date(pendingSubmittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}.
+          </div>
+        )}
 
         {/* Postcode required — highlight at the top when missing so distance
             quotes to buyers actually work. */}

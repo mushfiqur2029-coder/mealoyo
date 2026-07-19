@@ -75,6 +75,9 @@ export default function DriverProfile() {
   const [bankSaving, setBankSaving] = useState(false)
   const [bankOk, setBankOk] = useState(false)
   const [bankError, setBankError] = useState('')
+  // Pending-changes tracking — see seller profile page for the rationale.
+  const [pendingSubmittedAt, setPendingSubmittedAt] = useState<string | null>(null)
+  const [pendingHasDiff, setPendingHasDiff] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -107,6 +110,11 @@ export default function DriverProfile() {
       setAccountNumber(row?.bank_account_number || '')
       setVehicleType((row?.vehicle_type as 'bicycle' | 'moped' | 'car' | 'van' | null) || '')
       setOrig({ fullName: p?.full_name || '', address_line1: loadedAddress.address_line1, address_line2: loadedAddress.address_line2, city: loadedAddress.city })
+      const { data: pc } = await supabase.rpc('get_my_pending_changes')
+      const pcRow = Array.isArray(pc) ? pc[0] : pc
+      const diff = (pcRow?.pending_changes ?? null) as Record<string, unknown> | null
+      setPendingHasDiff(!!diff && Object.keys(diff).length > 0)
+      setPendingSubmittedAt((pcRow?.changes_submitted_at as string | null) ?? null)
       setLoading(false)
     }
     getData()
@@ -280,6 +288,13 @@ export default function DriverProfile() {
         {error && <div className="fade-up" style={{background:'rgba(200,0,106,0.12)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:12, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#FF8AC4', fontWeight:600}}>{error}</div>}
         {savedOk && <div className="fade-up" style={{background:'rgba(45,168,78,0.12)', border:'1px solid rgba(45,168,78,0.35)', borderRadius:12, padding:'12px 14px', marginBottom:16, fontSize:13, color:'#34D399', fontWeight:600}}>✅ Profile updated</div>}
         {reapprovalNote && <div className="fade-up" style={{background:'rgba(184,115,10,0.14)', border:'1px solid rgba(184,115,10,0.4)', borderRadius:12, padding:'14px 16px', marginBottom:16, fontSize:13, color:'#FBBF24', fontWeight:600, lineHeight:1.6}}>⏳ Your changes have been submitted. An admin will review and reapprove your account within 24 hours.</div>}
+
+        {pendingHasDiff && !reapprovalNote && (
+          <div className="fade-up" style={{background:'rgba(184,115,10,0.14)', border:'1px solid rgba(184,115,10,0.55)', borderRadius:12, padding:'14px 16px', marginBottom:16, fontSize:13, color:'#FBBF24', fontWeight:600, lineHeight:1.6}}>
+            ⏳ Your changes are pending admin approval
+            {pendingSubmittedAt ? ` — submitted ${new Date(pendingSubmittedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}.
+          </div>
+        )}
 
         {/* Re-approval policy note */}
         <div className="fade-up" style={{background:'rgba(184,115,10,0.1)', border:'1px solid rgba(184,115,10,0.3)', borderRadius:14, padding:'12px 15px', marginBottom:18, fontSize:12.5, color:'#FBBF24', lineHeight:1.55}}>

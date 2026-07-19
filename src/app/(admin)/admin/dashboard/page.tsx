@@ -319,7 +319,14 @@ export default function AdminDashboard() {
       <AdminUserModal
         isOpen={!!profileTarget}
         user={profileTarget}
-        onApprove={profileTarget ? () => { const id = profileTarget.id; approve(id, 'profile'); setProfileTarget(null) } : undefined}
+        onApprove={profileTarget ? async () => {
+          const id = profileTarget.id
+          const { error } = await supabase.rpc('admin_approve_profile', { p_id: id })
+          if (error) { alert('Could not approve: ' + error.message); return }
+          setSellers(prev => prev.filter(s => s.id !== id))
+          setDrivers(prev => prev.filter(d => d.id !== id))
+          setProfileTarget(null)
+        } : undefined}
         onSuspend={profileTarget ? () => { const id = profileTarget.id; reject(id, 'profile'); setProfileTarget(null) } : undefined}
         onClose={() => setProfileTarget(null)}
       />
