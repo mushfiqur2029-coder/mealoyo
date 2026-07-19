@@ -7,7 +7,7 @@ import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
 import ProfileCompletionCard from '@/components/ProfileCompletionCard'
 import { calculateProfileCompletion } from '@/lib/profileCompletion'
-import { playNotificationBeep } from '@/lib/beep'
+import { playDoubleBeep, requestNotificationPermission, showPushNotification } from '@/lib/notifications'
 import type { Profile, Listing, Order, Review } from '@/lib/types'
 
 const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
@@ -97,25 +97,22 @@ export default function SellerDashboard() {
     if (typeof window === 'undefined' || !('Notification' in window)) return
 
     // Ask for permission exactly once, and remember the choice so we never nag.
-    if (Notification.permission === 'default' && !localStorage.getItem('mealoyo_notif_asked')) {
-      localStorage.setItem('mealoyo_notif_asked', '1')
-      Notification.requestPermission().catch(() => {})
-    }
+    void requestNotificationPermission()
 
     const notify = async (listingId: string | undefined, amount: string | undefined) => {
-      // Beep + banner bump always — even without notification permission the
-      // seller sees the persistent banner and hears the ping when the tab is
-      // focused.
-      playNotificationBeep()
+      // Double beep (880 → 1100 Hz) — attention-grabbing two-tone signal
+      // that the seller learns as "new order landed". The banner still bumps
+      // even without notification permission so the visual state stays in
+      // sync with the sound.
+      playDoubleBeep()
       setNewOrderBanner(n => n + 1)
-      if (Notification.permission !== 'granted') return
       let dish = 'A new dish'
       if (listingId) {
         const { data } = await supabase.from('listings').select('name').eq('id', listingId).maybeSingle()
         if (data?.name) dish = data.name
       }
       const money = amount ? ` — £${parseFloat(amount).toFixed(2)}` : ''
-      new Notification('New order! 🍽️', { body: `${dish}${money}`, icon: '/favicon.png' })
+      showPushNotification('New order! 🍽️', `${dish}${money}`)
     }
 
     const channel = supabase

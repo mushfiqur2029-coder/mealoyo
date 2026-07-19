@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
+import { playDoubleBeep, requestNotificationPermission, showPushNotification } from '@/lib/notifications'
 import type { Order, Profile } from '@/lib/types'
 
 // 8-digit codes — matches the DB varchar(8) column type and the
@@ -68,11 +69,7 @@ export default function SellerOrders() {
   // can pop a system notification when a new order arrives while this tab is
   // backgrounded. Silent no-op on unsupported browsers.
   useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return
-    if (Notification.permission === 'default' && !localStorage.getItem('mealoyo_notif_asked')) {
-      localStorage.setItem('mealoyo_notif_asked', '1')
-      Notification.requestPermission().catch(() => {})
-    }
+    void requestNotificationPermission()
   }, [])
 
   // A short 880Hz beep via the Web Audio API — no audio asset needed, and the
@@ -100,16 +97,14 @@ export default function SellerOrders() {
   }
 
   // Fire everything that "new order arrived" should do: sound, system push,
-  // toast, and bump the persistent banner counter.
+  // toast, and bump the persistent banner counter. Uses playDoubleBeep from
+  // the shared notifications lib so seller / driver "attention now" signals
+  // sound identical across the app.
   const announceNewOrder = () => {
-    playNewOrderBeep()
+    playDoubleBeep()
     setToast('New order received')
     setNewOrderBanner(n => n + 1)
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        new Notification('New order received! 🍽️', { body: 'You have a new order. Tap to view.', icon: '/favicon.png' })
-      } catch { /* browsers throw if not in a service worker on some platforms */ }
-    }
+    showPushNotification('New order received! 🍽️', 'You have a new order. Tap to view.')
   }
 
   useEffect(() => {

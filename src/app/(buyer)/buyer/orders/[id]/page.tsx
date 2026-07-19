@@ -1,11 +1,11 @@
 'use client'
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, useRef, use } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import { useCartStore } from '@/lib/cartStore'
-import { playNotificationBeep } from '@/lib/beep'
+import { playBeep, requestNotificationPermission, showPushNotification } from '@/lib/notifications'
 import type { Order, Listing, Profile } from '@/lib/types'
 
 const cuisineEmoji: Record<string, string> = {
@@ -68,6 +68,10 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const [submittingReview, setSubmittingReview] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  // Pulsing status banner + ref to the delivery-code card so we can scroll
+  // it into view the moment the driver marks the order as "reached".
+  const [statusBanner, setStatusBanner] = useState<{ text: string; tone: 'onway' | 'arrived' } | null>(null)
+  const deliveryCodeRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
 
   // Celebrate a fresh Stripe payment when Checkout redirects back with
@@ -95,6 +99,13 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
       if (!order) { setNotFound(true); setLoading(false); return }
       setOrder(order)
+      // If the buyer reloaded the page mid-delivery, resurrect the banner so
+      // they still see the "arrived / on the way" call-out.
+      if (order.status === 'reached' && order.delivery_type === 'delivery') {
+        setStatusBanner({ text: '🚪 Your driver is at the door! Show them your delivery code', tone: 'arrived' })
+      } else if (order.status === 'picked_up' && order.delivery_type === 'delivery') {
+        setStatusBanner({ text: 'Your order has been picked up and is on its way!', tone: 'onway' })
+      }
       // Backstop loyalty award: if the order is already delivered, make sure
       // points were granted. Idempotent DB-side; no-ops until the SQL is run.
       if (order.status === 'delivered') supabase.rpc('award_loyalty_points', { p_order_id: order.id })
@@ -139,19 +150,15 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   // Ask for notification permission on mount so buyer alerts don't get
   // silently dropped when the driver events fire.
   useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return
-    if (Notification.permission === 'default' && !localStorage.getItem('mealoyo_notif_asked')) {
-      localStorage.setItem('mealoyo_notif_asked', '1')
-      Notification.requestPermission().catch(() => {})
-    }
+    void requestNotificationPermission()
   }, [])
 
-  // Small helper for the two "your order moved" browser notifications.
-  const notifyBuyer = (title: string, body: string) => {
-    playNotificationBeep()
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try { new Notification(title, { body, icon: '/favicon.png' }) } catch { /* iOS Safari quirks */ }
-    }
+  // Higher-pitch tone (1000 Hz) for the "your driver arrived" moment so the
+  // buyer's ear can distinguish it from the 880 Hz "picked up" signal, per
+  // the notifications-lib convention.
+  const notifyBuyer = (title: string, body: string, tone: 'onway' | 'arrived' = 'onway') => {
+    playBeep(tone === 'arrived' ? 1000 : 880, 0.35, 0.6)
+    showPushNotification(title, body)
   }
 
   // ── REALTIME: live status updates from the seller, no refresh needed ──
@@ -172,14 +179,20 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           // Buyer notifications — bracketed by "was this different before?"
           // so a page reload doesn't re-fire them on the same row state.
           if (prevRow.status !== 'picked_up' && next.status === 'picked_up' && next.delivery_type === 'delivery') {
-            notifyBuyer('Your order is on the way! 🚴', 'The driver has picked up your food and is heading to you.')
+            notifyBuyer('Your order is on the way! 🚴', 'Driver is heading to you.', 'onway')
+            setStatusBanner({ text: 'Your order has been picked up and is on its way!', tone: 'onway' })
           }
           if (prevRow.status !== 'reached' && next.status === 'reached' && next.delivery_type === 'delivery') {
-            notifyBuyer('Driver is nearby! 🏠', 'They\'ll ask for your delivery code — open your order to see it.')
+            notifyBuyer('Your driver has arrived! 🚪', 'Show them your delivery code.', 'arrived')
+            setStatusBanner({ text: '🚪 Your driver is at the door! Show them your delivery code', tone: 'arrived' })
+            // Give React a tick to render the code card, then scroll it into view.
+            setTimeout(() => {
+              deliveryCodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }, 120)
           }
           // Delivery code just appeared (driver generated it without status flip).
           if (!prevRow.delivery_code && next.delivery_code && next.delivery_type === 'delivery' && next.status !== 'reached') {
-            notifyBuyer('Driver is nearby! 🏠', 'Open your order to see your delivery code.')
+            notifyBuyer('Delivery code ready! 🏠', 'Your driver is nearby — open your order to see your code.', 'onway')
           }
         }
       )
@@ -389,6 +402,35 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
           {/* ── LEFT COLUMN ── */}
           <div className="fade-up">
 
+            {/* Pulsing status banner — surfaced when the driver picks up or
+                arrives. Auto-dismissed only via a page navigation; stays
+                visible so the buyer doesn't miss it if they were scrolled
+                past the code card. */}
+            {statusBanner && (
+              <div
+                role="status"
+                style={{
+                  marginBottom: 16,
+                  padding: '14px 18px',
+                  borderRadius: 14,
+                  background: statusBanner.tone === 'arrived' ? 'linear-gradient(135deg,#FFE8F4 0%,#FFD3EA 100%)' : 'linear-gradient(135deg,#FFF0F8 0%,#FFE8F4 100%)',
+                  border: statusBanner.tone === 'arrived' ? '2px solid #C8006A' : '1.5px solid rgba(200,0,106,0.35)',
+                  fontSize: 14, fontWeight: 700,
+                  color: statusBanner.tone === 'arrived' ? '#8B0047' : '#8B0047',
+                  animation: statusBanner.tone === 'arrived' ? 'buyerArrivedPulse 1.2s ease-in-out infinite' : 'fadeUp 0.4s ease',
+                  boxShadow: statusBanner.tone === 'arrived' ? '0 8px 24px rgba(200,0,106,0.22)' : '0 4px 14px rgba(200,0,106,0.14)',
+                }}
+              >
+                {statusBanner.text}
+                <style>{`
+                  @keyframes buyerArrivedPulse {
+                    0%, 100% { box-shadow: 0 0 0 0 rgba(200,0,106,0.55); }
+                    50%      { box-shadow: 0 0 0 10px rgba(200,0,106,0); }
+                  }
+                `}</style>
+              </div>
+            )}
+
             {/* Delivery code — delivery-only, shown once the driver has picked up */}
             {showDeliveryCode && (() => {
               const code = order.delivery_code
@@ -398,7 +440,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               const mm = Math.floor(totalSec / 60).toString().padStart(2, '0')
               const ss = (totalSec % 60).toString().padStart(2, '0')
               return (
-                <div style={{background:'linear-gradient(135deg,#FFF0F8 0%,#FFE8F4 100%)', borderRadius:20, padding:'26px 24px', marginBottom:16, border:'1.5px solid rgba(200,0,106,0.22)', boxShadow:'0 6px 22px rgba(200,0,106,0.14)'}}>
+                <div ref={deliveryCodeRef} style={{background:'linear-gradient(135deg,#FFF0F8 0%,#FFE8F4 100%)', borderRadius:20, padding:'26px 24px', marginBottom:16, border:'1.5px solid rgba(200,0,106,0.22)', boxShadow:'0 6px 22px rgba(200,0,106,0.14)'}}>
                   <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:14}}>
                     <span style={{width:38, height:38, borderRadius:11, background:'#C8006A', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0}}>🛵</span>
                     <div>

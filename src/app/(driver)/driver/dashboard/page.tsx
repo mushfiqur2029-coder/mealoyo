@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import ProfileCompletionCard from '@/components/ProfileCompletionCard'
 import { calculateProfileCompletion } from '@/lib/profileCompletion'
-import { playNotificationBeep } from '@/lib/beep'
+import { playDoubleBeep, requestNotificationPermission, showPushNotification } from '@/lib/notifications'
 import NavAvatar from '@/components/NavAvatar'
 import { haversineDistance, lookupPostcode, isValidUKPostcode } from '@/lib/pricing'
 import type { Profile, Order } from '@/lib/types'
@@ -148,26 +148,25 @@ export default function DriverDashboard() {
     [],
   )
 
-  // Announce a new delivery job — beep + browser notification if permitted.
-  // Shared beep helper (lib/beep.ts) keeps this identical to the seller side.
+  // Announce a new delivery job — double beep + browser push. The double
+  // beep (880 → 1100 Hz) is the same signature the seller side uses for a
+  // new order, which is deliberate: drivers recognise it as "attention now".
+  // The push notification body carries the driver's actual earn (80% of the
+  // delivery fee) so it's actionable straight from the OS notification tray.
   const announceNewJob = useCallback((deliveryFee?: string) => {
-    playNotificationBeep()
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        const fee = deliveryFee ? ` — £${parseFloat(deliveryFee).toFixed(2)}` : ''
-        new Notification('New delivery job available! 🚴', { body: `Tap to accept${fee}.`, icon: '/favicon.png' })
-      } catch { /* Safari/iOS Notification quirks — non-fatal */ }
-    }
+    playDoubleBeep()
+    const feeNum = deliveryFee ? parseFloat(deliveryFee) : 0
+    const earn = feeNum > 0 ? feeNum * 0.8 : 0
+    const body = earn > 0
+      ? `£${earn.toFixed(2)} available — tap to accept.`
+      : 'Tap to accept.'
+    showPushNotification('New delivery job! 🚴', body)
   }, [])
 
   // Request notification permission once per session so the permission
   // dialog isn't triggered in an unexpected spot.
   useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return
-    if (Notification.permission === 'default' && !localStorage.getItem('mealoyo_notif_asked')) {
-      localStorage.setItem('mealoyo_notif_asked', '1')
-      Notification.requestPermission().catch(() => {})
-    }
+    void requestNotificationPermission()
   }, [])
 
   // Fetch order + job feeds. Extracted so a poll / realtime / refresh button can
