@@ -82,7 +82,10 @@ export function useLocationFilter<T extends { id: string }>(
 
   // ── Fetch buyer coords whenever postcode changes ────────────────────
   useEffect(() => {
-    if (!postcode) { setBuyerCoords(null); return }
+    // Functional-updater bail-out: if the value we'd write is what's already
+    // there, return the same reference so React skips the re-render. See the
+    // long note on the second effect below — same reason.
+    if (!postcode) { setBuyerCoords(prev => prev === null ? prev : null); return }
     let alive = true
     setCoordsLoading(true); setCoordsError(null)
     ;(async () => {
@@ -100,8 +103,22 @@ export function useLocationFilter<T extends { id: string }>(
   }, [postcode])
 
   // ── Batch look up every seller postcode in the current feed ─────────
+  //
+  // Callers pass `postcodeOf` as an inline arrow (`l => l.profiles?.postcode`)
+  // rather than a memoised callback, so its identity flips on every parent
+  // render. That means this effect re-fires every render. Any bare
+  // `setState(new Map())` here would then reset state to a fresh reference,
+  // trigger another render in the parent, recreate the arrow, re-fire the
+  // effect — an infinite loop that starves React's useTransition (which
+  // router.push relies on) and silently breaks client-side navigation on
+  // every page that uses this hook. Fix: use functional updaters that return
+  // the SAME reference when the resulting value would be equal, so React
+  // bails out via Object.is and no re-render is scheduled.
   useEffect(() => {
-    if (!buyerCoords) { setDistancesByPostcode(new Map()); return }
+    if (!buyerCoords) {
+      setDistancesByPostcode(prev => prev.size === 0 ? prev : new Map())
+      return
+    }
     const needed: string[] = []
     for (const item of items) {
       const pc = postcodeOf(item)
@@ -130,7 +147,12 @@ export function useLocationFilter<T extends { id: string }>(
         const loc = cache.get(key)
         if (loc) dists.set(key, haversineDistance(buyerCoords.lat, buyerCoords.lng, loc.latitude, loc.longitude))
       }
-      if (alive) setDistancesByPostcode(dists)
+      if (!alive) return
+      setDistancesByPostcode(prev => {
+        if (prev.size !== dists.size) return dists
+        for (const [k, v] of dists) if (prev.get(k) !== v) return dists
+        return prev
+      })
     })()
     return () => { alive = false }
   }, [buyerCoords, items, postcodeOf, coordsCache])
