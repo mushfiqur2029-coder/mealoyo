@@ -104,12 +104,36 @@ export default function Home() {
 
   useEffect(() => {
     const getListings = async () => {
-      const { data } = await supabase
+      // Same rewiring as /browse — the profiles:seller_id() embed hit the
+      // locked-down postcode column and 42501'd the whole read for anon
+      // visitors. Fetch listings, then batch seller name+postcode via the
+      // definer RPC (with a graceful fallback if the migration hasn't landed).
+      const { data: listRows } = await supabase
         .from('listings')
-        .select('*, profiles:seller_id(full_name, postcode)')
+        .select('*')
         .eq('status', 'live')
         .order('created_at', { ascending: false })
-      setListings((data as unknown as HomeListing[]) || [])
+      const listings = (listRows as unknown as HomeListing[]) || []
+      const sellerIds = Array.from(new Set(listings.map(l => l.seller_id).filter(Boolean)))
+      const sellerMap = new Map<string, { full_name: string | null; postcode: string | null }>()
+      if (sellerIds.length) {
+        const { data: infoRows, error: infoErr } = await supabase.rpc('get_seller_public_info', { p_ids: sellerIds })
+        if (!infoErr && Array.isArray(infoRows)) {
+          for (const r of infoRows as { id: string; full_name: string | null; postcode: string | null }[]) {
+            sellerMap.set(r.id, { full_name: r.full_name, postcode: r.postcode })
+          }
+        } else {
+          const { data: nameRows } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', sellerIds)
+          for (const r of (nameRows || []) as { id: string; full_name: string | null }[]) {
+            sellerMap.set(r.id, { full_name: r.full_name, postcode: null })
+          }
+        }
+      }
+      const rows = listings.map(l => ({ ...l, profiles: sellerMap.get(l.seller_id) ?? null }))
+      setListings(rows)
       setLoadingListings(false)
     }
     const getStats = async () => {

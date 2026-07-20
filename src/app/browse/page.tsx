@@ -203,17 +203,49 @@ function Browse() {
     l => l.profiles?.postcode ?? null,
   )
 
-  // ── Single data fetch: all live listings + the buyer's saved + order history ──
+  // ── Single data fetch: all live listings + seller info ──
+  // Can't embed `profiles:seller_id(full_name, postcode)` any more — the
+  // 20260717 profiles-column lockdown revoked SELECT on postcode from anon,
+  // so PostgREST 42501's the whole query and both the browse and homepage
+  // feeds silently rendered "No live dishes yet". Fetch listings first
+  // (no embed), then batch seller name+postcode via the definer RPC.
   useEffect(() => {
     let active = true
     ;(async () => {
-      const { data } = await supabase
+      const { data: listRows } = await supabase
         .from('listings')
-        .select('*, profiles:seller_id(full_name, postcode)')
+        .select('*')
         .eq('status', 'live')
         .order('created_at', { ascending: false })
       if (!active) return
-      const rows = (data as unknown as BrowseListing[]) || []
+      const listings = (listRows as unknown as BrowseListing[]) || []
+
+      const sellerIds = Array.from(new Set(listings.map(l => l.seller_id).filter(Boolean)))
+      const sellerMap = new Map<string, { full_name: string | null; postcode: string | null }>()
+      if (sellerIds.length) {
+        // Preferred path: bulk RPC (added in 20260720_seller_public_info_bulk).
+        const { data: infoRows, error: infoErr } = await supabase.rpc('get_seller_public_info', { p_ids: sellerIds })
+        if (!active) return
+        if (!infoErr && Array.isArray(infoRows)) {
+          for (const r of infoRows as { id: string; full_name: string | null; postcode: string | null }[]) {
+            sellerMap.set(r.id, { full_name: r.full_name, postcode: r.postcode })
+          }
+        } else {
+          // Fallback if the migration hasn't been applied yet. `full_name` is
+          // already granted to anon (20260717_profiles_reads_grants); postcode
+          // still requires the per-seller definer RPC.
+          const { data: nameRows } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', sellerIds)
+          if (!active) return
+          for (const r of (nameRows || []) as { id: string; full_name: string | null }[]) {
+            sellerMap.set(r.id, { full_name: r.full_name, postcode: null })
+          }
+        }
+      }
+      if (!active) return
+      const rows = listings.map(l => ({ ...l, profiles: sellerMap.get(l.seller_id) ?? null }))
       setListings(rows)
       // Seed the price bounds from real data.
       const prices = rows.map(r => parseFloat(r.price)).filter(n => !isNaN(n))

@@ -168,11 +168,18 @@ export function useLocationFilter<T extends { id: string }>(
 
   // items filtered to within radiusMiles. If we don't know the buyer's
   // location the filter is a no-op — returns the full input list.
+  //
+  // When distance CAN'T be computed for a specific listing (seller has no
+  // postcode, or postcodes.io didn't resolve it), we KEEP the listing rather
+  // than hide it. Hiding used to make new/incomplete sellers invisible to
+  // buyers who had entered a postcode — worse UX than showing a card without
+  // a distance badge. Only items whose distance is calculable AND exceeds
+  // the radius are filtered out.
   const filtered = useMemo(() => {
     if (!buyerCoords) return items
     return items.filter(item => {
       const d = distanceFor(item)
-      if (d == null) return false // seller postcode missing or unresolved
+      if (d == null) return true // distance unknown → don't hide
       return d <= radiusMiles
     })
   }, [items, buyerCoords, distanceFor, radiusMiles])
