@@ -9,9 +9,11 @@ import Logo from '@/components/Logo'
 import NavAvatar from '@/components/NavAvatar'
 import CartButton from '@/components/CartButton'
 import AddToCartButton from '@/components/AddToCartButton'
+import LocationBar from '@/components/LocationBar'
+import { useLocationFilter } from '@/lib/useLocationFilter'
 import type { Listing, Profile } from '@/lib/types'
 
-type BrowseListing = Listing & { profiles?: Pick<Profile, 'full_name'> | null }
+type BrowseListing = Listing & { profiles?: Pick<Profile, 'full_name' | 'postcode'> | null }
 
 const cuisineEmoji: Record<string, string> = {
   'Bangladeshi':'🍛','Pakistani':'🫕','Indian':'🥘','Caribbean':'🍗',
@@ -72,7 +74,7 @@ const dietBadges = (l: Listing) => [
 ].filter(Boolean) as { key:string; icon:string; label:string; bg:string; color:string }[]
 
 // ── Reusable listing card ──
-function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; onToggleSave: (id: string) => void }) {
+function Card({ l, saved, onToggleSave, distance }: { l: BrowseListing; saved: string[]; onToggleSave: (id: string) => void; distance?: number | null }) {
   const badges = dietBadges(l)
   const orders = ordersBadge(l)
   const isSaved = saved.includes(l.id)
@@ -101,10 +103,15 @@ function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; o
       </div>
       <div style={{padding:'13px 14px', display:'flex', flexDirection:'column', flex:1}}>
         <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'var(--text-primary)', lineHeight:1.3, marginBottom:6, letterSpacing:'-0.01em', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{l.name}</div>
-        <div style={{fontSize:12, color:'var(--text-primary)', marginBottom:10, display:'flex', alignItems:'center', gap:6, fontWeight:500}}>
+        <div style={{fontSize:12, color:'var(--text-primary)', marginBottom:10, display:'flex', alignItems:'center', gap:6, fontWeight:500, flexWrap:'wrap'}}>
           <span style={{width:18, height:18, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:700, color:'#fff', flexShrink:0}}>{l.profiles?.full_name?.[0]?.toUpperCase() || 'C'}</span>
-          <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{l.profiles?.full_name || 'Home cook'}</span>
+          <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', minWidth:0}}>{l.profiles?.full_name || 'Home cook'}</span>
           <span style={{color:'#C8006A', fontWeight:600, whiteSpace:'nowrap'}}>· {l.cuisine}</span>
+          {typeof distance === 'number' && (
+            <span style={{marginLeft:'auto', background:'rgba(200,0,106,0.1)', color:'#C8006A', fontSize:10.5, fontWeight:800, padding:'2px 8px', borderRadius:100, whiteSpace:'nowrap'}}>
+              📍 {distance < 0.1 ? '<0.1' : distance.toFixed(1)} mi
+            </span>
+          )}
         </div>
         <div style={{marginTop:'auto', display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:11, borderTop:'1px solid var(--bg-secondary)'}}>
           <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.02em'}}>£{parseFloat(l.price).toFixed(2)}</div>
@@ -120,7 +127,7 @@ function Card({ l, saved, onToggleSave }: { l: BrowseListing; saved: string[]; o
   )
 }
 
-function Rail({ title, kicker, items, saved, onToggleSave }: { title: string; kicker: string; items: BrowseListing[]; saved: string[]; onToggleSave: (id: string) => void }) {
+function Rail({ title, kicker, items, saved, onToggleSave, distanceFor }: { title: string; kicker: string; items: BrowseListing[]; saved: string[]; onToggleSave: (id: string) => void; distanceFor?: (l: BrowseListing) => number | null }) {
   if (!items.length) return null
   return (
     <section style={{marginBottom:38}}>
@@ -130,7 +137,7 @@ function Rail({ title, kicker, items, saved, onToggleSave }: { title: string; ki
       </div>
       <div className="rail" style={{display:'flex', gap:16, overflowX:'auto', paddingBottom:6, scrollSnapType:'x proximity'}}>
         {items.map(l => (
-          <div key={l.id} style={{flex:'0 0 240px', width:240, scrollSnapAlign:'start'}}><Card l={l} saved={saved} onToggleSave={onToggleSave} /></div>
+          <div key={l.id} style={{flex:'0 0 240px', width:240, scrollSnapAlign:'start'}}><Card l={l} saved={saved} onToggleSave={onToggleSave} distance={distanceFor?.(l) ?? undefined} /></div>
         ))}
       </div>
     </section>
@@ -187,13 +194,22 @@ function Browse() {
   const catRef = useRef<HTMLDivElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
+  // ── Distance filter (buyer postcode → 8 mi cap, expandable to 15) ──
+  // useLocationFilter hydrates the postcode from localStorage / profile,
+  // batches the postcodes.io lookup for every seller in `listings`, and
+  // exposes `filtered` + `distanceFor(item)` for badge rendering.
+  const location = useLocationFilter<BrowseListing>(
+    listings,
+    l => l.profiles?.postcode ?? null,
+  )
+
   // ── Single data fetch: all live listings + the buyer's saved + order history ──
   useEffect(() => {
     let active = true
     ;(async () => {
       const { data } = await supabase
         .from('listings')
-        .select('*, profiles:seller_id(full_name)')
+        .select('*, profiles:seller_id(full_name, postcode)')
         .eq('status', 'live')
         .order('created_at', { ascending: false })
       if (!active) return
@@ -289,8 +305,11 @@ function Browse() {
       if ((b.rating ?? 0) !== (a.rating ?? 0)) return (b.rating ?? 0) - (a.rating ?? 0)
       return (b.reviews_count ?? 0) - (a.reviews_count ?? 0)
     }
-    return listings.filter(matches).sort(sortFn)
-  }, [listings, cat, query, diet, delivery, excludeAllergens, priceLo, priceHi, sort])
+    // location.filtered already caps the feed to the buyer's radius (or
+    // returns everything when no postcode is set). Apply the other filters
+    // and the sort on top of that reduced set.
+    return location.filtered.filter(matches).sort(sortFn)
+  }, [location.filtered, cat, query, diet, delivery, excludeAllergens, priceLo, priceHi, sort])
 
   // ── Curated discovery rails (shown only when no filters are active) ──
   const recommended = useMemo(() => {
@@ -470,9 +489,38 @@ function Browse() {
 
       {/* ── CONTENT ── */}
       <div style={{maxWidth:1240, margin:'0 auto', padding:'28px 20px 64px'}}>
-        {postcode.trim() && (
-          <div style={{fontSize:13, fontWeight:700, color:'#C8006A', marginBottom:20}}>📍 Showing home cooks near {postcode.trim()}</div>
-        )}
+        {/* Location bar — postcode chip + distance filter driver. Sourced
+            from useLocationFilter (localStorage → profile), independent of
+            the URL param above which is legacy search UI. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
+          {location.postcode ? (
+            <>
+              <LocationBar
+                postcode={location.postcode}
+                onSubmit={location.setPostcode}
+                onClear={location.clearPostcode}
+                onGPS={location.useGPS}
+                loading={location.coordsLoading}
+                error={location.coordsError}
+              />
+              <span style={{ fontSize: 12.5, color: 'var(--text-primary)', opacity: 0.7, fontWeight: 600 }}>
+                Within {location.isRadiusRemoved ? 'any distance' : `${location.radiusMiles} mi`}
+              </span>
+            </>
+          ) : (
+            <div style={{ flex: 1, minWidth: 260, maxWidth: 520 }}>
+              <LocationBar
+                postcode={null}
+                onSubmit={location.setPostcode}
+                onClear={location.clearPostcode}
+                onGPS={location.useGPS}
+                loading={location.coordsLoading}
+                error={location.coordsError}
+                placeholder="Enter your postcode to see dishes near you"
+              />
+            </div>
+          )}
+        </div>
 
         {loading ? (
           <>
@@ -492,10 +540,10 @@ function Browse() {
             {/* Discovery rails — only when not actively filtering */}
             {!hasFilters && (
               <>
-                <Rail title={recName} kicker={historyCuisines.length ? 'Picked from your taste' : 'Handpicked'} items={recommended} saved={saved} onToggleSave={toggleSave} />
-                <Rail title="Top rated this week" kicker="Loved by buyers" items={topRated} saved={saved} onToggleSave={toggleSave} />
-                <Rail title="Most popular" kicker="Ordered the most" items={popular} saved={saved} onToggleSave={toggleSave} />
-                <Rail title="New on meaLoyo" kicker={`Added in the last ${NEW_DAYS} days`} items={fresh} saved={saved} onToggleSave={toggleSave} />
+                <Rail title={recName} kicker={historyCuisines.length ? 'Picked from your taste' : 'Handpicked'} items={recommended} saved={saved} onToggleSave={toggleSave} distanceFor={location.distanceFor} />
+                <Rail title="Top rated this week" kicker="Loved by buyers" items={topRated} saved={saved} onToggleSave={toggleSave} distanceFor={location.distanceFor} />
+                <Rail title="Most popular" kicker="Ordered the most" items={popular} saved={saved} onToggleSave={toggleSave} distanceFor={location.distanceFor} />
+                <Rail title="New on meaLoyo" kicker={`Added in the last ${NEW_DAYS} days`} items={fresh} saved={saved} onToggleSave={toggleSave} distanceFor={location.distanceFor} />
               </>
             )}
 
@@ -511,16 +559,42 @@ function Browse() {
               </div>
 
               {results.length === 0 ? (
-                <div style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.06)'}}>
-                  <div style={{fontSize:48, marginBottom:14}}>🔍</div>
-                  <h3 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>Nothing matches those filters</h3>
-                  <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85, marginBottom:18}}>Try widening your price range or clearing a filter.</p>
-                  <button onClick={clearAll} style={{height:42, padding:'0 22px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13.5, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(200,0,106,0.28)'}}>Clear all filters</button>
-                </div>
+                (() => {
+                  // Distinguish "no dishes near you" (distance filter is the
+                  // reason) from "your filters exclude everything". If a
+                  // buyer location is set AND the un-radiused feed has more
+                  // matches, the distance filter is the culprit — offer to
+                  // expand it before nuking the other filters.
+                  const distanceGated =
+                    location.buyerCoords && !location.isRadiusRemoved && listings.length > 0
+                  if (distanceGated) {
+                    return (
+                      <div style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.06)'}}>
+                        <div style={{fontSize:48, marginBottom:14}}>📍</div>
+                        <h3 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>No dishes found within {location.radiusMiles} miles of {location.postcode?.toUpperCase()}</h3>
+                        <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85, marginBottom:18, maxWidth:400, margin:'0 auto 18px'}}>Try expanding your search or browsing every dish on meaLoyo — you might spot something worth a longer trip.</p>
+                        <div style={{display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap'}}>
+                          {!location.isRadiusExpanded && (
+                            <button onClick={location.expandRadius} style={{height:42, padding:'0 22px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13.5, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(200,0,106,0.28)'}}>Try {location.EXPANDED_RADIUS} miles</button>
+                          )}
+                          <button onClick={location.removeRadius} style={{height:42, padding:'0 22px', background:'transparent', color:'#C8006A', border:'1.5px solid #C8006A', borderRadius:10, fontSize:13.5, fontWeight:700, cursor:'pointer'}}>Browse all dishes</button>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 16px rgba(200,0,106,0.06)'}}>
+                      <div style={{fontSize:48, marginBottom:14}}>🔍</div>
+                      <h3 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>Nothing matches those filters</h3>
+                      <p style={{fontSize:14, color:'var(--text-primary)', opacity:0.85, marginBottom:18}}>Try widening your price range or clearing a filter.</p>
+                      <button onClick={clearAll} style={{height:42, padding:'0 22px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13.5, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(200,0,106,0.28)'}}>Clear all filters</button>
+                    </div>
+                  )
+                })()
               ) : (
                 <>
                   <div className="all-grid grid-fade" key={`${cat}-${sort}-${query}-${excludeAllergens.join()}-${priceLo}-${priceHi}-${dietActive}-${deliveryActive}`}>
-                    {results.slice(0, visible).map(l => <Card key={l.id} l={l} saved={saved} onToggleSave={toggleSave} />)}
+                    {results.slice(0, visible).map(l => <Card key={l.id} l={l} saved={saved} onToggleSave={toggleSave} distance={location.distanceFor(l)} />)}
                   </div>
                   {visible < results.length && <div ref={sentinelRef} style={{height:1}} />}
                 </>

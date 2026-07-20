@@ -74,6 +74,45 @@ export function isValidAccountNumber(v: string): boolean {
   return /^\d{8}$/.test(v.replace(/\D/g, ''))
 }
 
+// postcodes.io BULK lookup — up to 100 postcodes per request. Returns a
+// {postcode → {latitude,longitude} | null} map so callers can look up
+// distances for a whole listing feed in one round trip instead of N.
+// Normalises keys with .toUpperCase().replace(' ', '') so a match works
+// regardless of how the seller typed their postcode.
+export async function lookupPostcodesBulk(pcs: string[]): Promise<Map<string, { latitude: number; longitude: number } | null>> {
+  const out = new Map<string, { latitude: number; longitude: number } | null>()
+  const uniq = Array.from(new Set(pcs.map(p => p?.trim()).filter((p): p is string => !!p)))
+  if (!uniq.length) return out
+  const norm = (p: string) => p.toUpperCase().replace(/\s+/g, '')
+  // postcodes.io caps at 100 per POST — chunk here so a huge feed doesn't fail.
+  for (let i = 0; i < uniq.length; i += 100) {
+    const chunk = uniq.slice(i, i + 100)
+    try {
+      const res = await fetch('https://api.postcodes.io/postcodes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postcodes: chunk }),
+      })
+      if (!res.ok) { for (const p of chunk) out.set(norm(p), null); continue }
+      const json = await res.json()
+      const results = Array.isArray(json?.result) ? json.result : []
+      for (const r of results) {
+        const query = typeof r?.query === 'string' ? norm(r.query) : null
+        if (!query) continue
+        const hit = r?.result
+        if (hit && typeof hit.latitude === 'number' && typeof hit.longitude === 'number') {
+          out.set(query, { latitude: hit.latitude, longitude: hit.longitude })
+        } else {
+          out.set(query, null)
+        }
+      }
+    } catch {
+      for (const p of chunk) out.set(norm(p), null)
+    }
+  }
+  return out
+}
+
 // postcodes.io lookup → { latitude, longitude } | null (not found / invalid).
 export async function lookupPostcode(pc: string): Promise<{ latitude: number; longitude: number } | null> {
   try {
