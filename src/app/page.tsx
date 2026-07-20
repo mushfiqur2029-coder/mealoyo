@@ -10,7 +10,15 @@ import Logo from '@/components/Logo'
 import HeroVideoBg from '@/components/HeroVideoBg'
 import CartButton from '@/components/CartButton'
 import AddToCartButton from '@/components/AddToCartButton'
-import type { Listing, Review } from '@/lib/types'
+import LocationBar from '@/components/LocationBar'
+import { useLocationFilter } from '@/lib/useLocationFilter'
+import type { Listing, Profile, Review } from '@/lib/types'
+
+// The homepage listing feed carries the seller's postcode alongside their
+// name so the distance filter can measure how far each dish is from the
+// buyer. Override the default profiles pick from `Listing` (which only has
+// full_name) to add postcode.
+type HomeListing = Listing & { profiles?: Pick<Profile, 'full_name' | 'postcode'> | null }
 
 function dashboardPath(role: string | null) {
   if (role === 'seller') return '/seller/dashboard'
@@ -59,7 +67,7 @@ export default function Home() {
   const [saved, setSaved] = useState<string[]>([])
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('rec')
-  const [listings, setListings] = useState<Listing[]>([])
+  const [listings, setListings] = useState<HomeListing[]>([])
   const [loadingListings, setLoadingListings] = useState(true)
   const [reviewCount, setReviewCount] = useState<number | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
@@ -98,10 +106,10 @@ export default function Home() {
     const getListings = async () => {
       const { data } = await supabase
         .from('listings')
-        .select('*, profiles:seller_id(full_name)')
+        .select('*, profiles:seller_id(full_name, postcode)')
         .eq('status', 'live')
         .order('created_at', { ascending: false })
-      setListings(data || [])
+      setListings((data as unknown as HomeListing[]) || [])
       setLoadingListings(false)
     }
     const getStats = async () => {
@@ -157,10 +165,20 @@ export default function Home() {
   // TODO: once we have a UK postcode geocoding table, filter `listings` by
   // distance from `postcode` here instead of just passing it through unused.
   // Occasion filter: office & party catering need dishes that serve a crowd (10+).
-  const matchesOrderType = (l: Listing) =>
+  const matchesOrderType = (l: HomeListing) =>
     (orderType === 'office' || orderType === 'party') ? (l.serves ?? 0) >= 10 : true
 
-  const filtered = listings.filter(l =>
+  // Distance filter (buyer postcode → 8 mi cap, expandable to 15). Hook
+  // hydrates from localStorage / profile and geocodes every seller
+  // postcode in one batched postcodes.io call. Its `filtered` is the
+  // starting set for the homepage listing grid — cat + orderType + query
+  // apply on top of that reduced feed.
+  const location = useLocationFilter<HomeListing>(
+    listings,
+    l => l.profiles?.postcode ?? null,
+  )
+
+  const filtered = location.filtered.filter(l =>
     (cat === 'all' || l.cuisine === cat) &&
     matchesOrderType(l) &&
     (query === '' || l.name.toLowerCase().includes(query.toLowerCase()))
@@ -544,9 +562,39 @@ export default function Home() {
       {/* ── LISTINGS ── */}
       <section id="listings" style={{padding:'52px 0', background:'var(--bg-page)', scrollMarginTop:66}}>
         <div style={{maxWidth:1240, margin:'0 auto', padding:'0 20px'}}>
-          {postcode.trim() && (
-            <div style={{fontSize:13, fontWeight:600, color:'#C8006A', marginBottom:14}}>📍 Showing food near {postcode.trim()}</div>
-          )}
+          {/* Location bar — postcode chip + distance filter driver. Uses
+              useLocationFilter's own state (localStorage → profile),
+              independent of the hero-search `postcode` string above which
+              is legacy /browse hand-off. */}
+          <div style={{display:'flex', alignItems:'center', gap:12, marginBottom:20, flexWrap:'wrap'}}>
+            {location.postcode ? (
+              <>
+                <LocationBar
+                  postcode={location.postcode}
+                  onSubmit={location.setPostcode}
+                  onClear={location.clearPostcode}
+                  onGPS={location.useGPS}
+                  loading={location.coordsLoading}
+                  error={location.coordsError}
+                />
+                <span style={{fontSize:12.5, color:'var(--text-primary)', opacity:0.7, fontWeight:600}}>
+                  Within {location.isRadiusRemoved ? 'any distance' : `${location.radiusMiles} mi`}
+                </span>
+              </>
+            ) : (
+              <div style={{flex:1, minWidth:260, maxWidth:520}}>
+                <LocationBar
+                  postcode={null}
+                  onSubmit={location.setPostcode}
+                  onClear={location.clearPostcode}
+                  onGPS={location.useGPS}
+                  loading={location.coordsLoading}
+                  error={location.coordsError}
+                  placeholder="Enter your postcode to see dishes near you"
+                />
+              </div>
+            )}
+          </div>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20, flexWrap:'wrap', gap:12}}>
             <div style={{display:'flex', alignItems:'center', gap:12, flexWrap:'wrap'}}>
               <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)'}}><span style={{color:'#C8006A'}}>{filtered.length}</span> {filtered.length === 1 ? 'dish' : 'dishes'} available{cat !== 'all' ? ` in ${cats.find(c => c.id === cat)?.label}` : ''}</div>
@@ -591,15 +639,40 @@ export default function Home() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
-              <div style={{fontSize:48, marginBottom:16}}>🍽️</div>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>No dishes found</h2>
-              <p style={{fontSize:14, color:'var(--text-primary)'}}>Try a different category or search term.</p>
-            </div>
+            (() => {
+              // Distance filter is the culprit when the buyer has a
+              // location AND the raw listings feed isn't empty. Offer to
+              // widen the radius before nuking cuisine / search filters.
+              const distanceGated =
+                location.buyerCoords && !location.isRadiusRemoved && listings.length > 0
+              if (distanceGated) {
+                return (
+                  <div style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
+                    <div style={{fontSize:48, marginBottom:16}}>📍</div>
+                    <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>No dishes found within {location.radiusMiles} miles of {location.postcode?.toUpperCase()}</h2>
+                    <p style={{fontSize:14, color:'var(--text-primary)', marginBottom:18, maxWidth:400, marginLeft:'auto', marginRight:'auto'}}>Try expanding your search or browse every dish on meaLoyo.</p>
+                    <div style={{display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap'}}>
+                      {!location.isRadiusExpanded && (
+                        <button onClick={location.expandRadius} style={{height:42, padding:'0 22px', background:'#C8006A', color:'#fff', border:'none', borderRadius:10, fontSize:13.5, fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(200,0,106,0.28)'}}>Try {location.EXPANDED_RADIUS} miles</button>
+                      )}
+                      <button onClick={location.removeRadius} style={{height:42, padding:'0 22px', background:'transparent', color:'#C8006A', border:'1.5px solid #C8006A', borderRadius:10, fontSize:13.5, fontWeight:700, cursor:'pointer'}}>Browse all dishes</button>
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <div style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 10px rgba(200,0,106,0.06)'}}>
+                  <div style={{fontSize:48, marginBottom:16}}>🍽️</div>
+                  <h2 style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'var(--text-primary)', marginBottom:6}}>No dishes found</h2>
+                  <p style={{fontSize:14, color:'var(--text-primary)'}}>Try a different category or search term.</p>
+                </div>
+              )
+            })()
           ) : (
             <div className="listings-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:18}}>
               {sorted.map(l => {
                 const tags = [l.halal && 'Halal', l.vegan && 'Vegan', l.vegetarian && 'Vegetarian', l.spicy && 'Spicy'].filter(Boolean) as string[]
+                const dist = location.distanceFor(l)
                 return (
                   <Link key={l.id} href={`/dish/${l.id}`} className="lcard" style={{background:'var(--bg-card)', borderRadius:20, overflow:'hidden', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid rgba(200,0,106,0.07)', display:'block'}}>
                     <div style={{height:180, display:'flex', alignItems:'center', justifyContent:'center', fontSize:64, background:'linear-gradient(135deg,#FFE8F4 0%,var(--bg-secondary) 100%)', position:'relative', overflow:'hidden'}}>
@@ -611,9 +684,13 @@ export default function Home() {
                     </div>
                     <div style={{padding:'15px 16px'}}>
                       <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'var(--text-primary)', marginBottom:4, letterSpacing:'-0.01em', lineHeight:1.3}}>{l.name}</div>
-                      <div style={{fontSize:12, color:'var(--text-primary)', marginBottom:10, display:'flex', alignItems:'center', gap:5, fontWeight:500}}>
+                      <div style={{fontSize:12, color:'var(--text-primary)', marginBottom:10, display:'flex', alignItems:'center', gap:5, fontWeight:500, flexWrap:'wrap'}}>
                         <div style={{width:18, height:18, borderRadius:'50%', background:'#C8006A', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:700, color:'#fff', flexShrink:0}}>{l.profiles?.full_name?.[0] || 'C'}</div>
-                        {l.profiles?.full_name || 'Home cook'} <span style={{color:'#C8006A', fontWeight:600}}>· {l.cuisine}</span>
+                        <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', minWidth:0}}>{l.profiles?.full_name || 'Home cook'}</span>
+                        <span style={{color:'#C8006A', fontWeight:600, whiteSpace:'nowrap'}}>· {l.cuisine}</span>
+                        {typeof dist === 'number' && (
+                          <span style={{marginLeft:'auto', background:'rgba(200,0,106,0.1)', color:'#C8006A', fontSize:10.5, fontWeight:800, padding:'2px 8px', borderRadius:100, whiteSpace:'nowrap'}}>📍 {dist < 0.1 ? '<0.1' : dist.toFixed(1)} mi</span>
+                        )}
                       </div>
                       <div style={{display:'flex', gap:5, flexWrap:'wrap', marginBottom:12}}>
                         {tags.map(t => (
