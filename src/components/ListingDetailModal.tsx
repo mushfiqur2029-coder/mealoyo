@@ -117,7 +117,6 @@ export default function ListingDetailModal({ listing, sellerName, sellerEmail, s
             {infoRow('Serves', l.serves || 1)}
             {l.prep_time && infoRow('Prep time', l.prep_time)}
             {deliveryOptions.length > 0 && infoRow('Delivery', deliveryOptions.join(', '))}
-            {l.delivery_radius_miles != null && infoRow('Delivery radius', `${l.delivery_radius_miles} mi`)}
           </div>
 
           {/* Description */}

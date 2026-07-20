@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     // 2. Listing — real price + status, straight from the DB.
     const { data: listing } = await supabaseAdmin
       .from('listings')
-      .select('id, seller_id, name, price, status, delivery_radius_miles, image_url, description')
+      .select('id, seller_id, name, price, status, image_url, description')
       .eq('id', listingId)
       .maybeSingle()
     if (!listing) {
@@ -97,27 +97,21 @@ export async function POST(request: Request) {
     }
     const subtotal = Math.round(unitPrice * quantity * 100) / 100
 
-    // 4. Delivery fee — computed server-side from postcode distance.
+    // 4. Delivery fee — computed server-side from postcode distance. No
+    // per-listing radius any more; every listing is deliverable
+    // platform-wide. If either postcode is missing / invalid / unresolvable
+    // we fall back to the flat fee (settled exactly at dispatch).
     const deliveryType = rawDeliveryType === 'delivery' ? 'delivery' : 'collection'
-    const radius = listing.delivery_radius_miles ?? 3
     let deliveryFee = 0
     if (deliveryType === 'delivery') {
-      if (radius <= 0) {
-        return NextResponse.json({ error: 'This cook offers collection only.' }, { status: 400 })
-      }
       const sellerPc = typeof seller.postcode === 'string' ? seller.postcode.trim() : ''
       const buyerPc = typeof buyerPostcode === 'string' ? buyerPostcode.trim() : ''
       if (sellerPc && buyerPc && isValidUKPostcode(sellerPc) && isValidUKPostcode(buyerPc)) {
         const [sLoc, bLoc] = await Promise.all([lookupPostcode(sellerPc), lookupPostcode(buyerPc)])
         if (sLoc && bLoc) {
           const miles = haversineDistance(sLoc.latitude, sLoc.longitude, bLoc.latitude, bLoc.longitude)
-          const fee = deliveryFeeForDistance(miles, radius)
-          if (fee === null) {
-            return NextResponse.json({ error: 'Delivery is not available to your postcode. Try collection.' }, { status: 400 })
-          }
-          deliveryFee = fee
+          deliveryFee = deliveryFeeForDistance(miles)
         } else {
-          // A postcode didn't resolve — fall back to the flat fee (settled at dispatch).
           deliveryFee = FLAT_DELIVERY_FEE
         }
       } else {

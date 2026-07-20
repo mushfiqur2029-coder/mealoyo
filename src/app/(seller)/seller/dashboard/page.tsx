@@ -8,7 +8,7 @@ import NavAvatar from '@/components/NavAvatar'
 import ProfileCompletionCard from '@/components/ProfileCompletionCard'
 import { calculateProfileCompletion } from '@/lib/profileCompletion'
 import { playDoubleBeep, requestNotificationPermission, showPushNotification } from '@/lib/notifications'
-import type { Profile, Listing, Order, Review } from '@/lib/types'
+import type { Profile, Listing, Order, Review, WithdrawalRequest } from '@/lib/types'
 
 const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
   pending: { next: 'accepted', label: 'Accept' },
@@ -50,6 +50,12 @@ export default function SellerDashboard() {
   const [monthCount, setMonthCount] = useState(0)
   const [deliveredOrders, setDeliveredOrders] = useState<Pick<Order, 'seller_payout'>[]>([])
   const [pendingOrders, setPendingOrders] = useState<Pick<Order, 'seller_payout'>[]>([])
+  // Withdrawal requests feed the "available balance" calc — everything
+  // that's not 'rejected' is money already spoken for.
+  const [withdrawals, setWithdrawals] = useState<Pick<WithdrawalRequest, 'amount' | 'status'>[]>([])
+  // Set true while a background re-fetch is running so the wallet card can
+  // show a subtle pulsing tick.
+  const [balanceReloading, setBalanceReloading] = useState(false)
   const [reviews, setReviews] = useState<Pick<Review, 'rating'>[]>([])
   const [loading, setLoading] = useState(true)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
@@ -84,12 +90,39 @@ export default function SellerDashboard() {
       setDeliveredOrders(delivered || [])
       const { data: pending } = await supabase.from('orders').select('seller_payout').eq('seller_id', user.id).in('status', ['pending', 'accepted', 'cooking', 'ready', 'picked_up'])
       setPendingOrders(pending || [])
+      const { data: wdRows } = await supabase.from('withdrawal_requests').select('amount, status').eq('user_id', user.id)
+      setWithdrawals(wdRows || [])
       const { data: reviews } = await supabase.from('reviews').select('rating').eq('seller_id', user.id)
       setReviews(reviews || [])
       setLoading(false)
     }
     getData()
   }, [router])
+
+  // Balance recalculator — only re-fetches the two rows the wallet card
+  // depends on (delivered orders + withdrawal_requests), not the whole
+  // dashboard. Triggered by realtime events on either table so a driver
+  // paying out or an admin marking a withdrawal paid flips the number
+  // instantly.
+  useEffect(() => {
+    if (!userId) return
+    const recompute = async () => {
+      setBalanceReloading(true)
+      const [{ data: delivered }, { data: wdRows }] = await Promise.all([
+        supabase.from('orders').select('seller_payout').eq('seller_id', userId).eq('status', 'delivered'),
+        supabase.from('withdrawal_requests').select('amount, status').eq('user_id', userId),
+      ])
+      setDeliveredOrders(delivered || [])
+      setWithdrawals(wdRows || [])
+      setBalanceReloading(false)
+    }
+    const channel = supabase
+      .channel(`seller-balance-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `seller_id=eq.${userId}` }, () => { void recompute() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `user_id=eq.${userId}` }, () => { void recompute() })
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [userId])
 
   // ── DESKTOP PUSH NOTIFICATIONS: alert the seller the moment a paid order lands ──
   useEffect(() => {
@@ -282,7 +315,12 @@ export default function SellerDashboard() {
   // ── DERIVED ──
   const liveListings = listings.filter(l => l.status === 'live')
   const totalEarnings = deliveredOrders.reduce((sum, o) => sum + parseFloat(o.seller_payout || '0'), 0)
-  const pendingAmount = pendingOrders.reduce((sum, o) => sum + parseFloat(o.seller_payout || '0'), 0)
+  const pendingOrderAmount = pendingOrders.reduce((sum, o) => sum + parseFloat(o.seller_payout || '0'), 0)
+  // Every non-rejected withdrawal (pending / approved / paid) reduces the
+  // available balance. Split out so the wallet card can show both.
+  const totalWithdrawn = withdrawals.filter(w => w.status !== 'rejected').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
+  const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending' || w.status === 'approved').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
+  const availableBalance = Math.max(0, totalEarnings - totalWithdrawn)
   const avgRating = reviews.length ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : null
   const firstName = profile?.full_name?.split(' ')[0] || 'Chef'
   const hour = new Date().getHours()
@@ -457,11 +495,22 @@ export default function SellerDashboard() {
 
             {/* Wallet */}
             <div className="fade-up" style={{background:'linear-gradient(135deg,#C8006A 0%,#8B0047 100%)', borderRadius:20, padding:'24px', boxShadow:'0 10px 30px rgba(200,0,106,0.3)'}}>
-              <div style={{fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.7)', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8}}>Available balance</div>
-              <div style={{fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'#fff', letterSpacing:'-0.03em', lineHeight:1, marginBottom:14}}>£{totalEarnings.toFixed(2)}</div>
+              <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
+                <div style={{fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.7)', textTransform:'uppercase', letterSpacing:'0.08em'}}>Available balance</div>
+                {balanceReloading && <span aria-label="Recalculating" style={{width:6, height:6, borderRadius:'50%', background:'rgba(255,255,255,0.9)', animation:'balPulse 1.1s ease-in-out infinite'}}/>}
+                <style>{`@keyframes balPulse { 0%,100% { opacity: 0.35 } 50% { opacity: 1 } }`}</style>
+              </div>
+              <div style={{fontFamily:'Georgia,serif', fontSize:38, fontWeight:700, color:'#fff', letterSpacing:'-0.03em', lineHeight:1, marginBottom:6}}>£{availableBalance.toFixed(2)}</div>
+              <div style={{fontSize:11.5, color:'rgba(255,255,255,0.75)', fontWeight:500, marginBottom:14}}>
+                £{totalEarnings.toFixed(2)} earned · £{totalWithdrawn.toFixed(2)} withdrawn
+              </div>
+              <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.12)', borderRadius:12, padding:'10px 14px', marginBottom:8}}>
+                <span style={{fontSize:13, color:'rgba(255,255,255,0.85)', fontWeight:500}}>Pending withdrawals</span>
+                <span style={{fontSize:15, color:'#fff', fontWeight:700, fontFamily:'Georgia,serif'}}>£{pendingWithdrawals.toFixed(2)}</span>
+              </div>
               <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.12)', borderRadius:12, padding:'10px 14px', marginBottom:18}}>
-                <span style={{fontSize:13, color:'rgba(255,255,255,0.85)', fontWeight:500}}>Pending</span>
-                <span style={{fontSize:15, color:'#fff', fontWeight:700, fontFamily:'Georgia,serif'}}>£{pendingAmount.toFixed(2)}</span>
+                <span style={{fontSize:13, color:'rgba(255,255,255,0.85)', fontWeight:500}}>Pending orders</span>
+                <span style={{fontSize:15, color:'#fff', fontWeight:700, fontFamily:'Georgia,serif'}}>£{pendingOrderAmount.toFixed(2)}</span>
               </div>
               <button onClick={() => router.push('/seller/earnings')} className="ghost-btn" style={{width:'100%', height:46, background:'var(--bg-card)', color:'#C8006A', border:'none', borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', marginBottom:10, transition:'all 0.16s'}}>Withdraw funds</button>
               <Link href="/seller/earnings" style={{display:'block', textAlign:'center', fontSize:13, fontWeight:600, color:'rgba(255,255,255,0.85)'}}>Transaction history →</Link>

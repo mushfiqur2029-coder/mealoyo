@@ -10,14 +10,6 @@ import { commission, sellerReceives, COMMISSION_RATE } from '@/lib/pricing'
 import type { CSSProperties } from 'react'
 import type { User, Profile } from '@/lib/types'
 
-const RADIUS_OPTIONS = [
-  { v: '1', l: '1 mile' },
-  { v: '2', l: '2 miles' },
-  { v: '3', l: '3 miles (default)' },
-  { v: '5', l: '5 miles' },
-  { v: '0', l: 'Collection only (no delivery)' },
-]
-
 const ALLERGENS = ['Gluten','Dairy','Nuts','Eggs','Fish','Shellfish','Soya','Sesame','Celery','Mustard','Lupin','Sulphites','Molluscs','Peanuts']
 const CUISINES = ['Bangladeshi','Pakistani','Indian','Caribbean','Middle Eastern','West African','Turkish','Sri Lankan','Afghan','East African','Chinese','Other']
 const DIETARY = [{k:'halal',l:'Halal',e:'🟢'},{k:'vegan',l:'Vegan',e:'🌿'},{k:'vegetarian',l:'Vegetarian',e:'🥦'},{k:'spicy',l:'Spicy',e:'🌶️'}]
@@ -55,7 +47,6 @@ export default function NewListing() {
     cuisine: '',
     serves: '1',
     prep_time: '1 hour',
-    delivery_radius: '3',
     allergens: [] as string[],
     halal: false,
     vegan: false,
@@ -118,10 +109,10 @@ export default function NewListing() {
       cuisine: form.cuisine,
       serves: parseInt(form.serves),
       prep_time: form.prep_time,
-      // Every seller offers collection + delivery at the platform level. The
-      // seller only chooses the delivery radius.
+      // Every listing is deliverable platform-wide; buyer picks collection
+      // or delivery at checkout. The delivery_radius_miles column is left in
+      // the DB for now but no longer written from the UI.
       delivery_options: ['Collection & delivery'],
-      delivery_radius_miles: parseFloat(form.delivery_radius),
       allergens: form.allergens,
       halal: form.halal,
       vegan: form.vegan,
@@ -364,13 +355,6 @@ export default function NewListing() {
                         <option>Pre-order only</option>
                       </select>
                     </div>
-                  </div>
-                  <div>
-                    <label style={lbl}>Delivery radius</label>
-                    <select value={form.delivery_radius} onChange={e=>set('delivery_radius',e.target.value)} style={sel}>
-                      {RADIUS_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-                    </select>
-                    <p style={{fontSize:12, color:'var(--text-primary)', opacity:0.65, marginTop:8}}>Every listing is available for collection and delivery by default — the radius controls how far you&apos;re willing to send a driver. Buyers beyond your radius (or over 5 miles) will only see collection.</p>
                   </div>
                 </div>
               </div>

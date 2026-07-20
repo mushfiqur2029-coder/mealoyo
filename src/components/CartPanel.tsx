@@ -20,7 +20,6 @@ type DeliveryQuote =
   | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'ok'; distance: number; fee: number }
-  | { status: 'unavailable'; distance: number }
   | { status: 'flat'; fee: number }
   | { status: 'invalid' }
   | { status: 'notfound' }
@@ -123,7 +122,10 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
     const t = setTimeout(async () => {
       if (!active) return
       if (deliveryType !== 'delivery' || !seller) { setQuote({ status: 'idle' }); return }
-      const radius = 5 // safe default; per-listing radius could be threaded through if we ever need it
+      // No per-listing radius any more — every dish is deliverable
+      // platform-wide. If the seller hasn't set a postcode we fall back to
+      // the flat fee (settled at dispatch); otherwise we always return a
+      // real tiered fee based on measured distance.
       if (!seller.postcode || !isValidUKPostcode(seller.postcode)) {
         setQuote({ status: 'flat', fee: FLAT_DELIVERY_FEE })
         return
@@ -137,10 +139,8 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
       if (!buyerLoc) { setQuote({ status: 'notfound' }); return }
       if (!sellerLoc) { setQuote({ status: 'flat', fee: FLAT_DELIVERY_FEE }); return }
       const distance = haversineDistance(buyerLoc.latitude, buyerLoc.longitude, sellerLoc.latitude, sellerLoc.longitude)
-      const fee = deliveryFeeForDistance(distance, radius)
-      console.log('[cart] distance quote', { pc, sellerPc: seller.postcode, distance, fee })
-      if (fee === null) setQuote({ status: 'unavailable', distance })
-      else setQuote({ status: 'ok', distance, fee })
+      const fee = deliveryFeeForDistance(distance)
+      setQuote({ status: 'ok', distance, fee })
     }, 250)
     return () => { active = false; clearTimeout(t) }
   }, [deliveryType, address.postcode, seller])
@@ -169,7 +169,6 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
     if (deliveryType === 'delivery') {
       if (!address.postcode.trim() || !isValidUKPostcode(address.postcode)) return 'Please enter a valid UK postcode for delivery.'
       if (!address.address_line1.trim()) return 'Please pick or enter your street address.'
-      if (quote.status === 'unavailable') return "Sorry, this cook doesn't deliver to your area."
       if (quote.status === 'invalid' || quote.status === 'notfound') return 'Please enter a valid UK postcode.'
     }
     return null
@@ -406,7 +405,6 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
                         : `Pick up from ${seller?.full_name || 'the cook'} — full address after your order is confirmed` },
                     { type: 'delivery' as const, icon: '🚴', label: 'DELIVERY',
                       sub: quote.status === 'ok' ? `£${quote.fee.toFixed(2)} — ${quote.distance.toFixed(1)} mi to your door`
-                        : quote.status === 'unavailable' ? 'Outside cook delivery area'
                         : quote.status === 'flat' ? 'Fee confirmed at dispatch — approx £3.99'
                         : 'Fee based on distance — enter postcode below' },
                   ]).map(opt => {
@@ -460,7 +458,6 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
                   {quote.status === 'invalid' && <p style={{ fontSize: 12.5, color: '#C8006A', fontWeight: 600, marginTop: 10 }}>Enter a valid UK postcode.</p>}
                   {quote.status === 'notfound' && <p style={{ fontSize: 12.5, color: '#C8006A', fontWeight: 600, marginTop: 10 }}>We couldn&apos;t find that postcode — please check it.</p>}
                   {quote.status === 'ok' && <p style={{ fontSize: 13.5, color: '#C8006A', fontWeight: 700, marginTop: 10 }}>📍 {quote.distance.toFixed(1)} miles away — delivery £{quote.fee.toFixed(2)}</p>}
-                  {quote.status === 'unavailable' && <p style={{ fontSize: 13.5, color: '#C0392B', fontWeight: 700, marginTop: 10 }}>Sorry, this cook doesn&apos;t deliver to your area ({quote.distance.toFixed(1)} mi).</p>}
                   {quote.status === 'flat' && <p style={{ fontSize: 12.5, color: '#1A1A1A', opacity: 0.8, marginTop: 10 }}>Delivery fee confirmed at dispatch — approx £{quote.fee.toFixed(2)}.</p>}
                 </div>
               )}
@@ -497,9 +494,9 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
               </div>
               <button
                 onClick={handleCheckout}
-                disabled={loading || quote.status === 'unavailable'}
+                disabled={loading}
                 className="cart-checkout"
-                style={{ width: '100%', height: 52, background: '#C8006A', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: loading || quote.status === 'unavailable' ? 'not-allowed' : 'pointer', boxShadow: '0 6px 20px rgba(200,0,106,0.3)', opacity: loading || quote.status === 'unavailable' ? 0.6 : 1, transition: 'background 0.16s' }}
+                style={{ width: '100%', height: 52, background: '#C8006A', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 6px 20px rgba(200,0,106,0.3)', opacity: loading ? 0.6 : 1, transition: 'background 0.16s' }}
               >
                 {loading ? 'Starting checkout…' : `Pay £${total.toFixed(2)}`}
               </button>

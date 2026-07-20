@@ -9,7 +9,7 @@ import { calculateProfileCompletion } from '@/lib/profileCompletion'
 import { playDoubleBeep, requestNotificationPermission, showPushNotification } from '@/lib/notifications'
 import NavAvatar from '@/components/NavAvatar'
 import { haversineDistance, lookupPostcode, isValidUKPostcode } from '@/lib/pricing'
-import type { Profile, Order } from '@/lib/types'
+import type { Profile, Order, WithdrawalRequest } from '@/lib/types'
 
 const NAV = [
   { l:'Dashboard', h:'/driver/dashboard' },
@@ -89,6 +89,11 @@ export default function DriverDashboard() {
   const [fullProfileRow, setFullProfileRow] = useState<Profile | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [historyOrders, setHistoryOrders] = useState<Order[]>([])
+  // Withdrawal requests feed the "available balance" calc on the earnings
+  // hero — every non-rejected withdrawal (pending / approved / paid) has
+  // already been earmarked and should be subtracted from what's available.
+  const [withdrawals, setWithdrawals] = useState<Pick<WithdrawalRequest, 'amount' | 'status'>[]>([])
+  const [balanceReloading, setBalanceReloading] = useState(false)
   const [jobs, setJobs] = useState<AvailableJob[]>([])
   const [active, setActive] = useState<ActiveDelivery[]>([])
   // Ref shadow of `active` so imperative handlers (openDeliver) can look up
@@ -212,11 +217,37 @@ export default function DriverDashboard() {
       setAvatarUrl(fullRow?.avatar_url || null)
       const { data } = await supabase.from('orders').select('*, listings(name,cuisine)').eq('driver_id', user.id).eq('status', 'delivered').order('created_at', { ascending: false })
       setHistoryOrders(data || [])
+      const { data: wdRows } = await supabase.from('withdrawal_requests').select('amount, status').eq('user_id', user.id)
+      setWithdrawals(wdRows || [])
       await loadFeeds()
       setLoading(false)
     }
     getData()
   }, [router, loadFeeds])
+
+  // Balance recalculator — fires when the driver's own orders or their
+  // withdrawal_requests change, so the "All time / Available" figure on
+  // the earnings hero stays live without a page refresh.
+  useEffect(() => {
+    if (!profile?.id) return
+    const uid = profile.id
+    const recompute = async () => {
+      setBalanceReloading(true)
+      const [{ data: delivered }, { data: wdRows }] = await Promise.all([
+        supabase.from('orders').select('*, listings(name,cuisine)').eq('driver_id', uid).eq('status', 'delivered').order('created_at', { ascending: false }),
+        supabase.from('withdrawal_requests').select('amount, status').eq('user_id', uid),
+      ])
+      setHistoryOrders(delivered || [])
+      setWithdrawals(wdRows || [])
+      setBalanceReloading(false)
+    }
+    const channel = supabase
+      .channel(`driver-balance-${uid}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `driver_id=eq.${uid}` }, () => { void recompute() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests', filter: `user_id=eq.${uid}` }, () => { void recompute() })
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [profile?.id])
 
   // 10-second poll for new jobs while online. Cheap: RPC returns just the
   // available/active rows, filtered server-side.
@@ -424,6 +455,11 @@ export default function DriverDashboard() {
   const todayPay = todayOrders.reduce((s, o) => s + fee(o), 0)
   const weekPay = weekOrders.reduce((s, o) => s + fee(o), 0)
   const totalPay = historyOrders.reduce((s, o) => s + fee(o), 0)
+  // Available balance = everything earned − everything that isn't rejected.
+  // Split pending / paid so the hero can show both.
+  const totalWithdrawn = withdrawals.filter(w => w.status !== 'rejected').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
+  const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending' || w.status === 'approved').reduce((s, w) => s + parseFloat(w.amount || '0'), 0)
+  const availableBalance = Math.max(0, totalPay - totalWithdrawn)
   const firstName = profile?.full_name?.split(' ')[0] || 'Driver'
   const hour = new Date().getHours()
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
@@ -435,9 +471,9 @@ export default function DriverDashboard() {
     { icon:'🟢', value:online ? 'Online' : 'Offline', label:'Status', color:online ? '#34D399' : 'var(--text-secondary)' },
   ]
   const heroFigs = [
-    { label:"Today's pay", value:todayPay, hl:true },
+    { label:"Today's pay", value:todayPay, hl:false },
     { label:'This week', value:weekPay, hl:false },
-    { label:'All time', value:totalPay, hl:false },
+    { label:'Available', value:availableBalance, hl:true },
   ]
 
   const toggle = (
@@ -579,14 +615,21 @@ export default function DriverDashboard() {
         {/* Earnings hero */}
         <div className="fade-up" style={{background:'linear-gradient(135deg,#C8006A 0%,#7A0042 100%)', borderRadius:22, padding:'26px 26px 24px', boxShadow:'0 16px 44px rgba(200,0,106,0.34)', marginBottom:20, position:'relative', overflow:'hidden'}}>
           <div style={{position:'absolute', top:-40, right:-30, width:180, height:180, borderRadius:'50%', background:'rgba(255,255,255,0.08)'}}/>
-          <div style={{fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.75)', textTransform:'uppercase', letterSpacing:'0.09em', marginBottom:16, position:'relative'}}>Your earnings</div>
-          <div className="hero-figs" style={{display:'flex', gap:28, flexWrap:'wrap', marginBottom:20, position:'relative'}}>
+          <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:16, position:'relative'}}>
+            <div style={{fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.75)', textTransform:'uppercase', letterSpacing:'0.09em'}}>Your earnings</div>
+            {balanceReloading && <span aria-label="Recalculating" style={{width:6, height:6, borderRadius:'50%', background:'rgba(255,255,255,0.9)', animation:'balPulse 1.1s ease-in-out infinite'}}/>}
+            <style>{`@keyframes balPulse { 0%,100% { opacity: 0.35 } 50% { opacity: 1 } }`}</style>
+          </div>
+          <div className="hero-figs" style={{display:'flex', gap:28, flexWrap:'wrap', marginBottom:14, position:'relative'}}>
             {heroFigs.map(f => (
               <div key={f.label}>
                 <div style={{fontSize:11, color:'rgba(255,255,255,0.72)', fontWeight:600, marginBottom:4}}>{f.label}</div>
                 <div style={{fontFamily:'Georgia,serif', fontSize:f.hl ? 'clamp(34px,6vw,46px)' : 'clamp(22px,4vw,28px)', fontWeight:700, color:'#fff', letterSpacing:'-0.03em', lineHeight:1}}>£{f.value.toFixed(2)}</div>
               </div>
             ))}
+          </div>
+          <div style={{fontSize:11.5, color:'rgba(255,255,255,0.75)', fontWeight:500, marginBottom:16, position:'relative'}}>
+            £{totalPay.toFixed(2)} earned · £{totalWithdrawn.toFixed(2)} withdrawn · £{pendingWithdrawals.toFixed(2)} pending
           </div>
           <div style={{display:'flex', gap:10, position:'relative', flexWrap:'wrap'}}>
             <button onClick={() => router.push('/driver/earnings')} style={{height:46, padding:'0 24px', background:'#fff', color:'#C8006A', border:'none', borderRadius:12, fontSize:14, fontWeight:800, cursor:'pointer'}}>Withdraw funds</button>

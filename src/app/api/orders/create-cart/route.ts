@@ -97,22 +97,12 @@ export async function POST(request: Request) {
     }
 
     // 3b. Delivery fee — computed server-side from postcode distance. The
-    // whole cart shares one delivery drop, so we quote once and put the entire
-    // fee on the first order row (like the service fee).
+    // whole cart shares one delivery drop, so we quote once and put the
+    // entire fee on the first order row (like the service fee). No
+    // per-listing radius any more; every listing is deliverable
+    // platform-wide.
     let deliveryFee = 0
     if (deliveryType === 'delivery') {
-      // Use the smallest delivery_radius_miles across the cart's dishes (all
-      // from the same seller) as the constraint. If any dish is collection-only
-      // (radius=0), we bail out.
-      const { data: cartListings } = await supabaseAdmin
-        .from('listings')
-        .select('delivery_radius_miles')
-        .in('id', listingIds)
-      const radii = (cartListings || []).map(l => l.delivery_radius_miles ?? 3)
-      const radius = radii.length ? Math.min(...radii) : 3
-      if (radius <= 0) {
-        return NextResponse.json({ error: 'This cook offers collection only.' }, { status: 400 })
-      }
       const sellerPc = typeof seller.postcode === 'string' ? seller.postcode.trim() : ''
       const buyerPc = rawBuyerPostcode.trim()
       if (!buyerPc || !isValidUKPostcode(buyerPc)) {
@@ -122,11 +112,7 @@ export async function POST(request: Request) {
         const [sLoc, bLoc] = await Promise.all([lookupPostcode(sellerPc), lookupPostcode(buyerPc)])
         if (sLoc && bLoc) {
           const miles = haversineDistance(sLoc.latitude, sLoc.longitude, bLoc.latitude, bLoc.longitude)
-          const fee = deliveryFeeForDistance(miles, radius)
-          if (fee === null) {
-            return NextResponse.json({ error: 'Sorry, this cook doesn\'t deliver to your area.' }, { status: 400 })
-          }
-          deliveryFee = fee
+          deliveryFee = deliveryFeeForDistance(miles)
         } else {
           deliveryFee = FLAT_DELIVERY_FEE
         }

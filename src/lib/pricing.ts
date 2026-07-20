@@ -13,7 +13,6 @@ export const SERVICE_FEE_MAX = 1.99
 // Flat fallback when the seller hasn't set a postcode yet, so we can't measure
 // distance. Exact fee is settled at dispatch.
 export const FLAT_DELIVERY_FEE = 3.99
-export const MAX_DELIVERY_MILES = 5
 
 // 12% commission / 88% payout on a price (per-portion or subtotal).
 export function commission(amount: number): number {
@@ -41,15 +40,16 @@ export function haversineDistance(lat1: number, lon1: number, lat2: number, lon2
   return R * 2 * Math.asin(Math.sqrt(a))
 }
 
-// Distance → delivery fee, gated by the seller's delivery radius.
-// Returns null when delivery isn't available (beyond the seller radius or > 5mi).
-export function deliveryFeeForDistance(miles: number, radiusMiles: number): number | null {
-  if (radiusMiles <= 0) return null // seller is collection-only
-  if (miles > MAX_DELIVERY_MILES || miles > radiusMiles) return null
+// Distance → delivery fee. Every listing is deliverable platform-wide now,
+// so no per-seller radius cap and no null return — the buyer chooses
+// collection vs delivery at checkout regardless of distance. Tiered up to
+// 5mi; anything further gets the top tier.
+export function deliveryFeeForDistance(miles: number): number {
   if (miles < 1) return 2.49
   if (miles < 2) return 3.49
   if (miles < 3) return 4.49
-  return 5.49 // 3–5 miles
+  if (miles < 5) return 5.49
+  return 6.99
 }
 
 // UK postcode format validation (server-side normalised form). Accepts with or
