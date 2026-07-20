@@ -10,6 +10,8 @@ import {
   haversineDistance,
   deliveryFeeForDistance,
   isValidUKPostcode,
+  isWithinDeliveryRange,
+  MAX_DELIVERY_MILES,
   FLAT_DELIVERY_FEE,
 } from '@/lib/pricing'
 import { maxRedeemablePounds, poundsToPoints } from '@/lib/loyalty'
@@ -110,6 +112,13 @@ export async function POST(request: Request) {
         const [sLoc, bLoc] = await Promise.all([lookupPostcode(sellerPc), lookupPostcode(buyerPc)])
         if (sLoc && bLoc) {
           const miles = haversineDistance(sLoc.latitude, sLoc.longitude, bLoc.latitude, bLoc.longitude)
+          // Hard cap at MAX_DELIVERY_MILES — mirror /api/orders/create-cart.
+          if (!isWithinDeliveryRange(miles)) {
+            return NextResponse.json(
+              { error: `Sorry — this cook is ${miles.toFixed(1)}mi away, outside our ${MAX_DELIVERY_MILES}mi delivery range. Try collection instead, or a closer cook.` },
+              { status: 400 },
+            )
+          }
           deliveryFee = deliveryFeeForDistance(miles)
         } else {
           deliveryFee = FLAT_DELIVERY_FEE

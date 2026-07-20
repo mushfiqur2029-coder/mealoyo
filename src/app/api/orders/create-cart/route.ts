@@ -10,6 +10,8 @@ import {
   haversineDistance,
   deliveryFeeForDistance,
   isValidUKPostcode,
+  isWithinDeliveryRange,
+  MAX_DELIVERY_MILES,
   FLAT_DELIVERY_FEE,
 } from '@/lib/pricing'
 
@@ -112,6 +114,15 @@ export async function POST(request: Request) {
         const [sLoc, bLoc] = await Promise.all([lookupPostcode(sellerPc), lookupPostcode(buyerPc)])
         if (sLoc && bLoc) {
           const miles = haversineDistance(sLoc.latitude, sLoc.longitude, bLoc.latitude, bLoc.longitude)
+          // Hard cap: refuse delivery beyond MAX_DELIVERY_MILES. Buyer must
+          // switch to collection or pick a closer cook. Refunding a distant
+          // delivery post-payment is painful; reject at the checkout boundary.
+          if (!isWithinDeliveryRange(miles)) {
+            return NextResponse.json(
+              { error: `Sorry — this cook is ${miles.toFixed(1)}mi away, outside our ${MAX_DELIVERY_MILES}mi delivery range. Try collection instead, or a closer cook.` },
+              { status: 400 },
+            )
+          }
           deliveryFee = deliveryFeeForDistance(miles)
         } else {
           deliveryFee = FLAT_DELIVERY_FEE

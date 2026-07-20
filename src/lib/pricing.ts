@@ -40,16 +40,28 @@ export function haversineDistance(lat1: number, lon1: number, lat2: number, lon2
   return R * 2 * Math.asin(Math.sqrt(a))
 }
 
-// Distance → delivery fee. Every listing is deliverable platform-wide now,
-// so no per-seller radius cap and no null return — the buyer chooses
-// collection vs delivery at checkout regardless of distance. Tiered up to
-// 5mi; anything further gets the top tier.
+// Hard delivery cap. Beyond this, delivery is refused at checkout — the buyer
+// gets a "Outside delivery range" message and must switch to collection or
+// pick a nearer cook. Distance is measured straight-line via haversine.
+export const MAX_DELIVERY_MILES = 8
+
+// Distance → delivery fee. Every listing is deliverable up to
+// MAX_DELIVERY_MILES; farther distances are rejected at the checkout route.
+// deliveryFeeForDistance still returns a number here (the top tier) so
+// existing consumers keep working; the range check lives in the checkout API.
 export function deliveryFeeForDistance(miles: number): number {
-  if (miles < 1) return 2.49
-  if (miles < 2) return 3.49
-  if (miles < 3) return 4.49
-  if (miles < 5) return 5.49
-  return 6.99
+  if (miles < 1) return 0.99
+  if (miles < 2) return 1.49
+  if (miles < 3) return 1.99
+  if (miles < 5) return 2.49
+  return 2.99 // 5mi ≤ miles ≤ 8mi
+}
+
+// True when the distance is deliverable at all. Callers should reject the
+// checkout with a friendly message otherwise. Kept as a small helper so the
+// magic number lives in exactly one place.
+export function isWithinDeliveryRange(miles: number): boolean {
+  return miles <= MAX_DELIVERY_MILES
 }
 
 // UK postcode format validation (server-side normalised form). Accepts with or

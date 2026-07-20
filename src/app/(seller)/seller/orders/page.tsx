@@ -22,6 +22,46 @@ const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
   cancelled: null,
 }
 
+// A single cart checkout creates one orders row per dish (per-seller payout
+// accounting stays clean that way — see /api/orders/create-cart:19-20). The
+// seller UI groups them back together by stripe_session_id so the buyer's
+// three-dish order shows as ONE card with three items, not three cards.
+// Orders without a session id (legacy pre-Stripe, admin inserts) fall back
+// to per-row grouping — key on the order's own id so nothing gets merged.
+interface OrderGroup {
+  key: string
+  orders: Order[]
+  primary: Order // the first inserted row — carries service_fee, delivery_fee, driver_id, address
+  totalAmount: number
+  sellerPayout: number
+  createdAt: string
+}
+
+function groupOrders(orders: Order[]): OrderGroup[] {
+  const buckets = new Map<string, Order[]>()
+  for (const o of orders) {
+    const key = o.stripe_session_id || o.id
+    const bucket = buckets.get(key) ?? []
+    bucket.push(o)
+    buckets.set(key, bucket)
+  }
+  const groups: OrderGroup[] = []
+  for (const rows of buckets.values()) {
+    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    const primary = rows[0]
+    groups.push({
+      key: primary.stripe_session_id || primary.id,
+      orders: rows,
+      primary,
+      totalAmount: rows.reduce((s, o) => s + parseFloat(o.total_amount || '0'), 0),
+      sellerPayout: rows.reduce((s, o) => s + parseFloat(o.seller_payout || '0'), 0),
+      createdAt: primary.created_at,
+    })
+  }
+  groups.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  return groups
+}
+
 const cuisineEmoji: Record<string, string> = {
   'Bangladeshi':'🍛','Pakistani':'🫕','Indian':'🥘','Caribbean':'🍗',
   'Middle Eastern':'🧆','West African':'🫘','Turkish':'🥙','Sri Lankan':'🍚',
@@ -53,13 +93,17 @@ export default function SellerOrders() {
   // Persistent "new order" banner — stays until dismissed. Separate from the
   // auto-dismissing toast because busy sellers may miss the transient one.
   const [newOrderBanner, setNewOrderBanner] = useState(0)
-  const [collectionOrder, setCollectionOrder] = useState<Order | null>(null)
+  // Code modals act on the whole GROUP (cart) — the RPC touches the primary
+  // order row (which owns collection_code / delivery_fee), then the other rows
+  // in the same cart get batch-marked delivered so the seller isn't left
+  // with dangling "ready" siblings.
+  const [collectionGroup, setCollectionGroup] = useState<OrderGroup | null>(null)
   const [collectionDigits, setCollectionDigits] = useState<string[]>(new Array(CODE_LEN).fill('') as string[])
   const [collectionGenerating, setCollectionGenerating] = useState(false)
   const [collectionVerifying, setCollectionVerifying] = useState(false)
   const [collectionError, setCollectionError] = useState('')
   // Pickup handshake — seller generates and SHOWS a code to the driver.
-  const [pickupOrder, setPickupOrder] = useState<Order | null>(null)
+  const [pickupGroup, setPickupGroup] = useState<OrderGroup | null>(null)
   const [pickupCode, setPickupCode] = useState<string>('')
   const [pickupGenerating, setPickupGenerating] = useState(false)
   const [pickupError, setPickupError] = useState('')
@@ -72,30 +116,6 @@ export default function SellerOrders() {
   useEffect(() => {
     void requestNotificationPermission()
   }, [])
-
-  // A short 880Hz beep via the Web Audio API — no audio asset needed, and the
-  // AudioContext is created on demand (browsers block it until a user gesture,
-  // but the realtime event usually fires after the seller has already clicked
-  // into the page).
-  const playNewOrderBeep = () => {
-    try {
-      const W = window as unknown as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }
-      const AudioCtx = W.AudioContext || W.webkitAudioContext
-      if (!AudioCtx) return
-      const ctx = new AudioCtx()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = 880
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime + 0.02)
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5)
-      osc.connect(gain).connect(ctx.destination)
-      osc.start()
-      osc.stop(ctx.currentTime + 0.55)
-      osc.onended = () => ctx.close().catch(() => {})
-    } catch { /* ignore — audio is a nice-to-have */ }
-  }
 
   // Fire everything that "new order arrived" should do: sound, system push,
   // toast, and bump the persistent banner counter. Uses playDoubleBeep from
@@ -134,6 +154,18 @@ export default function SellerOrders() {
   useEffect(() => {
     if (!sellerId) return
     const ORDER_SELECT = '*, listings(name,cuisine), profiles:buyer_id(full_name)'
+    // A cart checkout inserts N orders (one per dish) sharing a
+    // stripe_session_id. The webhook then UPDATEs all N from pending_payment →
+    // pending. Without dedup the seller would hear the beep N times for one
+    // real-world "new order" event. Track which session_ids we've already
+    // announced during this page's lifetime.
+    const announcedCarts = new Set<string>()
+    const announceOnce = (o: Order) => {
+      const key = o.stripe_session_id || o.id
+      if (announcedCarts.has(key)) return
+      announcedCarts.add(key)
+      announceNewOrder()
+    }
     const channel = supabase
       .channel(`seller-orders-${sellerId}`)
       .on(
@@ -149,7 +181,7 @@ export default function SellerOrders() {
           // pending_payment), handled by the UPDATE subscription below.
           if (data && data.status !== 'pending_payment' && paymentOk(data)) {
             setOrders(prev => prev.some(o => o.id === data.id) ? prev : [data, ...prev])
-            announceNewOrder()
+            announceOnce(data)
           }
         }
       )
@@ -170,7 +202,7 @@ export default function SellerOrders() {
           if (!data || !paymentOk(data)) return
           setOrders(prev => {
             if (prev.some(o => o.id === data.id)) return prev.map(o => o.id === data.id ? { ...o, ...data } : o)
-            queueMicrotask(() => announceNewOrder())
+            queueMicrotask(() => announceOnce(data))
             return [data, ...prev]
           })
         }
@@ -189,17 +221,21 @@ export default function SellerOrders() {
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/') }
 
-  const advanceStatus = async (order: Order) => {
-    const step = STATUS_FLOW[order.status]
+  // Advance every order in the group in one shot — a cart checkout is a
+  // single real order to the buyer + seller, even though it's N rows in the
+  // DB. Loyalty points are per-row (each row has its own subtotal), so we
+  // fire the award RPC per id when the transition is → delivered.
+  const advanceGroup = async (group: OrderGroup) => {
+    const step = STATUS_FLOW[group.primary.status]
     if (!step) return
-    setUpdatingId(order.id)
-    const { error } = await supabase.from('orders').update({ status: step.next }).eq('id', order.id)
+    setUpdatingId(group.key)
+    const ids = group.orders.map(o => o.id)
+    const { error } = await supabase.from('orders').update({ status: step.next }).in('id', ids)
     if (!error) {
-      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: step.next } : o))
-      // Award loyalty points the moment an order is marked delivered. The DB
-      // function is idempotent, so a repeat call is harmless; it no-ops until
-      // the loyalty SQL has been run.
-      if (step.next === 'delivered') await supabase.rpc('award_loyalty_points', { p_order_id: order.id })
+      setOrders(prev => prev.map(o => ids.includes(o.id) ? { ...o, status: step.next } : o))
+      if (step.next === 'delivered') {
+        await Promise.all(ids.map(id => supabase.rpc('award_loyalty_points', { p_order_id: id })))
+      }
     }
     setUpdatingId(null)
   }
@@ -213,39 +249,41 @@ export default function SellerOrders() {
 
   // Focus the first digit once the modal opens and the code has been generated.
   useEffect(() => {
-    if (collectionOrder && !collectionGenerating) digitRefs.current[0]?.focus()
-  }, [collectionOrder, collectionGenerating])
+    if (collectionGroup && !collectionGenerating) digitRefs.current[0]?.focus()
+  }, [collectionGroup, collectionGenerating])
 
-  // Collection code flow: for a ready + collection order, generate a code on
-  // the DB (which the buyer sees live via realtime) then open the verify modal.
-  const openCollection = async (order: Order) => {
-    setCollectionOrder(order)
+  // Collection code flow: for a ready + collection cart, generate a code on
+  // the primary order (which the buyer sees live via realtime) then open the
+  // verify modal. The other orders in the cart are advanced to delivered on
+  // successful verification.
+  const openCollection = async (group: OrderGroup) => {
+    setCollectionGroup(group)
     setCollectionDigits(new Array(CODE_LEN).fill('') as string[])
     setCollectionError('')
     setCollectionGenerating(true)
-    await supabase.rpc('generate_collection_code', { p_order_id: order.id })
+    await supabase.rpc('generate_collection_code', { p_order_id: group.primary.id })
     setCollectionGenerating(false)
   }
 
   const closeCollection = () => {
-    setCollectionOrder(null)
+    setCollectionGroup(null)
     setCollectionDigits(new Array(CODE_LEN).fill('') as string[])
     setCollectionError('')
   }
 
-  // Pickup code flow (seller side): for a ready + delivery order with a driver
+  // Pickup code flow (seller side): for a ready + delivery cart with a driver
   // assigned, generate the code the driver will key into their own app.
-  const openPickup = async (order: Order) => {
-    setPickupOrder(order)
+  const openPickup = async (group: OrderGroup) => {
+    setPickupGroup(group)
     setPickupCode('')
     setPickupError('')
     setPickupGenerating(true)
-    const { data, error } = await supabase.rpc('generate_pickup_code', { p_order_id: order.id })
+    const { data, error } = await supabase.rpc('generate_pickup_code', { p_order_id: group.primary.id })
     setPickupGenerating(false)
     if (error) { setPickupError(error.message.replace(/^.*?:\s*/, '') || 'Could not generate code'); return }
     setPickupCode(typeof data === 'string' ? data : '')
   }
-  const closePickup = () => { setPickupOrder(null); setPickupCode(''); setPickupError('') }
+  const closePickup = () => { setPickupGroup(null); setPickupCode(''); setPickupError('') }
 
   const setDigit = (i: number, v: string) => {
     const d = v.replace(/\D/g, '').slice(-1)
@@ -279,16 +317,25 @@ export default function SellerOrders() {
   }
 
   const submitCollection = async () => {
-    if (!collectionOrder) return
+    if (!collectionGroup) return
     const code = collectionDigits.join('')
     if (code.length !== CODE_LEN) { setCollectionError(`Enter the full ${CODE_LEN}-digit code`); return }
     setCollectionError('')
     setCollectionVerifying(true)
-    const { data, error } = await supabase.rpc('verify_collection_code', { p_order_id: collectionOrder.id, p_code: code })
+    // The RPC verifies against the code stored on the primary order and, on
+    // success, marks THAT row delivered. Batch-mark the sibling cart rows so
+    // the seller doesn't see stale "ready" cards next to a delivered one.
+    const { data, error } = await supabase.rpc('verify_collection_code', { p_order_id: collectionGroup.primary.id, p_code: code })
     setCollectionVerifying(false)
     if (error) { setCollectionError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
     if (data === true) {
-      setOrders(prev => prev.map(o => o.id === collectionOrder.id ? { ...o, status: 'delivered', collection_code: null, collection_code_expires_at: null } : o))
+      const siblingIds = collectionGroup.orders.filter(o => o.id !== collectionGroup.primary.id).map(o => o.id)
+      if (siblingIds.length) {
+        await supabase.from('orders').update({ status: 'delivered' }).in('id', siblingIds)
+        await Promise.all(siblingIds.map(id => supabase.rpc('award_loyalty_points', { p_order_id: id })))
+      }
+      const allIds = collectionGroup.orders.map(o => o.id)
+      setOrders(prev => prev.map(o => allIds.includes(o.id) ? { ...o, status: 'delivered', collection_code: null, collection_code_expires_at: null } : o))
       closeCollection()
     } else {
       setCollectionError('Incorrect code, please try again')
@@ -300,13 +347,17 @@ export default function SellerOrders() {
   const statusColor = (s: string) => s === 'delivered' ? '#2DA84E' : s === 'cooking' ? '#B8730A' : s === 'ready' ? '#C8006A' : s === 'cancelled' ? '#C0392B' : '#1A6ECC'
   const statusBg = (s: string) => s === 'delivered' ? '#E4F6EA' : s === 'cooking' ? '#FFF4E0' : s === 'ready' ? '#FFE8F4' : s === 'cancelled' ? '#FDECEA' : '#EBF2FD'
 
-  const filtered = filter === 'all' ? orders : orders.filter(o => o.status === filter)
-  const counts: Record<string, number> = { all: orders.length }
-  for (const f of FILTERS) if (f !== 'all') counts[f] = orders.filter(o => o.status === f).length
+  // Groups derived from the flat orders array. Every downstream count / filter
+  // works on GROUPS (a 3-dish cart is one "order" to the seller) but the raw
+  // orders state stays flat for realtime updates and the collection RPC.
+  const groups = useMemo(() => groupOrders(orders), [orders])
+  const filteredGroups = filter === 'all' ? groups : groups.filter(g => g.primary.status === filter)
+  const counts: Record<string, number> = { all: groups.length }
+  for (const f of FILTERS) if (f !== 'all') counts[f] = groups.filter(g => g.primary.status === f).length
 
   const revenue = orders.reduce((s, o) => s + parseFloat(o.total_amount || '0'), 0)
   const earnings = orders.reduce((s, o) => s + parseFloat(o.seller_payout || '0'), 0)
-  const activeCount = orders.filter(o => STATUS_FLOW[o.status]).length
+  const activeCount = groups.filter(g => STATUS_FLOW[g.primary.status]).length
 
   const pageStyles = (
     <style>{`
@@ -474,8 +525,8 @@ export default function SellerOrders() {
           })}
         </div>
 
-        {/* Orders */}
-        {filtered.length === 0 ? (
+        {/* Orders (grouped) */}
+        {filteredGroups.length === 0 ? (
           <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'64px 32px', textAlign:'center', boxShadow:'0 2px 10px var(--shadow-card)', border:'1.5px solid var(--border-subtle)'}}>
             <div style={{width:88, height:88, borderRadius:'50%', background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:42, margin:'0 auto 20px'}}>📦</div>
             <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No orders {filter !== 'all' ? `in "${filter.replace('_', ' ')}"` : 'yet'}</h2>
@@ -483,33 +534,58 @@ export default function SellerOrders() {
           </div>
         ) : (
           <div className="orders-grid" style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(380px,1fr))', gap:16}}>
-            {filtered.map(o => {
-              const step = STATUS_FLOW[o.status]
-              const buyerFirst = (o.profiles?.full_name || 'Buyer').trim().split(/\s+/)[0]
-              const dt = new Date(o.created_at)
-              const isDelivery = o.delivery_type === 'delivery'
+            {filteredGroups.map(g => {
+              const primary = g.primary
+              const step = STATUS_FLOW[primary.status]
+              const buyerFirst = (primary.profiles?.full_name || 'Buyer').trim().split(/\s+/)[0]
+              const dt = new Date(g.createdAt)
+              const isDelivery = primary.delivery_type === 'delivery'
+              const itemCount = g.orders.reduce((s, o) => s + (o.quantity || 0), 0)
+              // Headline dish + " + N more" affordance so a multi-item cart
+              // still reads as one card at a glance; full breakdown is right
+              // below in the items list.
+              const headlineName = primary.listings?.name || 'Order'
+              const extraCount = g.orders.length - 1
+              const notes = g.orders.map(o => o.notes).filter(Boolean).join(' · ')
               return (
-                <div key={o.id} className="order-card fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'20px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column'}}>
+                <div key={g.key} className="order-card fade-up" style={{background:'var(--bg-card)', borderRadius:20, padding:'20px', boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border-subtle)', display:'flex', flexDirection:'column'}}>
 
-                  {/* Top: dish + status */}
+                  {/* Top: headline dish + status */}
                   <div style={{display:'flex', gap:14, marginBottom:16}}>
                     <div style={{width:54, height:54, borderRadius:14, background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, flexShrink:0}}>
-                      {cuisineEmoji[o.listings?.cuisine || 'Other'] || '🍽️'}
+                      {cuisineEmoji[primary.listings?.cuisine || 'Other'] || '🍽️'}
                     </div>
                     <div style={{flex:1, minWidth:0}}>
                       <div style={{display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8}}>
-                        <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)', lineHeight:1.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{o.listings?.name || 'Order'}</div>
-                        <span style={{flexShrink:0, background:statusBg(o.status), color:statusColor(o.status), padding:'3px 10px', borderRadius:100, fontSize:11, fontWeight:700, textTransform:'capitalize', whiteSpace:'nowrap'}}>{o.status.replace('_', ' ')}</span>
+                        <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)', lineHeight:1.3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                          {headlineName}{extraCount > 0 && <span style={{color:'#C8006A', fontWeight:600}}> + {extraCount} more</span>}
+                        </div>
+                        <span style={{flexShrink:0, background:statusBg(primary.status), color:statusColor(primary.status), padding:'3px 10px', borderRadius:100, fontSize:11, fontWeight:700, textTransform:'capitalize', whiteSpace:'nowrap'}}>{primary.status.replace('_', ' ')}</span>
                       </div>
-                      <div style={{fontSize:12, color:'var(--text-primary)', fontWeight:500, marginTop:3}}>#{o.id.slice(0, 8).toUpperCase()}</div>
+                      <div style={{fontSize:12, color:'var(--text-primary)', fontWeight:500, marginTop:3}}>#{g.key.slice(0, 8).toUpperCase()}</div>
                     </div>
                   </div>
 
                   {/* Meta pills */}
                   <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:14}}>
                     <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'var(--bg-page)', color:'var(--text-primary)', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>👤 {buyerFirst}</span>
-                    <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'var(--bg-page)', color:'var(--text-primary)', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>× {o.quantity}</span>
+                    <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'var(--bg-page)', color:'var(--text-primary)', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
                     <span style={{display:'inline-flex', alignItems:'center', gap:5, background:'#FFE8F4', color:'#C8006A', padding:'5px 11px', borderRadius:100, fontSize:12, fontWeight:700}}>{isDelivery ? '🚴 Delivery' : '📍 Collection'}</span>
+                  </div>
+
+                  {/* Line items — one row per dish in the cart. Single-item
+                      orders show one line; multi-item carts show the whole
+                      breakdown so the seller knows exactly what to prepare. */}
+                  <div style={{background:'var(--bg-page)', borderRadius:12, padding:'10px 12px', marginBottom:12, display:'flex', flexDirection:'column', gap:4}}>
+                    {g.orders.map(o => {
+                      const line = parseFloat(o.total_amount || '0') - parseFloat(o.service_fee || '0') - parseFloat(o.delivery_fee || '0')
+                      return (
+                        <div key={o.id} style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8, fontSize:13}}>
+                          <span style={{color:'var(--text-primary)', fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', minWidth:0}}>{o.quantity}× {o.listings?.name || 'Dish'}</span>
+                          <span style={{color:'var(--text-primary)', fontWeight:700, flexShrink:0}}>£{line.toFixed(2)}</span>
+                        </div>
+                      )
+                    })}
                   </div>
 
                   {/* Date / time */}
@@ -517,10 +593,10 @@ export default function SellerOrders() {
                     🕐 {dt.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })} · {dt.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' })}
                   </div>
 
-                  {/* Notes */}
-                  {o.notes && (
+                  {/* Notes (concatenated across items) */}
+                  {notes && (
                     <div style={{background:'var(--bg-page)', borderRadius:12, padding:'10px 14px', fontSize:13, color:'var(--text-primary)', lineHeight:1.5, marginBottom:14}}>
-                      <span style={{fontWeight:700, color:'#C8006A'}}>📝 Note</span> · {o.notes}
+                      <span style={{fontWeight:700, color:'#C8006A'}}>📝 Note</span> · {notes}
                     </div>
                   )}
 
@@ -530,48 +606,63 @@ export default function SellerOrders() {
                       <div style={{display:'flex', gap:16}}>
                         <div>
                           <div style={{fontSize:10, color:'var(--text-primary)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', opacity:0.7, marginBottom:2}}>Order total</div>
-                          <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>£{parseFloat(o.total_amount || '0').toFixed(2)}</div>
+                          <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>£{g.totalAmount.toFixed(2)}</div>
                         </div>
                         <div>
                           <div style={{fontSize:10, color:'#C8006A', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:2}}>Your payout</div>
-                          <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#C8006A', letterSpacing:'-0.01em'}}>£{parseFloat(o.seller_payout || '0').toFixed(2)}</div>
+                          <div style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'#C8006A', letterSpacing:'-0.01em'}}>£{g.sellerPayout.toFixed(2)}</div>
                         </div>
                       </div>
                     </div>
-                    {step ? (() => {
-                      const isCollectionConfirm = o.status === 'ready' && o.delivery_type === 'collection'
-                      // Ready + delivery: if a driver is assigned, seller shows a
-                      // pickup code to them. If no driver yet, the button is idle
-                      // (dispatch handles assignment).
-                      const isDeliveryReady = o.status === 'ready' && o.delivery_type === 'delivery'
-                      const isPickupHandoff = isDeliveryReady && !!o.driver_id
-                      const waitingForDriver = isDeliveryReady && !o.driver_id
-                      let label = step.label
-                      let handler = () => advanceStatus(o)
-                      if (isCollectionConfirm) { label = 'Confirm collection'; handler = () => openCollection(o) }
-                      else if (isPickupHandoff) { label = 'Show pickup code'; handler = () => openPickup(o) }
-                      // Delivery + status=picked_up: driver owns the drop, so
-                      // seller has nothing to do — hide the advance button.
-                      if (o.delivery_type === 'delivery' && o.status === 'picked_up') return (
+                    {(() => {
+                      // Handoff pills — seller has nothing to do here, so no
+                      // button. Order matters: check the code-required states
+                      // FIRST so we never fall through to a raw advance
+                      // button that would let the seller skip verification.
+                      if (primary.delivery_type === 'delivery' && primary.status === 'picked_up') return (
                         <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:'#F2EAFA', color:'#7A3FB0', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
                           🚴 Driver has it
                         </span>
                       )
+                      if (primary.delivery_type === 'delivery' && primary.status === 'reached') return (
+                        <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:'#FFF4E0', color:'#B8730A', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
+                          📍 Driver at buyer
+                        </span>
+                      )
+                      // Safety pill for the anomalous picked_up + collection
+                      // state (should not happen through the normal UI flow
+                      // — collection orders skip picked_up via the code
+                      // modal). No advance button here: the code verification
+                      // is the only sanctioned path to delivered.
+                      if (primary.delivery_type === 'collection' && primary.status === 'picked_up') return (
+                        <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:'#FFE8F4', color:'#C8006A', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
+                          ⏳ Awaiting code
+                        </span>
+                      )
+                      if (!step) return (
+                        <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:primary.status === 'cancelled' ? '#FDECEA' : '#E4F6EA', color:primary.status === 'cancelled' ? '#C0392B' : '#2DA84E', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
+                          {primary.status === 'cancelled' ? '✕ Cancelled' : '✓ Completed'}
+                        </span>
+                      )
+                      const isCollectionConfirm = primary.status === 'ready' && primary.delivery_type === 'collection'
+                      const isDeliveryReady = primary.status === 'ready' && primary.delivery_type === 'delivery'
+                      const isPickupHandoff = isDeliveryReady && !!primary.driver_id
+                      const waitingForDriver = isDeliveryReady && !primary.driver_id
                       if (waitingForDriver) return (
                         <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:'#EBF2FD', color:'#1A6ECC', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
                           ⏳ Waiting for driver
                         </span>
                       )
+                      let label = step.label
+                      let handler = () => advanceGroup(g)
+                      if (isCollectionConfirm) { label = 'Confirm collection'; handler = () => openCollection(g) }
+                      else if (isPickupHandoff) { label = 'Show pickup code'; handler = () => openPickup(g) }
                       return (
-                        <button onClick={handler} disabled={updatingId === o.id} className="advance-btn" style={{flexShrink:0, height:46, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:13, fontWeight:700, cursor:updatingId === o.id ? 'not-allowed' : 'pointer', opacity:updatingId === o.id ? 0.7 : 1, boxShadow:'0 4px 14px rgba(200,0,106,0.28)', whiteSpace:'nowrap'}}>
-                          {updatingId === o.id ? 'Updating...' : label}
+                        <button onClick={handler} disabled={updatingId === g.key} className="advance-btn" style={{flexShrink:0, height:46, padding:'0 18px', background:'#C8006A', color:'#fff', border:'none', borderRadius:12, fontSize:13, fontWeight:700, cursor:updatingId === g.key ? 'not-allowed' : 'pointer', opacity:updatingId === g.key ? 0.7 : 1, boxShadow:'0 4px 14px rgba(200,0,106,0.28)', whiteSpace:'nowrap'}}>
+                          {updatingId === g.key ? 'Updating...' : label}
                         </button>
                       )
-                    })() : (
-                      <span className="done-pill" style={{flexShrink:0, height:46, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:6, background:o.status === 'cancelled' ? '#FDECEA' : '#E4F6EA', color:o.status === 'cancelled' ? '#C0392B' : '#2DA84E', borderRadius:12, fontSize:13, fontWeight:700, whiteSpace:'nowrap'}}>
-                        {o.status === 'cancelled' ? '✕ Cancelled' : '✓ Completed'}
-                      </span>
-                    )}
+                    })()}
                   </div>
                 </div>
               )
@@ -581,7 +672,7 @@ export default function SellerOrders() {
       </div>
 
       {/* ── COLLECTION CODE MODAL ── */}
-      {collectionOrder && (
+      {collectionGroup && (
         <div role="dialog" aria-modal="true" onClick={closeCollection} style={{position:'fixed', inset:0, background:'rgba(26,26,26,0.55)', backdropFilter:'blur(4px)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
           <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, width:'100%', maxWidth:460, boxShadow:'0 24px 68px rgba(0,0,0,0.3)', padding:'28px 28px 26px'}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6}}>
@@ -627,7 +718,7 @@ export default function SellerOrders() {
       )}
 
       {/* ── PICKUP CODE MODAL (delivery orders) ── */}
-      {pickupOrder && (
+      {pickupGroup && (
         <div role="dialog" aria-modal="true" onClick={closePickup} style={{position:'fixed', inset:0, background:'rgba(26,26,26,0.55)', backdropFilter:'blur(4px)', zIndex:500, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
           <div onClick={e => e.stopPropagation()} className="fade-up" style={{background:'var(--bg-card)', borderRadius:22, width:'100%', maxWidth:460, boxShadow:'0 24px 68px rgba(0,0,0,0.3)', padding:'28px 28px 26px'}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6}}>
