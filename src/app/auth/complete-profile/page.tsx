@@ -134,15 +134,22 @@ export default function CompleteProfile() {
     })
     if (rpcError) { setError(rpcError.message); setLoading(false); return }
 
-    // Persist the address if the user picked one — best effort, doesn't block
-    // completion. Uses the same profile row the RPC just touched.
+    // Persist the address if the user picked one. Surface any error so the
+    // user isn't silently sent to their dashboard with a half-saved profile —
+    // they can retry, or clear the address to skip. Role/name/phone are
+    // already saved above, so it's safe to bail here without losing those.
     if (address.address_line1.trim() || address.postcode.trim()) {
-      await supabase.rpc('update_my_address', {
+      const { error: addrError } = await supabase.rpc('update_my_address', {
         p_address_line1: address.address_line1.trim() || null,
         p_address_line2: address.address_line2.trim() || null,
         p_city: address.city.trim() || null,
         p_postcode: address.postcode.trim().toUpperCase() || null,
       })
+      if (addrError) {
+        setError(`Address couldn't be saved: ${addrError.message}. Clear the address to skip, or fix and retry.`)
+        setLoading(false)
+        return
+      }
     }
 
     // Credit a referrer if this buyer arrived via a referral link.

@@ -18,10 +18,10 @@ const NAV = [
 ]
 
 // Rows returned by get_available_delivery_jobs — kept flat by the RPC.
-// 8-digit codes (100M combinations) — matches the DB varchar(8) column type
-// and the generate_secure_code() PL/pgSQL function. Keep this in sync with
-// the schema — changing to 6 here without an ALTER TABLE would break verify.
-const CODE_LEN = 8
+// 6-digit codes — matches the generate_pickup_code / generate_delivery_code
+// SQL RPCs (lpad(floor(random() * 1000000)::text, 6, '0')). Columns are TEXT
+// so no ALTER TABLE is required if this ever changes.
+const CODE_LEN = 6
 
 interface AvailableJob {
   order_id: string
@@ -763,7 +763,7 @@ export default function DriverDashboard() {
               <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Pickup code</h2>
               <button onClick={closePickup} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
             </div>
-            <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:22}}>Ask the cook for their <strong style={{color:'#C8006A'}}>8-digit pickup code</strong> and enter it below.</p>
+            <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:22}}>Ask the cook for their <strong style={{color:'#C8006A'}}>6-digit pickup code</strong> and enter it below.</p>
             <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16}}>
               {pickupDigits.map((d, i) => (
                 <input
@@ -800,7 +800,7 @@ export default function DriverDashboard() {
               <button onClick={closeDeliver} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
             </div>
             <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:18}}>
-              An <strong style={{color:'#C8006A'}}>8-digit code</strong> has been sent to the buyer&apos;s app. Ask them to read it out to you and enter it below.
+              A <strong style={{color:'#C8006A'}}>6-digit code</strong> has been sent to the buyer&apos;s app. Ask them to read it out to you and enter it below.
             </p>
             {deliverGenerating && <div style={{fontSize:12, color:'var(--text-secondary)', textAlign:'center', marginBottom:14, fontWeight:600}}>Sending code to buyer…</div>}
             {deliverCode && (

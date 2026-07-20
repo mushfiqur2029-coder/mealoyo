@@ -7,9 +7,10 @@ import Logo from '@/components/Logo'
 import { playDoubleBeep, requestNotificationPermission, showPushNotification } from '@/lib/notifications'
 import type { Order, Profile } from '@/lib/types'
 
-// 8-digit codes — matches the DB varchar(8) column type and the
-// generate_secure_code() PL/pgSQL function.
-const CODE_LEN = 8
+// 6-digit codes — matches the generate_collection_code / generate_pickup_code
+// SQL RPCs (lpad(floor(random() * 1000000)::text, 6, '0')). Columns are TEXT
+// so no ALTER TABLE is required if this ever changes.
+const CODE_LEN = 6
 
 const STATUS_FLOW: Record<string, { next: string; label: string } | null> = {
   pending: { next: 'accepted', label: 'Accept order' },
@@ -587,7 +588,7 @@ export default function SellerOrders() {
               <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Confirm collection</h2>
               <button onClick={closeCollection} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'var(--bg-card)', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
             </div>
-            <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.6, marginBottom:22}}>Ask the buyer for their <strong style={{color:'#C8006A'}}>8-digit collection code</strong> and enter it below to confirm the handover.</p>
+            <p style={{fontSize:14, color:'var(--text-primary)', lineHeight:1.6, marginBottom:22}}>Ask the buyer for their <strong style={{color:'#C8006A'}}>6-digit collection code</strong> and enter it below to confirm the handover.</p>
 
             <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16}}>
               {collectionDigits.map((d, i) => (

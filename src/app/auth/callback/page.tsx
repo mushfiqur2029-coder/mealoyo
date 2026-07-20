@@ -16,6 +16,17 @@ export default function AuthCallback() {
   useEffect(() => {
     let cancelled = false
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+    // Clear the pre-redirect signals OAuthButtons stashes in localStorage. Must
+    // run on every terminal path — success AND failure — so a failed attempt
+    // never leaves the provider/role behind to be misapplied to the next try
+    // (e.g. Facebook's slow-session heuristics applied to a Google user).
+    const clearOAuthSignals = () => {
+      if (typeof window === 'undefined') return
+      try {
+        localStorage.removeItem('mealoyo-oauth-provider')
+        localStorage.removeItem('mealoyo-oauth-role')
+      } catch { /* private mode */ }
+    }
 
     const finish = async () => {
       // When the provider (esp. Facebook) rejects the sign-in, Supabase redirects
@@ -29,6 +40,7 @@ export default function AuthCallback() {
       // sign in without one, and we collect it on /auth/complete-profile. So only
       // bounce back to login on a genuine error, not an email-related one.
       if (providerError && !/email/i.test(providerError)) {
+        clearOAuthSignals()
         router.replace('/login?error=oauth&reason=' + encodeURIComponent(providerError))
         return
       }
@@ -58,10 +70,15 @@ export default function AuthCallback() {
       // left the user staring at a "Sign in" nav). Send them back to login with
       // a clear, retryable message.
       if (!user) {
+        clearOAuthSignals()
         router.replace('/login?error=session_timeout')
         return
       }
 
+      // Success path: read the role signal, THEN clear both signals. Reading
+      // first because complete-profile also consults mealoyo-oauth-role and
+      // clears it — this stays defensive if the flow ever changes.
+      const pendingRole = typeof window !== 'undefined' ? localStorage.getItem('mealoyo-oauth-role') : null
       if (typeof window !== 'undefined') localStorage.removeItem('mealoyo-oauth-provider')
 
       // If the user chose to register as a seller/driver before the OAuth
@@ -70,7 +87,6 @@ export default function AuthCallback() {
       // default to buyer, which would otherwise shortcut them straight to the
       // buyer dashboard and silently discard their seller/driver selection.
       // (complete-profile reads and clears mealoyo-oauth-role.)
-      const pendingRole = localStorage.getItem('mealoyo-oauth-role')
       if (pendingRole === 'seller' || pendingRole === 'driver') {
         router.replace('/auth/complete-profile')
         return

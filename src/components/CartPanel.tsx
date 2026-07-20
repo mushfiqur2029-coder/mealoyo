@@ -85,7 +85,6 @@ export default function CartPanel({ isOpen, onClose }: { isOpen: boolean; onClos
         supabase.rpc('get_seller_public_address', { p_seller_id: sellerId }),
       ])
       if (!alive) return
-      console.log('[cart] seller lookup', { sellerId, postcode: pc, addrRow })
       setSeller({
         id: sellerId,
         full_name: sellerName,
