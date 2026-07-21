@@ -17,15 +17,16 @@ const NAV = [
   { l:'History', h:'/driver/history' },
 ]
 
-// Rows returned by get_available_delivery_jobs — kept flat by the RPC.
-// 6-digit codes — matches the generate_pickup_code / generate_delivery_code
-// SQL RPCs (lpad(floor(random() * 1000000)::text, 6, '0')). Columns are TEXT
-// so no ALTER TABLE is required if this ever changes.
-const CODE_LEN = 6
+// Rows returned by get_available_delivery_jobs.
+// 4-digit codes — matches the shared generate_secure_code() SQL RPC
+// (1000..9999). Columns are TEXT so this can move without an ALTER TABLE.
+const CODE_LEN = 4
 
 interface AvailableJob {
   order_id: string
+  stripe_session_id: string | null
   listing_name: string
+  quantity: number
   seller_name: string
   seller_address: string | null
   seller_postcode: string | null
@@ -40,6 +41,84 @@ interface ActiveDelivery extends AvailableJob {
   status: string
   pickup_code: string | null
   delivery_code: string | null
+}
+
+// Same shape as the seller/orders grouping: a cart checkout writes N rows
+// sharing a stripe_session_id, but from the driver's point of view it's ONE
+// job (one pickup at the cook, one drop at the buyer). Group them here so the
+// UI can render a single card with the itemised breakdown, one accept button,
+// and one countdown / one beep per real-world job.
+interface JobGroup {
+  key: string
+  jobs: AvailableJob[]
+  primary: AvailableJob // the row that carries the real delivery_fee + address
+  totalDeliveryFee: number // sum across the group (only primary has a non-zero, but this survives if the schema ever changes)
+  items: Array<{ name: string; quantity: number }>
+  createdAt: string
+}
+
+interface ActiveGroup {
+  key: string
+  jobs: ActiveDelivery[]
+  primary: ActiveDelivery
+  totalDeliveryFee: number
+  items: Array<{ name: string; quantity: number }>
+  status: string
+  createdAt: string
+}
+
+// Group by stripe_session_id; rows without one (legacy pre-cart flows, single-
+// dish direct checkouts, admin inserts) fall back to per-row grouping using
+// their own order_id so nothing merges that shouldn't.
+function groupJobs(list: AvailableJob[]): JobGroup[] {
+  const buckets = new Map<string, AvailableJob[]>()
+  for (const j of list) {
+    const k = j.stripe_session_id || j.order_id
+    const bucket = buckets.get(k) ?? []
+    bucket.push(j)
+    buckets.set(k, bucket)
+  }
+  const groups: JobGroup[] = []
+  for (const rows of buckets.values()) {
+    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    const primary = rows[0]
+    groups.push({
+      key: primary.stripe_session_id || primary.order_id,
+      jobs: rows,
+      primary,
+      totalDeliveryFee: rows.reduce((s, r) => s + parseFloat(r.delivery_fee || '0'), 0),
+      items: rows.map(r => ({ name: r.listing_name, quantity: r.quantity })),
+      createdAt: primary.created_at,
+    })
+  }
+  groups.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  return groups
+}
+
+function groupActive(list: ActiveDelivery[]): ActiveGroup[] {
+  const buckets = new Map<string, ActiveDelivery[]>()
+  for (const a of list) {
+    const k = a.stripe_session_id || a.order_id
+    const bucket = buckets.get(k) ?? []
+    bucket.push(a)
+    buckets.set(k, bucket)
+  }
+  const groups: ActiveGroup[] = []
+  for (const rows of buckets.values()) {
+    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+    const primary = rows[0]
+    groups.push({
+      key: primary.stripe_session_id || primary.order_id,
+      jobs: rows,
+      primary,
+      totalDeliveryFee: rows.reduce((s, r) => s + parseFloat(r.delivery_fee || '0'), 0),
+      items: rows.map(r => ({ name: r.listing_name, quantity: r.quantity })),
+      status: primary.status,
+      createdAt: primary.created_at,
+    })
+  }
+  groups.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  return groups
 }
 
 // Driver keeps 80% of the delivery fee; the platform keeps 20%. Kept here
@@ -175,7 +254,8 @@ export default function DriverDashboard() {
   }, [])
 
   // Fetch order + job feeds. Extracted so a poll / realtime / refresh button can
-  // reuse it without duplicating query logic. Announces newly-seen jobs.
+  // reuse it without duplicating query logic. Announces newly-seen job GROUPS
+  // (one beep per cart even if the cart has 3 dishes = 3 rows).
   const loadFeeds = useCallback(async () => {
     const [{ data: available }, { data: mine }] = await Promise.all([
       supabase.rpc('get_available_delivery_jobs'),
@@ -187,19 +267,31 @@ export default function DriverDashboard() {
     setActive(mineList)
     mineActiveRef.current = mineList
     setLastRefreshAt(Date.now())
-    // Beep + browser notification for any job we hadn't seen before this
-    // refresh; then record it so we don't re-fire on the next poll. Skip
-    // the very first refresh — everything is "new" then, and we don't want
-    // a beep the moment the page loads.
+    // Beep + browser notification for any job GROUP we hadn't seen before
+    // this refresh. Keying dedup on stripe_session_id (falling back to
+    // order_id) means a cart of N deliveries fires ONE beep, not N.
     const firstRun = seenJobIds.current.size === 0
-    let firstNewFee: string | undefined
+    let firstNewFeeTotal = 0
+    let announcedNew = false
+    // Sum delivery_fee per session for the earn number in the push body
+    // (only the primary row of a cart has a non-zero fee, but summing is
+    // safe and future-proofs against a schema change).
+    const feeBySession = new Map<string, number>()
     for (const j of list) {
-      if (!seenJobIds.current.has(j.order_id)) {
-        seenJobIds.current.add(j.order_id)
-        if (!firstRun && firstNewFee === undefined) firstNewFee = j.delivery_fee
+      const key = j.stripe_session_id || j.order_id
+      feeBySession.set(key, (feeBySession.get(key) ?? 0) + parseFloat(j.delivery_fee || '0'))
+    }
+    for (const j of list) {
+      const key = j.stripe_session_id || j.order_id
+      if (!seenJobIds.current.has(key)) {
+        seenJobIds.current.add(key)
+        if (!firstRun && !announcedNew) {
+          firstNewFeeTotal = feeBySession.get(key) ?? 0
+          announcedNew = true
+        }
       }
     }
-    if (firstNewFee !== undefined) announceNewJob(firstNewFee)
+    if (announcedNew) announceNewJob(String(firstNewFeeTotal))
   }, [announceNewJob])
 
   useEffect(() => {
@@ -332,9 +424,17 @@ export default function DriverDashboard() {
     }
   }
 
-  const acceptJob = async (jobId: string) => {
-    setAcceptingId(jobId); setAcceptError('')
-    const { error } = await supabase.rpc('accept_delivery_job', { p_order_id: jobId })
+  // Bulk-accept every row in a cart's delivery job. The RPC assigns
+  // driver_id atomically across the whole session so a race with another
+  // driver claims the rows still open; if none are open it raises.
+  // Falls back to the single-row RPC for legacy jobs that predate cart
+  // checkout (no stripe_session_id, group.jobs.length === 1).
+  const acceptGroup = async (group: JobGroup) => {
+    setAcceptingId(group.key); setAcceptError('')
+    const orderIds = group.jobs.map(j => j.order_id)
+    const { error } = orderIds.length === 1
+      ? await supabase.rpc('accept_delivery_job', { p_order_id: orderIds[0] })
+      : await supabase.rpc('accept_delivery_job_group', { p_order_ids: orderIds })
     setAcceptingId(null)
     if (error) {
       setAcceptError(error.message.includes('no longer available') ? 'Job just taken by another driver' : (error.message.replace(/^.*?:\s*/, '') || 'Could not accept job'))
@@ -342,6 +442,19 @@ export default function DriverDashboard() {
       return
     }
     await loadFeeds()
+  }
+
+  // Sync every sibling in a cart to the same status the primary just
+  // transitioned to. The pickup / delivery-code RPCs update only the
+  // primary row (which owns the code); without this the seller's other
+  // dishes in the same cart would linger on 'ready' forever.
+  const syncSiblingStatus = async (sessionId: string | null, primaryOrderId: string, newStatus: string) => {
+    if (!sessionId) return
+    await supabase
+      .from('orders')
+      .update({ status: newStatus })
+      .eq('stripe_session_id', sessionId)
+      .neq('id', primaryOrderId)
   }
 
   // ── PICKUP CODE ENTRY (driver keys in what seller shows) ──
@@ -377,7 +490,14 @@ export default function DriverDashboard() {
     const { data, error } = await supabase.rpc('verify_pickup_code', { p_order_id: pickupOrderId, p_code: code })
     setPickupVerifying(false)
     if (error) { setPickupError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
-    if (data === true) { await loadFeeds(); closePickup() }
+    if (data === true) {
+      // Sync sibling cart rows so they don't stay on 'ready' after the
+      // primary flips to 'picked_up'.
+      const primary = mineActiveRef.current.find(a => a.order_id === pickupOrderId)
+      await syncSiblingStatus(primary?.stripe_session_id ?? null, pickupOrderId, 'picked_up')
+      await loadFeeds()
+      closePickup()
+    }
     else {
       setPickupError('Incorrect code, please try again')
       setPickupDigits(new Array(CODE_LEN).fill('') as string[])
@@ -399,6 +519,13 @@ export default function DriverDashboard() {
     setDeliverGenerating(false)
     if (error) { setDeliverError(error.message.replace(/^.*?:\s*/, '') || 'Could not generate code'); return }
     setDeliverCode(typeof data === 'string' ? data : '')
+    // First-time open advances primary picked_up → reached. Sync siblings
+    // so the driver's active feed doesn't split the group across statuses.
+    // Skip on the re-open path (already 'reached' — mark_driver_reached
+    // wasn't called).
+    if (rpcName === 'mark_driver_reached') {
+      await syncSiblingStatus(active?.stripe_session_id ?? null, orderId, 'reached')
+    }
     // Refresh the active list so the status pill updates from picked_up → reached.
     loadFeeds()
     setTimeout(() => deliverRefs.current[0]?.focus(), 60)
@@ -431,8 +558,14 @@ export default function DriverDashboard() {
     const { data, error } = await supabase.rpc('verify_delivery_code', { p_order_id: deliverOrderId, p_code: code })
     setDeliverVerifying(false)
     if (error) { setDeliverError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
-    if (data === true) { await loadFeeds(); closeDeliver() }
-    else {
+    if (data === true) {
+      // Complete the cart: mark sibling rows delivered too so loyalty points
+      // land per-row and no ghost 'reached' rows linger in the active feed.
+      const primary = mineActiveRef.current.find(a => a.order_id === deliverOrderId)
+      await syncSiblingStatus(primary?.stripe_session_id ?? null, deliverOrderId, 'delivered')
+      await loadFeeds()
+      closeDeliver()
+    } else {
       setDeliverError('Incorrect code, please try again')
       setDeliverDigits(new Array(CODE_LEN).fill('') as string[])
       deliverRefs.current[0]?.focus()
@@ -648,29 +781,40 @@ export default function DriverDashboard() {
           ))}
         </div>
 
-        {/* My active deliveries (only if I have any) */}
-        {active.length > 0 && (
+        {/* My active deliveries (only if I have any) — grouped by cart so a
+            3-dish cart shows as ONE row with an itemised breakdown. */}
+        {(() => {
+          const activeGroups = groupActive(active)
+          if (activeGroups.length === 0) return null
+          return (
           <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden', marginBottom:20}}>
             <div style={{padding:'18px 20px', borderBottom:'1px solid var(--bg-secondary)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>My active deliveries · <span style={{color:'#C8006A'}}>{active.length}</span></h2>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)'}}>My active deliveries · <span style={{color:'#C8006A'}}>{activeGroups.length}</span></h2>
             </div>
             <div style={{padding:'12px 16px 16px', display:'flex', flexDirection:'column', gap:12}}>
-              {active.map(a => {
-                const atSeller = a.status === 'ready' // driver needs to collect from cook
-                const atBuyer = a.status === 'picked_up' || a.status === 'reached' // driver either heading to or at buyer
-                const alreadyReached = a.status === 'reached'
+              {activeGroups.map(gr => {
+                const a = gr.primary
+                const atSeller = gr.status === 'ready' // driver needs to collect from cook
+                const atBuyer = gr.status === 'picked_up' || gr.status === 'reached' // driver either heading to or at buyer
+                const alreadyReached = gr.status === 'reached'
+                const itemsSummary = gr.items.map(i => `${i.quantity}× ${i.name}`).join(', ')
                 return (
-                  <div key={a.order_id} className="job" style={{background:'var(--bg-page)', border:'1px solid var(--border-subtle)', borderRadius:14, padding:'16px 18px'}}>
+                  <div key={gr.key} className="job" style={{background:'var(--bg-page)', border:'1px solid var(--border-subtle)', borderRadius:14, padding:'16px 18px'}}>
                     <div style={{display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap'}}>
                       <div style={{flex:1, minWidth:0}}>
-                        <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>{a.listing_name}</div>
+                        <div style={{fontSize:15, fontWeight:700, color:'var(--text-primary)', marginBottom:4}}>
+                          {gr.items.length > 1 ? `${gr.items.length} items from ${a.seller_name}` : a.listing_name}
+                        </div>
+                        {gr.items.length > 1 && (
+                          <div style={{fontSize:12, color:'var(--text-primary)', fontWeight:600, marginBottom:4}}>{itemsSummary}</div>
+                        )}
                         <div style={{fontSize:12, color:'var(--text-secondary)', lineHeight:1.55}}>
                           <div>🍲 Pickup: <strong style={{color:'var(--text-primary)'}}>{a.seller_name}</strong> · {a.seller_address || '—'}{a.seller_postcode ? ` · ${a.seller_postcode}` : ''}</div>
                           <div>🏠 Drop-off: {a.delivery_address || '—'}</div>
                         </div>
                       </div>
                       <div style={{textAlign:'right', flexShrink:0}}>
-                        <div style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{driverShare(a.delivery_fee).toFixed(2)}</div>
+                        <div style={{fontFamily:'Georgia,serif', fontSize:20, fontWeight:700, color:'#34D399', letterSpacing:'-0.02em', lineHeight:1}}>£{(gr.totalDeliveryFee * 0.8).toFixed(2)}</div>
                         <div style={{fontSize:10, color:'var(--text-secondary)', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:3, fontWeight:700}}>You earn</div>
                       </div>
                     </div>
@@ -694,7 +838,8 @@ export default function DriverDashboard() {
               })}
             </div>
           </div>
-        )}
+          )
+        })()}
 
         {/* Available jobs */}
         <div className="fade-up" style={{background:'var(--bg-card)', borderRadius:18, border:'1px solid var(--border-subtle)', overflow:'hidden'}}>
@@ -727,8 +872,12 @@ export default function DriverDashboard() {
               <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6}}>You&apos;re offline. Flip the switch to see jobs.</p>
             </div>
           ) : (() => {
-            const visibleJobs = jobs.filter(j => !hiddenJobIds.has(j.order_id))
-            if (visibleJobs.length === 0) return (
+            // Group by cart, hide expired groups, render one card per cart.
+            // hiddenJobIds now keys off group.key (stripe_session_id or the
+            // sole order_id for legacy single-row jobs) — matches whatever
+            // JobCard's onTimeout emits.
+            const visibleGroups = groupJobs(jobs).filter(g => !hiddenJobIds.has(g.key))
+            if (visibleGroups.length === 0) return (
               <div style={{padding:'44px 24px', textAlign:'center'}}>
                 <div style={{fontSize:40, marginBottom:12}}>📭</div>
                 <h3 style={{fontFamily:'Georgia,serif', fontSize:17, fontWeight:700, color:'var(--text-primary)', marginBottom:8}}>No delivery jobs available right now</h3>
@@ -737,17 +886,25 @@ export default function DriverDashboard() {
             )
             return (
               <div style={{padding:'12px 16px 16px', display:'flex', flexDirection:'column', gap:12}}>
-                {visibleJobs.map(j => (
-                  <JobCard
-                    key={j.order_id}
-                    job={j}
-                    firstSeenAt={jobFirstSeenRef.current.get(j.order_id) ?? Date.now()}
-                    myLocation={myLocation}
-                    onAccept={() => acceptJob(j.order_id)}
-                    accepting={acceptingId === j.order_id}
-                    onTimeout={() => setHiddenJobIds(prev => { const n = new Set(prev); n.add(j.order_id); return n })}
-                  />
-                ))}
+                {visibleGroups.map(g => {
+                  // Present the group to JobCard as a "job" — override the
+                  // fee with the group total so the earn number is correct
+                  // for multi-item carts. Items list is passed through so
+                  // JobCard can render "2× Beef Tehari, 1× Russian Salad".
+                  const jobForCard: AvailableJob = { ...g.primary, delivery_fee: String(g.totalDeliveryFee) }
+                  return (
+                    <JobCard
+                      key={g.key}
+                      job={jobForCard}
+                      items={g.items}
+                      firstSeenAt={jobFirstSeenRef.current.get(g.key) ?? Date.now()}
+                      myLocation={myLocation}
+                      onAccept={() => acceptGroup(g)}
+                      accepting={acceptingId === g.key}
+                      onTimeout={() => setHiddenJobIds(prev => { const n = new Set(prev); n.add(g.key); return n })}
+                    />
+                  )
+                })}
               </div>
             )
           })()}
@@ -763,7 +920,7 @@ export default function DriverDashboard() {
               <h2 style={{fontFamily:'Georgia,serif', fontSize:22, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em'}}>Pickup code</h2>
               <button onClick={closePickup} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
             </div>
-            <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:22}}>Ask the cook for their <strong style={{color:'#C8006A'}}>6-digit pickup code</strong> and enter it below.</p>
+            <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:22}}>Ask the cook for their <strong style={{color:'#C8006A'}}>4-digit pickup code</strong> and enter it below.</p>
             <div style={{display:'flex', gap:8, justifyContent:'center', marginBottom:16}}>
               {pickupDigits.map((d, i) => (
                 <input
@@ -800,7 +957,7 @@ export default function DriverDashboard() {
               <button onClick={closeDeliver} aria-label="Close" style={{width:32, height:32, borderRadius:9, border:'1px solid var(--border-subtle)', background:'transparent', fontSize:15, color:'var(--text-primary)', cursor:'pointer'}}>✕</button>
             </div>
             <p style={{fontSize:14, color:'var(--text-secondary)', lineHeight:1.6, marginBottom:18}}>
-              A <strong style={{color:'#C8006A'}}>6-digit code</strong> has been sent to the buyer&apos;s app. Ask them to read it out to you and enter it below.
+              A <strong style={{color:'#C8006A'}}>4-digit code</strong> has been sent to the buyer&apos;s app. Ask them to read it out to you and enter it below.
             </p>
             {deliverGenerating && <div style={{fontSize:12, color:'var(--text-secondary)', textAlign:'center', marginBottom:14, fontWeight:600}}>Sending code to buyer…</div>}
             {deliverCode && (
@@ -845,10 +1002,13 @@ const JOB_COUNTDOWN_SECS = 20
 const JOB_URGENT_AT_SECS = 5
 
 // One job card. `firstSeenAt` comes from the parent's ref-Map keyed by
-// order_id so the countdown survives re-renders and remounts — the timer is
-// per-job, never restarted by React reconciliation quirks.
-function JobCard({ job, firstSeenAt, myLocation, onAccept, accepting, onTimeout }: {
+// the group key (stripe_session_id or order_id for legacy single-row jobs)
+// so the countdown survives re-renders and remounts. `items` is the cart
+// breakdown — rendered as a summary line when the cart has multiple dishes,
+// omitted for single-dish jobs where the title already shows the dish name.
+function JobCard({ job, items, firstSeenAt, myLocation, onAccept, accepting, onTimeout }: {
   job: AvailableJob
+  items?: Array<{ name: string; quantity: number }>
   firstSeenAt: number
   myLocation: { lat: number; lng: number } | null
   onAccept: () => void
@@ -920,10 +1080,12 @@ function JobCard({ job, firstSeenAt, myLocation, onAccept, accepting, onTimeout 
         @keyframes ringspin { to { transform: rotate(360deg); } }
       `}</style>
 
-      {/* ── Header: dish name (left) + fee badge (right) ── */}
+      {/* ── Header: dish name (or cart summary) + fee badge ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <div style={{ fontSize: 15.5, fontWeight: 700, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {job.listing_name}
+          {items && items.length > 1
+            ? `${items.length} items from ${job.seller_name}`
+            : job.listing_name}
         </div>
         <span style={{
           background: 'rgba(45,168,78,0.15)', color: '#2DA84E',
@@ -931,6 +1093,13 @@ function JobCard({ job, firstSeenAt, myLocation, onAccept, accepting, onTimeout 
           flexShrink: 0,
         }}>£{driverFee.toFixed(2)}</span>
       </div>
+
+      {/* ── Itemised breakdown (only when the cart has >1 dish) ── */}
+      {items && items.length > 1 && (
+        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10, opacity: 0.9 }}>
+          {items.map(i => `${i.quantity}× ${i.name}`).join(', ')}
+        </div>
+      )}
 
       {/* ── Pickup + delivery rows ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 12 }}>

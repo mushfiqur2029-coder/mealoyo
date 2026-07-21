@@ -72,6 +72,10 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   // it into view the moment the driver marks the order as "reached".
   const [statusBanner, setStatusBanner] = useState<{ text: string; tone: 'onway' | 'arrived' } | null>(null)
   const deliveryCodeRef = useRef<HTMLDivElement | null>(null)
+  // Scrolled to when Stripe redirects back with ?payment=success, so the
+  // buyer lands looking at the status hero (with the "Payment confirmed!"
+  // banner sitting just above it) instead of at the top of the page nav.
+  const statusHeroRef = useRef<HTMLDivElement | null>(null)
   const router = useRouter()
 
   // Celebrate a fresh Stripe payment when Checkout redirects back with
@@ -84,6 +88,19 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       return () => cancelAnimationFrame(id)
     }
   }, [])
+
+  // Once the order has loaded AND we know we came back from a successful
+  // Stripe checkout, gently scroll the status hero into view. Deferred a tick
+  // so React can paint the hero card before we ask the browser to scroll to
+  // it. Only fires once — hence the paymentSuccess + order gate below runs
+  // as an effect, not on every render.
+  useEffect(() => {
+    if (!paymentSuccess || !order) return
+    const id = requestAnimationFrame(() => {
+      statusHeroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [paymentSuccess, order])
 
   useEffect(() => {
     const getData = async () => {
@@ -358,7 +375,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
         )}
 
         {/* ── STATUS HERO BANNER ── */}
-        <div className="fade-up" style={{background:delivered ? 'linear-gradient(135deg,#2DA84E 0%,#157A33 100%)' : 'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', borderRadius:20, padding:'30px 28px', marginBottom:20, color:'#fff', position:'relative', overflow:'hidden', boxShadow:delivered ? '0 12px 36px rgba(45,168,78,0.28)' : '0 12px 36px rgba(200,0,106,0.28)'}}>
+        <div ref={statusHeroRef} className="fade-up" style={{background:delivered ? 'linear-gradient(135deg,#2DA84E 0%,#157A33 100%)' : 'linear-gradient(135deg,#C8006A 0%,#8B0047 55%,#5A002E 100%)', borderRadius:20, padding:'30px 28px', marginBottom:20, color:'#fff', position:'relative', overflow:'hidden', boxShadow:delivered ? '0 12px 36px rgba(45,168,78,0.28)' : '0 12px 36px rgba(200,0,106,0.28)'}}>
           <div style={{position:'absolute', top:'-40%', right:'-5%', width:'45%', height:'200%', background:'radial-gradient(ellipse, rgba(255,255,255,0.1), transparent 65%)', pointerEvents:'none'}}/>
           <div style={{display:'flex', alignItems:'center', gap:16, marginBottom:26, position:'relative'}}>
             <div style={{width:60, height:60, borderRadius:18, background:'rgba(255,255,255,0.16)', border:'1px solid rgba(255,255,255,0.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, flexShrink:0}}>{statusIcons[order.status]}</div>
