@@ -224,7 +224,12 @@ export async function POST(request: Request) {
       customer_email: user.email,
       metadata,
       payment_intent_data: { metadata },
-      success_url: `${SITE_URL}/buyer/orders?payment=success`,
+      // Land on the primary order detail page (the row that carries the
+      // delivery fee + address + status) so the "Payment confirmed!"
+      // celebration and status hero are the first thing the buyer sees.
+      // Sibling cart rows are still visible from that page's back-link
+      // and from /buyer/orders once the buyer wants the full history.
+      success_url: `${SITE_URL}/buyer/orders/${orderIds[0]}?payment=success`,
       cancel_url: `${SITE_URL}/browse?cancelled=true`,
     })
 

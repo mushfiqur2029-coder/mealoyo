@@ -25,6 +25,10 @@ const CODE_LEN = 4
 interface AvailableJob {
   order_id: string
   stripe_session_id: string | null
+  // buyer_id is used as the fuzzy-grouping fallback when stripe_session_id
+  // is genuinely null (very rare — set by the Stripe webhook since
+  // 20260701, but defensive in case a legacy row slips through).
+  buyer_id?: string | null
   listing_name: string
   quantity: number
   seller_name: string
@@ -67,20 +71,47 @@ interface ActiveGroup {
   createdAt: string
 }
 
-// Group by stripe_session_id; rows without one (legacy pre-cart flows, single-
-// dish direct checkouts, admin inserts) fall back to per-row grouping using
-// their own order_id so nothing merges that shouldn't.
+// Fuzzy-grouping window for rows genuinely missing stripe_session_id.
+// A cart checkout writes its N rows in a single transaction, so their
+// created_at timestamps are within a few ms. 2 minutes is a very generous
+// window that still can't merge two independent orders (different buyers
+// would have different buyer_id keys anyway).
+const FUZZY_GROUP_WINDOW_MS = 2 * 60 * 1000
+
+// Return a group key for j — prefer stripe_session_id, then a
+// buyer_id + timestamp-window fallback, then j.order_id (singleton).
+// The buckets map is mutated as we go: when we assign a fuzzy key, we
+// remember it so subsequent rows in the same window get grouped with it.
+function groupKeyFor<T extends { order_id: string; stripe_session_id?: string | null; buyer_id?: string | null; created_at: string }>(
+  j: T,
+  fuzzy: Map<string, { key: string; earliest: number }>,
+): string {
+  if (j.stripe_session_id) return j.stripe_session_id
+  if (!j.buyer_id) return j.order_id
+  const ts = new Date(j.created_at).getTime()
+  const existing = fuzzy.get(j.buyer_id)
+  if (existing && Math.abs(ts - existing.earliest) <= FUZZY_GROUP_WINDOW_MS) return existing.key
+  const key = `fuzzy:${j.buyer_id}:${j.order_id}`
+  fuzzy.set(j.buyer_id, { key, earliest: ts })
+  return key
+}
+
+// Group by stripe_session_id; fall back to buyer_id + timestamp for rows
+// missing a session id, then to per-row for singletons. Iteration is
+// created_at ascending so the "earliest in the fuzzy window" logic is
+// deterministic across page loads.
 function groupJobs(list: AvailableJob[]): JobGroup[] {
+  const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const buckets = new Map<string, AvailableJob[]>()
-  for (const j of list) {
-    const k = j.stripe_session_id || j.order_id
+  const fuzzy = new Map<string, { key: string; earliest: number }>()
+  for (const j of sorted) {
+    const k = groupKeyFor(j, fuzzy)
     const bucket = buckets.get(k) ?? []
     bucket.push(j)
     buckets.set(k, bucket)
   }
   const groups: JobGroup[] = []
   for (const rows of buckets.values()) {
-    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     const primary = rows[0]
     groups.push({
       key: primary.stripe_session_id || primary.order_id,
@@ -96,16 +127,17 @@ function groupJobs(list: AvailableJob[]): JobGroup[] {
 }
 
 function groupActive(list: ActiveDelivery[]): ActiveGroup[] {
+  const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const buckets = new Map<string, ActiveDelivery[]>()
-  for (const a of list) {
-    const k = a.stripe_session_id || a.order_id
+  const fuzzy = new Map<string, { key: string; earliest: number }>()
+  for (const a of sorted) {
+    const k = groupKeyFor(a, fuzzy)
     const bucket = buckets.get(k) ?? []
     bucket.push(a)
     buckets.set(k, bucket)
   }
   const groups: ActiveGroup[] = []
   for (const rows of buckets.values()) {
-    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
     const primary = rows[0]
     groups.push({
       key: primary.stripe_session_id || primary.order_id,
@@ -262,8 +294,29 @@ export default function DriverDashboard() {
       supabase.rpc('get_my_active_deliveries'),
     ])
     const list = (available as AvailableJob[] | null) || []
-    setJobs(list)
     const mineList = ((mine as ActiveDelivery[] | null) || [])
+    // ── Defensive enrichment: if the RPC didn't return stripe_session_id
+    // or buyer_id (schema drift between migrations), call the small
+    // get_order_session_ids helper so the grouping helpers still have what
+    // they need. Silently no-ops if the helper RPC isn't deployed either.
+    const missing = [...list, ...mineList].filter(r => r.stripe_session_id == null || r.buyer_id == null)
+    if (missing.length) {
+      const ids = Array.from(new Set(missing.map(r => r.order_id)))
+      const { data: patch } = await supabase.rpc('get_order_session_ids', { p_order_ids: ids })
+      const patchMap = new Map<string, { stripe_session_id: string | null; buyer_id: string | null }>()
+      for (const row of (patch as Array<{ id: string; stripe_session_id: string | null; buyer_id: string | null }> | null) || []) {
+        patchMap.set(row.id, { stripe_session_id: row.stripe_session_id, buyer_id: row.buyer_id })
+      }
+      for (const r of list) {
+        const p = patchMap.get(r.order_id)
+        if (p) { if (r.stripe_session_id == null) r.stripe_session_id = p.stripe_session_id; if (r.buyer_id == null) r.buyer_id = p.buyer_id }
+      }
+      for (const r of mineList) {
+        const p = patchMap.get(r.order_id)
+        if (p) { if (r.stripe_session_id == null) r.stripe_session_id = p.stripe_session_id; if (r.buyer_id == null) r.buyer_id = p.buyer_id }
+      }
+    }
+    setJobs(list)
     setActive(mineList)
     mineActiveRef.current = mineList
     setLastRefreshAt(Date.now())

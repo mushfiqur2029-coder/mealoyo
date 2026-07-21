@@ -117,9 +117,14 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
       if (!order) { setNotFound(true); setLoading(false); return }
       setOrder(order)
       // If the buyer reloaded the page mid-delivery, resurrect the banner so
-      // they still see the "arrived / on the way" call-out.
+      // they still see the "arrived / on the way" call-out — AND scroll to
+      // the delivery code so it's not below the fold when the driver is
+      // literally at the door.
       if (order.status === 'reached' && order.delivery_type === 'delivery') {
         setStatusBanner({ text: '🚪 Your driver is at the door! Show them your delivery code', tone: 'arrived' })
+        setTimeout(() => {
+          deliveryCodeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }, 160)
       } else if (order.status === 'picked_up' && order.delivery_type === 'delivery') {
         setStatusBanner({ text: 'Your order has been picked up and is on its way!', tone: 'onway' })
       }
@@ -462,7 +467,7 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
                     <span style={{width:38, height:38, borderRadius:11, background:'#C8006A', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0}}>🛵</span>
                     <div>
                       <div style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'#1A1A1A', letterSpacing:'-0.01em'}}>Your driver is on the way!</div>
-                      <div style={{fontSize:13, color:'#8B0047', fontWeight:600, marginTop:2}}>Show this code to your driver to confirm delivery</div>
+                      <div style={{fontSize:13, color:'#8B0047', fontWeight:600, marginTop:2}}>Show this 4-digit code to your driver to confirm delivery</div>
                     </div>
                   </div>
 
