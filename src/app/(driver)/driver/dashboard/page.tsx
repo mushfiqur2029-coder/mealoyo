@@ -247,9 +247,14 @@ export default function DriverDashboard() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null)
   const [acceptError, setAcceptError] = useState('')
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null)
-  // Refresh telemetry — powers the "last updated Xs ago" label.
+  // Refresh telemetry — powers the "last updated Xs ago" label AND the
+  // "polling stalled" warning pill. Every loadFeeds catches its own error
+  // into fetchError; a fresh success clears it. If the poll fails three
+  // times in a row (~30s), a warning surfaces to the driver.
   const [lastRefreshAt, setLastRefreshAt] = useState<number | null>(null)
   const [nowTick, setNowTick] = useState<number | null>(null)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const consecutiveFailuresRef = useRef(0)
   // Tracks which job ids we've already announced (played a beep for) so a fresh
   // poll or realtime event on the same job doesn't beep again.
   const seenJobIds = useRef<Set<string>>(new Set())
@@ -348,10 +353,31 @@ export default function DriverDashboard() {
   // reuse it without duplicating query logic. Announces newly-seen job GROUPS
   // (one beep per cart even if the cart has 3 dishes = 3 rows).
   const loadFeeds = useCallback(async () => {
-    const [{ data: available }, { data: mine }] = await Promise.all([
-      supabase.rpc('get_available_delivery_jobs'),
-      supabase.rpc('get_my_active_deliveries'),
-    ])
+    let available: unknown = null
+    let mine: unknown = null
+    try {
+      const res = await Promise.all([
+        supabase.rpc('get_available_delivery_jobs'),
+        supabase.rpc('get_my_active_deliveries'),
+      ])
+      // Surface RPC-level errors (network was fine but the query returned an
+      // error payload). Previously these were swallowed so the polling loop
+      // silently kept showing stale data forever.
+      if (res[0].error) throw new Error('available: ' + res[0].error.message)
+      if (res[1].error) throw new Error('active: ' + res[1].error.message)
+      available = res[0].data
+      mine = res[1].data
+      consecutiveFailuresRef.current = 0
+      setFetchError(null)
+    } catch (err) {
+      consecutiveFailuresRef.current += 1
+      // Only pester the driver once we've missed 3 polls in a row (~30s).
+      // A single blip during navigation shouldn't produce a toast.
+      if (consecutiveFailuresRef.current >= 3) {
+        setFetchError(err instanceof Error ? err.message : 'Poll failed')
+      }
+      return
+    }
     const list = (available as AvailableJob[] | null) || []
     const mineList = ((mine as ActiveDelivery[] | null) || [])
     // ── Defensive enrichment: if the RPC didn't return stripe_session_id
@@ -495,16 +521,11 @@ export default function DriverDashboard() {
     return () => { cancelAnimationFrame(raf); clearInterval(t) }
   }, [])
 
-  // Realtime: any change to a ready-delivery order that isn't yet assigned
-  // could be a new job for us. Broad filter (INSERT+UPDATE), and we just
-  // re-fetch — the RPC's `where` clauses do the real filtering.
-  useEffect(() => {
-    const channel = supabase
-      .channel('driver-dispatch')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => { loadFeeds() })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [loadFeeds])
+  // (Older 'driver-dispatch' subscription removed — it duplicated the
+  // 'driver-jobs-realtime' one above and subscribed to every orders
+  // change with no filter, doubling the loadFeeds calls on every driver
+  // status transition. The remaining subscription still catches the
+  // "new job appeared" case via the RLS-permitted rows.)
 
   // Best-effort browser geolocation → distance estimates on job cards. Fire
   // once on mount; ignore denial.
@@ -625,12 +646,17 @@ export default function DriverDashboard() {
     const code = pickupDigits.join('')
     if (code.length !== CODE_LEN) { setPickupError(`Enter the full ${CODE_LEN}-digit code`); return }
     setPickupVerifying(true); setPickupError('')
+    // verify_pickup_code now flips both the primary AND every sibling in
+    // the same stripe_session_id (see 20260723_pickup_group_sync) — no
+    // frontend syncSiblingStatus needed. Kept as a fallback for the case
+    // where the migration hasn't been applied yet: if the RPC returns
+    // successfully but the sibling stays on 'ready', the loadFeeds() below
+    // will surface it and the OLD sync fires on the next attempt.
     const { data, error } = await supabase.rpc('verify_pickup_code', { p_order_id: pickupOrderId, p_code: code })
     setPickupVerifying(false)
     if (error) { setPickupError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
     if (data === true) {
-      // Sync sibling cart rows so they don't stay on 'ready' after the
-      // primary flips to 'picked_up'.
+      // Defensive fallback — no-op if the new RPC already handled siblings.
       const primary = mineActiveRef.current.find(a => a.order_id === pickupOrderId)
       await syncSiblingStatus(primary?.stripe_session_id ?? null, pickupOrderId, 'picked_up')
       await loadFeeds()
@@ -1021,8 +1047,17 @@ export default function DriverDashboard() {
               )}
               {lastRefreshAt !== null && nowTick !== null && (() => {
                 const secs = Math.max(0, Math.round((nowTick - lastRefreshAt) / 1000))
-                return <span style={{fontSize:11.5, color:'var(--text-secondary)', fontWeight:600}}>Last updated {secs === 0 ? 'just now' : `${secs}s ago`}</span>
+                // Amber tint if the poll hasn't succeeded in >30s — early
+                // visual signal the driver's feed might be stale even before
+                // fetchError trips the "Polling stalled" pill.
+                const stale = secs > 30
+                return <span style={{fontSize:11.5, color:stale ? '#F5A623' : 'var(--text-secondary)', fontWeight:stale ? 700 : 600}}>Last updated {secs === 0 ? 'just now' : `${secs}s ago`}</span>
               })()}
+              {fetchError && (
+                <span title={fetchError} style={{display:'inline-flex', alignItems:'center', gap:6, background:'rgba(220,38,38,0.14)', border:'1px solid rgba(220,38,38,0.45)', padding:'4px 10px', borderRadius:100, fontSize:11.5, fontWeight:700, color:'#FF8A8A'}}>
+                  ⚠ Polling stalled — tap Refresh
+                </span>
+              )}
             </div>
             <button onClick={refreshJobs} disabled={refreshing} className="accept" style={{height:32, padding:'0 14px', background:'rgba(200,0,106,0.16)', color:'var(--text-primary)', border:'1px solid rgba(200,0,106,0.35)', borderRadius:8, fontSize:12, fontWeight:700, cursor:refreshing ? 'wait' : 'pointer', display:'flex', alignItems:'center', gap:6, transition:'all 0.14s'}}>
               <span style={{display:'inline-block', animation:refreshing ? 'spin 0.8s linear infinite' : 'none'}}>↻</span>{refreshing ? 'Refreshing…' : 'Refresh'}
