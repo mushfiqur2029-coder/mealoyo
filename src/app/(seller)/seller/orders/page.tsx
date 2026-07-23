@@ -321,18 +321,29 @@ export default function SellerOrders() {
     if (code.length !== CODE_LEN) { setCollectionError(`Enter the full ${CODE_LEN}-digit code`); return }
     setCollectionError('')
     setCollectionVerifying(true)
-    // The RPC verifies against the code stored on the primary order and, on
-    // success, marks THAT row delivered. Batch-mark the sibling cart rows so
-    // the seller doesn't see stale "ready" cards next to a delivered one.
-    const { data, error } = await supabase.rpc('verify_collection_code', { p_order_id: collectionGroup.primary.id, p_code: code })
+    // collect_order_group verifies the code on the primary AND flips every
+    // sibling cart row to delivered + awards loyalty points, all in one
+    // transaction. No frontend batch update needed — replaces the
+    // previous verify_collection_code + manual sibling UPDATE pair.
+    // Falls back to the old RPC if collect_order_group hasn't been
+    // deployed yet (schema drift safety).
+    let ok: boolean | null = null
+    let msg = ''
+    const gr = await supabase.rpc('collect_order_group', { p_primary_order_id: collectionGroup.primary.id, p_code: code })
+    if (gr.error && (gr.error.code === '42883' || gr.error.code === 'PGRST202')) {
+      const vr = await supabase.rpc('verify_collection_code', { p_order_id: collectionGroup.primary.id, p_code: code })
+      if (vr.error) { msg = vr.error.message } else if (vr.data === true) {
+        ok = true
+        const siblingIds = collectionGroup.orders.filter(o => o.id !== collectionGroup.primary.id).map(o => o.id)
+        if (siblingIds.length) {
+          await supabase.from('orders').update({ status: 'delivered' }).in('id', siblingIds)
+          await Promise.all(siblingIds.map(id => supabase.rpc('award_loyalty_points', { p_order_id: id })))
+        }
+      } else { ok = false }
+    } else if (gr.error) { msg = gr.error.message } else { ok = gr.data === true }
     setCollectionVerifying(false)
-    if (error) { setCollectionError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
-    if (data === true) {
-      const siblingIds = collectionGroup.orders.filter(o => o.id !== collectionGroup.primary.id).map(o => o.id)
-      if (siblingIds.length) {
-        await supabase.from('orders').update({ status: 'delivered' }).in('id', siblingIds)
-        await Promise.all(siblingIds.map(id => supabase.rpc('award_loyalty_points', { p_order_id: id })))
-      }
+    if (msg) { setCollectionError(msg.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
+    if (ok === true) {
       const allIds = collectionGroup.orders.map(o => o.id)
       setOrders(prev => prev.map(o => allIds.includes(o.id) ? { ...o, status: 'delivered', collection_code: null, collection_code_expires_at: null } : o))
       closeCollection()

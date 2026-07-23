@@ -14,16 +14,60 @@ type AudioContextWindow = Window & typeof globalThis & {
   webkitAudioContext?: typeof AudioContext
 }
 
-// Play a single tone. `duration` is in seconds; `volume` is 0-1.
-// exponentialRampToValueAtTime to a hair above zero gives a natural
-// exponential decay — much less jarring than an abrupt stop.
-export function playBeep(frequency = 880, duration = 0.3, volume = 0.6): void {
-  if (typeof window === 'undefined') return
+// A single shared AudioContext, lazy-initialised. Browsers block AudioContext
+// output until the user has actually interacted with the page; the pattern
+// below (init once, resume() on user gesture, reuse forever) is the only way
+// to make beeps actually play back predictably.
+//
+// Fresh `new AudioContext()` calls after page load without a preceding gesture
+// stay in `suspended` state and produce no sound — that's the "beeps don't
+// fire on the driver dashboard when a job lands" bug in one sentence.
+let sharedCtx: AudioContext | null = null
+
+function getOrCreateCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null
+  if (sharedCtx) return sharedCtx
   try {
     const w = window as AudioContextWindow
     const AudioCtx = window.AudioContext || w.webkitAudioContext
-    if (!AudioCtx) return
-    const ctx = new AudioCtx()
+    if (!AudioCtx) return null
+    sharedCtx = new AudioCtx()
+    return sharedCtx
+  } catch { return null }
+}
+
+// Call from a user-gesture handler (click / tap / keypress) to unlock audio
+// for the rest of the session. Resolves to true if the context is running
+// after the call, false otherwise. Safe to call repeatedly.
+export async function enableAudio(): Promise<boolean> {
+  const ctx = getOrCreateCtx()
+  if (!ctx) return false
+  if (ctx.state === 'suspended') {
+    try { await ctx.resume() } catch { /* browser refused — user needs to gesture */ }
+  }
+  return ctx.state === 'running'
+}
+
+// Non-throwing status check for the "sound on / sound off" pill.
+export function isAudioReady(): boolean {
+  return sharedCtx !== null && sharedCtx.state === 'running'
+}
+
+// Play a single tone. `duration` is in seconds; `volume` is 0-1.
+// exponentialRampToValueAtTime to a hair above zero gives a natural
+// exponential decay — much less jarring than an abrupt stop.
+//
+// Uses the shared context when available (survives the whole session with
+// no accumulated contexts) and falls back to a one-shot context otherwise
+// (which will be suspended pre-gesture but at least won't crash).
+export function playBeep(frequency = 880, duration = 0.3, volume = 0.6): void {
+  if (typeof window === 'undefined') return
+  try {
+    const ctx = getOrCreateCtx()
+    if (!ctx) return
+    // Silent no-op if the browser hasn't allowed audio yet — better than
+    // crashing or logging a scary warning every 10 seconds of a poll.
+    if (ctx.state !== 'running') return
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.connect(gain)
@@ -34,14 +78,8 @@ export function playBeep(frequency = 880, duration = 0.3, volume = 0.6): void {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
     osc.start(ctx.currentTime)
     osc.stop(ctx.currentTime + duration)
-    // Free the AudioContext once the tone finishes so we don't accumulate
-    // dozens of them across a long session.
-    osc.onended = () => { ctx.close().catch(() => {}) }
-  } catch {
-    // Autoplay policy, missing WebAudio, closed context — audio is a
-    // nice-to-have, never fatal.
-    console.warn('Audio not available')
-  }
+    // Don't close the shared context — it's reused for every beep.
+  } catch { /* nice-to-have, never fatal */ }
 }
 
 // 880 → 1100 double beep. Used for "attention" events — new order for a

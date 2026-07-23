@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 import ProfileCompletionCard from '@/components/ProfileCompletionCard'
 import { calculateProfileCompletion } from '@/lib/profileCompletion'
-import { playDoubleBeep, requestNotificationPermission, showPushNotification } from '@/lib/notifications'
+import { playDoubleBeep, requestNotificationPermission, showPushNotification, enableAudio, isAudioReady } from '@/lib/notifications'
 import NavAvatar from '@/components/NavAvatar'
 import { haversineDistance, lookupPostcode, isValidUKPostcode } from '@/lib/pricing'
 import type { Profile, Order, WithdrawalRequest } from '@/lib/types'
@@ -238,6 +238,10 @@ export default function DriverDashboard() {
   // the current status without stale-closure headaches.
   const mineActiveRef = useRef<ActiveDelivery[]>([])
   const [online, setOnline] = useState(true)
+  // Sound-permission gate. Browsers block AudioContext output until the
+  // user gestures on the page — this state powers the "🔇 Sound off"
+  // pill so the driver knows why beeps aren't firing and can tap to fix.
+  const [audioReady, setAudioReady] = useState(false)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [acceptingId, setAcceptingId] = useState<string | null>(null)
@@ -310,6 +314,34 @@ export default function DriverDashboard() {
   // dialog isn't triggered in an unexpected spot.
   useEffect(() => {
     void requestNotificationPermission()
+  }, [])
+
+  // One-time document-level gesture listener to unlock the shared
+  // AudioContext. Chrome / Safari suspend new AudioContext instances until
+  // the user has interacted with the page — before this fires, playBeep
+  // silently no-ops (see lib/notifications). We listen with { once: true }
+  // so the listener detaches after the first click / tap / key. The pill
+  // in the header lets the driver trigger this deliberately if they've
+  // been sitting on the page without touching it.
+  useEffect(() => {
+    setAudioReady(isAudioReady())
+    if (isAudioReady()) return
+    const handler = async () => {
+      const ok = await enableAudio()
+      setAudioReady(ok)
+    }
+    document.addEventListener('pointerdown', handler, { once: true, passive: true })
+    document.addEventListener('keydown', handler, { once: true })
+    return () => {
+      document.removeEventListener('pointerdown', handler)
+      document.removeEventListener('keydown', handler)
+    }
+  }, [])
+
+  const forceEnableAudio = useCallback(async () => {
+    const ok = await enableAudio()
+    setAudioReady(ok)
+    if (ok) playDoubleBeep() // audible confirmation the pill worked
   }, [])
 
   // Fetch order + job feeds. Extracted so a poll / realtime / refresh button can
@@ -427,6 +459,32 @@ export default function DriverDashboard() {
     if (!online) return
     const t = setInterval(loadFeeds, 10000)
     return () => clearInterval(t)
+  }, [online, loadFeeds])
+
+  // Best-effort realtime subscription for new-job beeps: fires when any
+  // delivery order UPDATEs (typical: pending_payment→pending after
+  // Stripe, then cooking→ready). RLS still applies — if the driver
+  // doesn't have SELECT on unassigned orders (they normally use the
+  // security-definer RPC to see them), the postgres_changes event may
+  // never arrive. In that case the 10s poll above still catches new
+  // jobs — this is a latency win, not the only fallback.
+  useEffect(() => {
+    if (!online) return
+    const channel = supabase
+      .channel('driver-jobs-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: 'delivery_type=eq.delivery' },
+        (payload) => {
+          const oldRow = payload.old as { status?: string }
+          const newRow = payload.new as { status?: string; driver_id?: string | null; delivery_fee?: string | null }
+          if (newRow.status === 'ready' && oldRow.status !== 'ready' && !newRow.driver_id) {
+            void loadFeeds() // re-fetch so the new row appears via the RPC (with all the joins)
+          }
+        },
+      )
+      .subscribe()
+    return () => { void supabase.removeChannel(channel) }
   }, [online, loadFeeds])
 
   // 1-second tick to keep the "last updated Xs ago" label live. Kept off the
@@ -635,14 +693,26 @@ export default function DriverDashboard() {
     const code = deliverDigits.join('')
     if (code.length !== CODE_LEN) { setDeliverError(`Enter the full ${CODE_LEN}-digit code`); return }
     setDeliverVerifying(true); setDeliverError('')
-    const { data, error } = await supabase.rpc('verify_delivery_code', { p_order_id: deliverOrderId, p_code: code })
+    // deliver_order_group verifies the code on the primary AND flips every
+    // sibling in the same cart to delivered + awards loyalty points, all in
+    // one transaction. No frontend sibling sync needed — replaces the
+    // previous verify_delivery_code + syncSiblingStatus pair. Falls back
+    // to verify_delivery_code + syncSiblingStatus if the new RPC hasn't
+    // been deployed yet (schema drift safety).
+    let ok: boolean | null = null
+    let msg = ''
+    const gr = await supabase.rpc('deliver_order_group', { p_primary_order_id: deliverOrderId, p_code: code })
+    if (gr.error && (gr.error.code === '42883' || gr.error.code === 'PGRST202')) {
+      const vr = await supabase.rpc('verify_delivery_code', { p_order_id: deliverOrderId, p_code: code })
+      if (vr.error) { msg = vr.error.message } else if (vr.data === true) {
+        ok = true
+        const primary = mineActiveRef.current.find(a => a.order_id === deliverOrderId)
+        await syncSiblingStatus(primary?.stripe_session_id ?? null, deliverOrderId, 'delivered')
+      } else { ok = false }
+    } else if (gr.error) { msg = gr.error.message } else { ok = gr.data === true }
     setDeliverVerifying(false)
-    if (error) { setDeliverError(error.message.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
-    if (data === true) {
-      // Complete the cart: mark sibling rows delivered too so loyalty points
-      // land per-row and no ghost 'reached' rows linger in the active feed.
-      const primary = mineActiveRef.current.find(a => a.order_id === deliverOrderId)
-      await syncSiblingStatus(primary?.stripe_session_id ?? null, deliverOrderId, 'delivered')
+    if (msg) { setDeliverError(msg.replace(/^.*?:\s*/, '') || 'Verification failed'); return }
+    if (ok === true) {
       await loadFeeds()
       closeDeliver()
     } else {
@@ -698,6 +768,22 @@ export default function DriverDashboard() {
     </button>
   )
 
+  // Sound-status pill: green when the shared AudioContext is running,
+  // amber otherwise. Clicking it force-enables audio (works because the
+  // click is itself the required user gesture) and plays a confirmation
+  // beep so the driver knows sound is now live.
+  const soundPill = (
+    <button
+      onClick={forceEnableAudio}
+      aria-label={audioReady ? 'Sound notifications on' : 'Enable sound notifications'}
+      title={audioReady ? 'New-job beep is on' : 'Tap to enable new-job beep'}
+      style={{display:'flex', alignItems:'center', gap:7, height:36, padding:'0 12px', borderRadius:100, border:`1px solid ${audioReady ? 'rgba(52,211,153,0.4)' : 'rgba(245,166,35,0.5)'}`, background:audioReady ? 'rgba(52,211,153,0.12)' : 'rgba(245,166,35,0.14)', cursor:audioReady ? 'default' : 'pointer', transition:'all 0.2s', flexShrink:0}}
+    >
+      <span style={{fontSize:14}}>{audioReady ? '🔔' : '🔇'}</span>
+      <span style={{fontSize:11.5, fontWeight:700, color:audioReady ? '#34D399' : '#F5A623'}}>{audioReady ? 'Sound on' : 'Tap for sound'}</span>
+    </button>
+  )
+
   const nav = (
     <nav style={{background:'var(--bg-nav)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', borderBottom:'1px solid var(--border-subtle)', position:'sticky', top:0, zIndex:100, height:64}}>
       <div style={{maxWidth:1200, margin:'0 auto', padding:'0 20px', height:64, display:'flex', alignItems:'center'}}>
@@ -709,6 +795,7 @@ export default function DriverDashboard() {
           })}
         </div>
         <div style={{display:'flex', gap:10, marginLeft:'auto', alignItems:'center', flexShrink:0}}>
+          {soundPill}
           {toggle}
           <NavAvatar url={avatarUrl} initial={profile?.full_name?.[0]?.toUpperCase() || 'D'} href="/driver/profile"/>
           <button onClick={signOut} className="signout" style={{height:36, padding:'0 14px', border:'1px solid var(--border-subtle)', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--text-primary)', background:'transparent', cursor:'pointer', transition:'all 0.14s'}}>Sign out</button>
