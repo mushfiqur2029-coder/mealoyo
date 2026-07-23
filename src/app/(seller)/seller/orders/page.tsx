@@ -36,6 +36,29 @@ interface OrderGroup {
   createdAt: string
 }
 
+// Deterministic primary selection — must produce the SAME row on both
+// the seller and driver pages, otherwise the seller writes a code onto
+// their primary and the driver's verify hits the sibling with a null
+// code. See the matching pickPrimary in driver/dashboard.
+//
+// Rules in priority order:
+//   1. Row that already carries a code (collection / pickup / delivery) —
+//      wherever the code lives IS the primary. Everyone follows the code.
+//   2. Row with delivery_fee > 0 (matches create-cart's idx=0 which is
+//      assigned the fee + address in api/orders/create-cart:141-144).
+//   3. Earliest created_at, then lowest id — deterministic final tiebreak.
+function pickPrimaryOrder(rows: Order[]): Order {
+  const withCode = rows.find(r => r.collection_code || r.pickup_code || r.delivery_code)
+  if (withCode) return withCode
+  const withFee = rows.find(r => parseFloat(String(r.delivery_fee || '0')) > 0)
+  if (withFee) return withFee
+  const sorted = [...rows].sort((a, b) => {
+    const t = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    return t !== 0 ? t : a.id.localeCompare(b.id)
+  })
+  return sorted[0]
+}
+
 function groupOrders(orders: Order[]): OrderGroup[] {
   const buckets = new Map<string, Order[]>()
   for (const o of orders) {
@@ -46,8 +69,7 @@ function groupOrders(orders: Order[]): OrderGroup[] {
   }
   const groups: OrderGroup[] = []
   for (const rows of buckets.values()) {
-    rows.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-    const primary = rows[0]
+    const primary = pickPrimaryOrder(rows)
     groups.push({
       key: primary.stripe_session_id || primary.id,
       orders: rows,

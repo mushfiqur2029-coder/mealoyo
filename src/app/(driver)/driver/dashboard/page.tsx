@@ -114,6 +114,44 @@ function pickNonEmpty<T extends { delivery_address: string | null; buyer_postcod
   }
 }
 
+// Deterministic "primary" selection across cart siblings.
+//
+// Bug context (2026-07-23): a cart's rows get identical created_at
+// timestamps (all inserted in one .insert() call). Sorting by created_at
+// alone produced a non-deterministic tie-break — seller's group and
+// driver's group picked DIFFERENT rows as "primary". The seller then
+// wrote the pickup code on their primary; the driver's RPC hit the
+// OTHER row where pickup_code was null → "No pickup code has been
+// generated yet" even though the seller had generated one.
+//
+// Rules, in priority order:
+//   1. Row that already carries a code (pickup / collection / delivery).
+//      Wherever the code lives IS the primary — everyone follows the
+//      code, not the timestamp.
+//   2. Row with delivery_fee > 0 (matches create-cart's idx=0 which
+//      gets the fee + address in api/orders/create-cart:141-144).
+//   3. Earliest created_at, then lowest id — deterministic final
+//      tiebreaker that both sides always agree on.
+type HasCodes = {
+  pickup_code?: string | null
+  collection_code?: string | null
+  delivery_code?: string | null
+  delivery_fee: string
+  created_at: string
+  order_id: string
+}
+function pickPrimary<T extends HasCodes>(rows: T[]): T {
+  const withCode = rows.find(r => r.pickup_code || r.collection_code || r.delivery_code)
+  if (withCode) return withCode
+  const withFee = rows.find(r => parseFloat(r.delivery_fee || '0') > 0)
+  if (withFee) return withFee
+  const sorted = [...rows].sort((a, b) => {
+    const t = new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    return t !== 0 ? t : a.order_id.localeCompare(b.order_id)
+  })
+  return sorted[0]
+}
+
 function groupJobs(list: AvailableJob[]): JobGroup[] {
   const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const buckets = new Map<string, AvailableJob[]>()
@@ -126,12 +164,13 @@ function groupJobs(list: AvailableJob[]): JobGroup[] {
   }
   const groups: JobGroup[] = []
   for (const rows of buckets.values()) {
-    // primary = earliest row that ALSO carries the delivery fee. Falls back
-    // to the first row (earliest) if none do — matches the create-cart
-    // convention where idx=0 gets the fee and address.
+    // primary = deterministic: row that already holds a code (none at
+    // this "available jobs" stage yet), else the delivery_fee>0 row
+    // (create-cart's idx=0), else earliest by (created_at, id).
+    const base = pickPrimary(rows)
     const picked = pickNonEmpty(rows)
     const primary: AvailableJob = {
-      ...rows[0],
+      ...base,
       delivery_address: picked.delivery_address,
       buyer_postcode: picked.buyer_postcode,
     }
@@ -160,9 +199,15 @@ function groupActive(list: ActiveDelivery[]): ActiveGroup[] {
   }
   const groups: ActiveGroup[] = []
   for (const rows of buckets.values()) {
+    // Active feed carries pickup_code / delivery_code so pickPrimary can
+    // lock onto the seller's code-holder row and match up with what the
+    // seller's UI picked. Without this the driver's verify_pickup_code
+    // hits the sibling with pickup_code=null and gets the misleading
+    // "No pickup code has been generated yet".
+    const base = pickPrimary(rows)
     const picked = pickNonEmpty(rows)
     const primary: ActiveDelivery = {
-      ...rows[0],
+      ...base,
       delivery_address: picked.delivery_address,
       buyer_postcode: picked.buyer_postcode,
     }
