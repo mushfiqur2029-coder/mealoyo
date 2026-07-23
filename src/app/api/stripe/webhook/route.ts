@@ -102,8 +102,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       continue
     }
 
-    // Already processed this session → idempotent no-op.
-    if (order.stripe_session_id === session.id) continue
+    // Already processed → idempotent no-op. Keying on payment_status='paid'
+    // instead of stripe_session_id so that /api/orders/create-cart can pre-set
+    // session_id on cart rows at checkout time (needed for the driver-feed
+    // grouping to survive a page refresh) without tricking the webhook into
+    // skipping the crucial paid + status='pending' flip below.
+    if (order.status !== 'pending_payment' && order.stripe_session_id === session.id) continue
 
     const { error: updErr } = await supabaseAdmin
       .from('orders')

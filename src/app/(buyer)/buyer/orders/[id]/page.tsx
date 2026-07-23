@@ -54,6 +54,17 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
   const [order, setOrder] = useState<Order | null>(null)
   const [listing, setListing] = useState<Listing | null>(null)
   const [seller, setSeller] = useState<Pick<Profile, 'full_name'> | null>(null)
+  // Sibling rows from the same cart checkout (share stripe_session_id).
+  // Empty for single-item / non-cart orders; the primary row's own listing
+  // is always in the list, so cartItems.length is 1 for singletons.
+  const [cartItems, setCartItems] = useState<Array<{
+    id: string
+    listing_id: string | null
+    listing_name: string | null
+    listing_image: string | null
+    quantity: number
+    line_total: number
+  }>>([])
   // Coarse collection address (address_line1 + city) — shown prominently for
   // collection orders. Fetched via the definer RPC since the base column grant
   // hides these fields from cross-user reads.
@@ -140,6 +151,41 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
 
       setListing(listing)
       setSeller(listing?.profiles ?? null)
+
+      // Cart siblings — every row from the same Stripe session. RLS on
+      // orders scopes to buyer_id already; the redundant .eq is defensive.
+      // Falls back to just this order if the row has no session_id
+      // (single-item /api/orders/create flow, or a legacy pre-cart row).
+      if (order.stripe_session_id) {
+        const { data: sibs } = await supabase
+          .from('orders')
+          .select('id, listing_id, quantity, total_amount, service_fee, delivery_fee, listings(name, image_url)')
+          .eq('stripe_session_id', order.stripe_session_id)
+          .eq('buyer_id', user.id)
+          .order('created_at', { ascending: true })
+        type SibRow = {
+          id: string
+          listing_id: string | null
+          quantity: number
+          total_amount: string | null
+          service_fee: string | null
+          delivery_fee: string | null
+          listings: { name: string | null; image_url: string | null } | null
+        }
+        const rows = (sibs as SibRow[] | null) || []
+        if (rows.length) {
+          setCartItems(rows.map(r => ({
+            id: r.id,
+            listing_id: r.listing_id,
+            listing_name: r.listings?.name ?? null,
+            listing_image: r.listings?.image_url ?? null,
+            quantity: r.quantity,
+            // Line total = row total minus its share of service/delivery fees
+            // (only the primary carries those; siblings have 0/0).
+            line_total: parseFloat(r.total_amount || '0') - parseFloat(r.service_fee || '0') - parseFloat(r.delivery_fee || '0'),
+          })))
+        }
+      }
       // Fetch the coarse collection address once we know the seller. This is
       // safe for the buyer to see — they've just ordered from this seller.
       if (listing?.seller_id) {
@@ -554,20 +600,51 @@ export default function OrderPage({ params }: { params: Promise<{ id: string }> 
               </div>
             )}
 
-            {/* Order details */}
+            {/* Order details — single dish or full cart items list */}
             <div style={{background:'var(--bg-card)', borderRadius:20, padding:'24px', marginBottom:16, boxShadow:'0 2px 16px rgba(200,0,106,0.07)', border:'1.5px solid var(--border-subtle)'}}>
-              <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:18}}>Order details</h2>
-              <div style={{display:'flex', gap:16, marginBottom:order.notes || isDelivery ? 16 : 0, alignItems:'flex-start'}}>
-                <div style={{width:68, height:68, borderRadius:16, background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:34, flexShrink:0}}>{emoji}</div>
-                <div style={{flex:1, minWidth:0}}>
-                  <div style={{fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:3}}>{listing?.name || 'Dish'}</div>
-                  <div style={{fontSize:13, color:'var(--text-primary)', marginBottom:8}}>by {seller?.full_name || 'Home cook'}</div>
-                  <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-                    <span style={{background:'var(--bg-page)', color:'var(--text-primary)', padding:'4px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>Qty: {order.quantity}</span>
+              <h2 style={{fontFamily:'Georgia,serif', fontSize:18, fontWeight:700, color:'var(--text-primary)', marginBottom:cartItems.length > 1 ? 6 : 18}}>
+                {cartItems.length > 1 ? `Your order · ${cartItems.length} items from ${seller?.full_name || 'this cook'}` : 'Order details'}
+              </h2>
+              {cartItems.length > 1 ? (
+                <>
+                  <div style={{fontSize:13, color:'var(--text-secondary)', marginBottom:16}}>
+                    {cartItems.reduce((s, i) => s + i.quantity, 0)} dishes total
+                  </div>
+                  <div style={{display:'flex', flexDirection:'column', gap:10, marginBottom:16}}>
+                    {cartItems.map(item => (
+                      <div key={item.id} style={{display:'flex', gap:14, alignItems:'center', padding:'10px 12px', background:'var(--bg-page)', borderRadius:12}}>
+                        <div style={{width:52, height:52, borderRadius:12, background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, overflow:'hidden'}}>
+                          {item.listing_image
+                            /* eslint-disable-next-line @next/next/no-img-element -- supabase storage URL, remotePatterns already permissive */
+                            ? <img src={item.listing_image} alt={item.listing_name || ''} style={{width:'100%', height:'100%', objectFit:'cover'}}/>
+                            : <span style={{fontSize:24}}>🍽️</span>}
+                        </div>
+                        <div style={{flex:1, minWidth:0}}>
+                          <div style={{fontSize:14, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>
+                            {item.quantity}× {item.listing_name || 'Dish'}
+                          </div>
+                        </div>
+                        <div style={{fontFamily:'Georgia,serif', fontSize:15, fontWeight:700, color:'var(--text-primary)', flexShrink:0}}>£{item.line_total.toFixed(2)}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:isDelivery || order.notes ? 16 : 0}}>
                     <span style={{background:'#FFE8F4', color:'#C8006A', padding:'4px 11px', borderRadius:100, fontSize:12, fontWeight:700}}>{isDelivery ? '🚴 Delivery' : '📍 Collection'}</span>
                   </div>
+                </>
+              ) : (
+                <div style={{display:'flex', gap:16, marginBottom:order.notes || isDelivery ? 16 : 0, alignItems:'flex-start'}}>
+                  <div style={{width:68, height:68, borderRadius:16, background:'linear-gradient(135deg,#FFE8F4,var(--bg-secondary))', display:'flex', alignItems:'center', justifyContent:'center', fontSize:34, flexShrink:0}}>{emoji}</div>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div style={{fontSize:16, fontWeight:700, color:'var(--text-primary)', marginBottom:3}}>{listing?.name || 'Dish'}</div>
+                    <div style={{fontSize:13, color:'var(--text-primary)', marginBottom:8}}>by {seller?.full_name || 'Home cook'}</div>
+                    <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+                      <span style={{background:'var(--bg-page)', color:'var(--text-primary)', padding:'4px 11px', borderRadius:100, fontSize:12, fontWeight:600}}>Qty: {order.quantity}</span>
+                      <span style={{background:'#FFE8F4', color:'#C8006A', padding:'4px 11px', borderRadius:100, fontSize:12, fontWeight:700}}>{isDelivery ? '🚴 Delivery' : '📍 Collection'}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
               {isDelivery && order.delivery_address && (
                 <div style={{background:'var(--bg-page)', borderRadius:12, padding:'12px 15px', fontSize:13, color:'var(--text-primary)', lineHeight:1.55, marginBottom:order.notes ? 10 : 0}}>
                   <span style={{fontWeight:700, color:'#C8006A'}}>📍 Delivery address</span><br/>{order.delivery_address}

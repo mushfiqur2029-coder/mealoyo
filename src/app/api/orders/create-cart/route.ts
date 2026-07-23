@@ -233,6 +233,18 @@ export async function POST(request: Request) {
       cancel_url: `${SITE_URL}/browse?cancelled=true`,
     })
 
+    // Pre-set stripe_session_id on every cart row NOW so the driver + buyer
+    // grouping keys are populated from the moment the rows exist, not only
+    // after the Stripe webhook fires. Rows are still pending_payment/unpaid;
+    // the webhook is what flips them to pending/paid. Best-effort — a
+    // failure here doesn't block the checkout (the webhook will also set
+    // session_id per-row as a backstop).
+    const { error: sessErr } = await supabaseAdmin
+      .from('orders')
+      .update({ stripe_session_id: session.id })
+      .in('id', orderIds)
+    if (sessErr) console.warn('[orders/create-cart] pre-set session_id failed:', sessErr.message)
+
     const total = Math.round((cartSubtotal + svcFee + deliveryFee) * 100) / 100
     return NextResponse.json({ orderIds, total, sessionUrl: session.url })
   } catch (err) {

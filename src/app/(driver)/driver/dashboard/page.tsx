@@ -100,6 +100,20 @@ function groupKeyFor<T extends { order_id: string; stripe_session_id?: string | 
 // missing a session id, then to per-row for singletons. Iteration is
 // created_at ascending so the "earliest in the fuzzy window" logic is
 // deterministic across page loads.
+//
+// Address / postcode / fee display: only the primary cart row carries
+// delivery_fee, delivery_address, buyer_postcode (siblings have 0/null,
+// per /api/orders/create-cart). We display the whole group with the
+// first row's non-empty value for each field — normally that's just the
+// primary, but defensively picking "any row with a value" survives a
+// schema change or a mispopulated row without breaking the driver's UX.
+function pickNonEmpty<T extends { delivery_address: string | null; buyer_postcode: string | null }>(rows: T[]) {
+  return {
+    delivery_address: rows.find(r => r.delivery_address && r.delivery_address.trim())?.delivery_address ?? null,
+    buyer_postcode: rows.find(r => r.buyer_postcode && r.buyer_postcode.trim())?.buyer_postcode ?? null,
+  }
+}
+
 function groupJobs(list: AvailableJob[]): JobGroup[] {
   const sorted = [...list].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
   const buckets = new Map<string, AvailableJob[]>()
@@ -112,7 +126,15 @@ function groupJobs(list: AvailableJob[]): JobGroup[] {
   }
   const groups: JobGroup[] = []
   for (const rows of buckets.values()) {
-    const primary = rows[0]
+    // primary = earliest row that ALSO carries the delivery fee. Falls back
+    // to the first row (earliest) if none do — matches the create-cart
+    // convention where idx=0 gets the fee and address.
+    const picked = pickNonEmpty(rows)
+    const primary: AvailableJob = {
+      ...rows[0],
+      delivery_address: picked.delivery_address,
+      buyer_postcode: picked.buyer_postcode,
+    }
     groups.push({
       key: primary.stripe_session_id || primary.order_id,
       jobs: rows,
@@ -138,7 +160,12 @@ function groupActive(list: ActiveDelivery[]): ActiveGroup[] {
   }
   const groups: ActiveGroup[] = []
   for (const rows of buckets.values()) {
-    const primary = rows[0]
+    const picked = pickNonEmpty(rows)
+    const primary: ActiveDelivery = {
+      ...rows[0],
+      delivery_address: picked.delivery_address,
+      buyer_postcode: picked.buyer_postcode,
+    }
     groups.push({
       key: primary.stripe_session_id || primary.order_id,
       jobs: rows,
@@ -882,7 +909,7 @@ export default function DriverDashboard() {
                       )}
                       {atBuyer && (
                         <button onClick={() => openDeliver(a.order_id)} className="accept" style={{marginLeft:'auto', height:40, padding:'0 18px', background:alreadyReached ? '#34D399' : '#C8006A', color:alreadyReached ? '#0A1F14' : '#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', boxShadow: alreadyReached ? '0 4px 12px rgba(52,211,153,0.28)' : '0 4px 12px rgba(200,0,106,0.28)'}}>
-                          {alreadyReached ? 'Confirm delivery' : '📍 Mark as Reached'}
+                          {alreadyReached ? '🔑 Enter delivery code' : '📍 Mark as Reached'}
                         </button>
                       )}
                     </div>
